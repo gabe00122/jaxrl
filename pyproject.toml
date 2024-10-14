@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "jaxrl"
+version = "0.1.0"
+description = ""
+authors = ["Gabriel Keith"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11.5"
+numpy = "1.26.4"
+jax = "^0.4.31"
+orbax = "^0.1.9"
+flax = "^0.9.0"
+distrax = "^0.1.5"
+tensorboardx = "^2.6.2.2"
+chex = "^0.1.86"
+optax = "^0.2.3"
+gymnasium = {extras = ["box2d", "other"], version = "^1.0.0"}
+tensorboard = "^2.17.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
