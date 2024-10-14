@@ -1,0 +1,19 @@
+.DS_Store
+
+#ide
+.idea/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+.venv/
+.vscode/
+checkpoints
+
+.mypy_cache/
+
+tensorboard/
