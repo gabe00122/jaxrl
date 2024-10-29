@@ -8,6 +8,7 @@ import gymnasium as gym
 
 from jaxrl.types import Observation, Action
 from jaxrl.networks import (
+    CnnTorso,
     FeedForwardActorCritic as ActorCritic,
     FeedForwardActor as Actor,
     FeedForwardValueNet as Critic,
@@ -37,20 +38,20 @@ def default_model(
         action_dim = action_space.shape[0]
         continuous = True
 
-    actor_torso = MlpTorso(
-        observation_dim,
-        hidden_size,
-        activation,
-        dtype=dtype,
-        param_dtype=param_dtype,
+    actor_torso = CnnTorso(
+        # observation_dim,
+        # hidden_size,
+        # activation,
+        # dtype=dtype,
+        # param_dtype=param_dtype,
         rngs=rngs,
     )
-    critic_torso = MlpTorso(
-        observation_dim,
-        hidden_size,
-        activation,
-        dtype=dtype,
-        param_dtype=param_dtype,
+    critic_torso = CnnTorso(
+        # observation_dim,
+        # hidden_size,
+        # activation,
+        # dtype=dtype,
+        # param_dtype=param_dtype,
         rngs=rngs,
     )
 
@@ -59,11 +60,11 @@ def default_model(
     actor = Actor(
         actor_torso,
         action_head(
-            hidden_size[-1], action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+            512, action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         ),
     )
     critic = Critic(
-        critic_torso, hidden_size[-1], dtype=dtype, param_dtype=param_dtype, rngs=rngs
+        critic_torso, 512, dtype=dtype, param_dtype=param_dtype, rngs=rngs
     )
     model = ActorCritic(actor, critic)
 
@@ -81,17 +82,17 @@ def create_learner(
 
     learner = ActorCriticLearner(
         model,
-        optax.adamw(
-            optax.linear_schedule((2**-9), 0.0, total_steps),
-            weight_decay=0.001,
-            b1=0.97,
-            b2=0.97,
+        optax.adam(
+            0.0001,
+            # weight_decay=0.001,
+            # b1=0.97,
+            # b2=0.97,
         ),
         agents_shape,
         0.99,
         0.5,
         1.0,
-        0.000005,
+        0.001,
     )
 
     return learner
@@ -114,35 +115,31 @@ def convert_observation(_observation):
     return Observation(_observation, None)
 
 
-env_name = "LunarLander-v3"
+env_name = "ALE/DemonAttack-v5"
 extra_args = {
     "wrappers": (
         partial(
-            gym.wrappers.RescaleObservation,
-            min_obs=np.array(
-                [
-                    -2.5,
-                    -2.5,
-                    -10,
-                    -10,
-                    -6.2831855,
-                    -10,
-                    -0,
-                    -0,
-                ],
-                dtype=np.float32,
-            ),
-            max_obs=np.array([2.5, 2.5, 10, 10, 6.2831855, 10, 1, 1], dtype=np.float32),
+            gym.wrappers.ClipReward,
+            min_reward=0.0,
+            max_reward=1.0,
         ),
+        partial(
+            gym.wrappers.AtariPreprocessing,
+            frame_skip=1,
+            scale_obs=True
+        )
     ),
-    "continuous": False,
+    # "render_mode": "human"
 }
-num_envs = 64  # it works a lot better with a batch of training data, (multiple parallel environments)
-total_steps = 500_000
+num_envs = 16  # it works a lot better with a batch of training data, (multiple parallel environments)
+total_steps = 200_000
 
 
 def main():
-    logger = JaxLogger(LoggerConfig(use_tb=True, use_console=True), "lander")
+    import ale_py
+    gym.register_envs(ale_py)
+    
+    logger = JaxLogger(LoggerConfig(use_tb=True, use_console=True), "DemonAttack")
 
     env = gym.make_vec(env_name, num_envs=num_envs, **extra_args)
 
@@ -184,7 +181,7 @@ def main():
             logger.log(learner.metrics.compute(), global_step)
             learner.metrics.reset()
 
-    with Checkpointer("./checkpoints/lunarlander") as checkpointer:
+    with Checkpointer("./checkpoints/DemonAttack") as checkpointer:
         checkpointer.save(learner, total_steps)
 
 
@@ -201,7 +198,7 @@ def view():
     rngs = nnx.Rngs(1)
     learner = create_learner(total_steps, (64,), observation_space, action_space, rngs)
 
-    with Checkpointer("./checkpoints/lunarlander") as checkpointer:
+    with Checkpointer("./checkpoints/DemonAttack") as checkpointer:
         learner = checkpointer.restore_latest(learner)
 
     step = jnp.zeros(1, dtype=jnp.uint32)

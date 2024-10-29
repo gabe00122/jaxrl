@@ -15,8 +15,11 @@ distrax = "^0.1.5"
 tensorboardx = "^2.6.2.2"
 chex = "^0.1.86"
 optax = "^0.2.3"
-gymnasium = {extras = ["box2d", "other"], version = "^1.0.0"}
+gymnasium = {extras = ["atari", "box2d", "classic", "other"], version = "^1.0.0"}
 tensorboard = "^2.17.1"
+ale-py = "^0.10.1"
+einops = "^0.8.0"
+matplotlib = "^3.9.2"
 
 
 [build-system]
