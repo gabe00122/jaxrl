@@ -6,6 +6,7 @@ import chex
 import jax
 from jax import numpy as jnp
 from flax import nnx
+import einops
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 
@@ -63,10 +64,10 @@ class MlpTorso(nnx.Module):
 class CnnTorso(nnx.Module):
     def __init__(self, *, rngs: nnx.Rngs):
         self.conv1 = nnx.Conv(
-            in_features=1,
+            in_features=4,
             out_features=32,
-            kernel_size=(7, 7),
-            strides=(2, 2),
+            kernel_size=(8, 8),
+            strides=(4, 4),
             padding="VALID",
             rngs=rngs
         )
@@ -74,7 +75,7 @@ class CnnTorso(nnx.Module):
         self.conv2 = nnx.Conv(
             in_features=32,
             out_features=64,
-            kernel_size=(5, 5),
+            kernel_size=(4, 4),
             strides=(2, 2),
             padding="VALID",
             rngs=rngs
@@ -89,10 +90,12 @@ class CnnTorso(nnx.Module):
             rngs=rngs
         )
         
-        self.dense = nnx.LinearGeneral(in_features=(16, 16, 64), axis=(-3, -2, -1), out_features=512, rngs=rngs)
+        self.dense = nnx.LinearGeneral(in_features=(7, 7, 64), axis=(-3, -2, -1), out_features=512, rngs=rngs)
     
     def __call__(self, observation: chex.Array) -> chex.Array:
-        x = jnp.expand_dims(observation, axis=-1)
+        # x = jnp.expand_dims(observation, axis=-1)
+        x = einops.rearrange(observation, '... s x y -> ... x y s')
+
         # x /= 255.0
         
         x = self.conv1(x)

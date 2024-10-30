@@ -82,11 +82,11 @@ def create_learner(
 
     learner = ActorCriticLearner(
         model,
-        optax.adam(
-            0.0001,
-            # weight_decay=0.001,
-            # b1=0.97,
-            # b2=0.97,
+        optax.adamw(
+            optax.linear_schedule(0.0001, 0.0, total_steps),
+            weight_decay=0.001,
+            # b1=0.99,
+            # b2=0.99,
         ),
         agents_shape,
         0.99,
@@ -118,20 +118,24 @@ def convert_observation(_observation):
 env_name = "ALE/DemonAttack-v5"
 extra_args = {
     "wrappers": (
-        partial(
-            gym.wrappers.ClipReward,
-            min_reward=0.0,
-            max_reward=1.0,
-        ),
+        # partial(
+        #     gym.wrappers.ClipReward,
+        #     min_reward=0.0,
+        #     max_reward=1.0,
+        # ),
         partial(
             gym.wrappers.AtariPreprocessing,
             frame_skip=1,
             scale_obs=True
+        ),
+        partial(
+            gym.wrappers.FrameStackObservation,
+            stack_size=4
         )
     ),
     # "render_mode": "human"
 }
-num_envs = 16  # it works a lot better with a batch of training data, (multiple parallel environments)
+num_envs = 32  # it works a lot better with a batch of training data, (multiple parallel environments)
 total_steps = 200_000
 
 
