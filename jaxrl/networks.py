@@ -64,10 +64,10 @@ class MlpTorso(nnx.Module):
 class CnnTorso(nnx.Module):
     def __init__(self, *, rngs: nnx.Rngs):
         self.conv1 = nnx.Conv(
-            in_features=4,
+            in_features=3,
             out_features=32,
-            kernel_size=(8, 8),
-            strides=(4, 4),
+            kernel_size=(4, 8, 8),
+            strides=(2, 4, 4),
             padding="VALID",
             rngs=rngs
         )
@@ -75,8 +75,8 @@ class CnnTorso(nnx.Module):
         self.conv2 = nnx.Conv(
             in_features=32,
             out_features=64,
-            kernel_size=(4, 4),
-            strides=(2, 2),
+            kernel_size=(2, 4, 4),
+            strides=(1, 2, 2),
             padding="VALID",
             rngs=rngs
         )
@@ -84,17 +84,18 @@ class CnnTorso(nnx.Module):
         self.conv3 = nnx.Conv(
             in_features=64,
             out_features=64,
-            kernel_size=(3, 3),
-            strides=(1, 1),
+            kernel_size=(1, 3, 3),
+            strides=(1, 1, 1),
             padding="VALID",
             rngs=rngs
         )
         
-        self.dense = nnx.LinearGeneral(in_features=(7, 7, 64), axis=(-3, -2, -1), out_features=512, rngs=rngs)
+        self.dense = nnx.LinearGeneral(in_features=(1, 7, 7, 64), axis=(-4, -3, -2, -1), out_features=512, rngs=rngs)
     
     def __call__(self, observation: chex.Array) -> chex.Array:
         # x = jnp.expand_dims(observation, axis=-1)
-        x = einops.rearrange(observation, '... s x y -> ... x y s')
+        x = observation / 255.0
+        # x = einops.rearrange(x, '... s x y c -> ... x y (s c)')
 
         # x /= 255.0
         

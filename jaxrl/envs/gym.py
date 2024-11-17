@@ -84,7 +84,7 @@ def create_learner(
         model,
         optax.adamw(
             optax.linear_schedule(0.0001, 0.0, total_steps),
-            weight_decay=0.001,
+            weight_decay=0.01,
             # b1=0.99,
             # b2=0.99,
         ),
@@ -115,35 +115,34 @@ def convert_observation(_observation):
     return Observation(_observation, None)
 
 
-env_name = "ALE/DemonAttack-v5"
+env_name = "ALE/MsPacman-v5"
 extra_args = {
     "wrappers": (
-        # partial(
-        #     gym.wrappers.ClipReward,
-        #     min_reward=0.0,
-        #     max_reward=1.0,
-        # ),
         partial(
             gym.wrappers.AtariPreprocessing,
-            frame_skip=1,
-            scale_obs=True
+            grayscale_obs=False,
+            noop_max=0
         ),
         partial(
             gym.wrappers.FrameStackObservation,
-            stack_size=4
+            stack_size=4,
+            padding_type="zero"
         )
     ),
-    # "render_mode": "human"
+    "max_episode_steps": 108_000,
+    # "full_action_space": True,
+    "frameskip": 1
 }
 num_envs = 32  # it works a lot better with a batch of training data, (multiple parallel environments)
-total_steps = 200_000
+total_steps = 1_000_000
+
+
+import ale_py
+gym.register_envs(ale_py)
 
 
 def main():
-    import ale_py
-    gym.register_envs(ale_py)
-    
-    logger = JaxLogger(LoggerConfig(use_tb=True, use_console=True), "DemonAttack")
+    logger = JaxLogger(LoggerConfig(use_tb=True, use_console=True), "MsPacman2")
 
     env = gym.make_vec(env_name, num_envs=num_envs, **extra_args)
 
@@ -185,16 +184,21 @@ def main():
             logger.log(learner.metrics.compute(), global_step)
             learner.metrics.reset()
 
-    with Checkpointer("./checkpoints/DemonAttack") as checkpointer:
+    with Checkpointer("./checkpoints/MsPacman2") as checkpointer:
         checkpointer.save(learner, total_steps)
 
 
 def view():
-    env = gym.wrappers.RecordVideo(
-        gym.make(env_name, render_mode="rgb_array"),
-        "videos",
+    env = gym.make(env_name, render_mode="rgb_array", **extra_args)
+
+    env = gym.wrappers.RecordVideo(env,
+        "videos2",
         episode_trigger=lambda step: True,
+        fps=60
     )
+
+    env = gym.wrappers.AtariPreprocessing(env, scale_obs=True)
+    env = gym.wrappers.FrameStackObservation(env, stack_size=4)
 
     observation_space = env.observation_space
     action_space = env.action_space
@@ -202,14 +206,14 @@ def view():
     rngs = nnx.Rngs(1)
     learner = create_learner(total_steps, (64,), observation_space, action_space, rngs)
 
-    with Checkpointer("./checkpoints/DemonAttack") as checkpointer:
+    with Checkpointer("./checkpoints/MsPacman") as checkpointer:
         learner = checkpointer.restore_latest(learner)
 
     step = jnp.zeros(1, dtype=jnp.uint32)
 
     observation, info = env.reset()
 
-    for _ in range(5000):
+    for _ in range(50000):
         action = act(learner, convert_observation(observation), rngs)
 
         next_observation, reward, terminated, truncated, info = env.step(
@@ -229,4 +233,4 @@ def view():
 
 if __name__ == "__main__":
     main()
-    view()
+    # view()
