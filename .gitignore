@@ -17,3 +17,5 @@ checkpoints
 .mypy_cache/
 
 tensorboard/
+videos/
+videos2/
