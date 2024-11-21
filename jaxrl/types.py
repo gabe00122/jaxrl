@@ -6,7 +6,7 @@ Action: TypeAlias = jax.Array
 Value: TypeAlias = chex.Array
 Done: TypeAlias = chex.Array
 
-type Metrics = dict[str, chex.Array]
+Metrics = dict[str, chex.Array]
 
 
 class Observation(NamedTuple):

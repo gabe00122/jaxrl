@@ -6,7 +6,7 @@ authors = ["Gabriel Keith"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11.5"
+python = "3.11.10"
 numpy = "1.26.4"
 jax = "^0.4.31"
 orbax = "^0.1.9"
@@ -15,8 +15,15 @@ distrax = "^0.1.5"
 tensorboardx = "^2.6.2.2"
 chex = "^0.1.86"
 optax = "^0.2.3"
-gymnasium = {extras = ["box2d", "other"], version = "^1.0.0"}
+gymnasium = {extras = ["atari", "box2d", "classic-control", "jax", "other"], version = "^1.0.0"}
+ale-py = "^0.10.1"
 tensorboard = "^2.17.1"
+neptune = "^1.13.0"
+envpool = "^0.8.4"
+einops = "^0.8.0"
+flashbax = "^0.1.2"
+jumanji = "^1.0.1"
+pgx = "^2.4.2"
 
 
 [build-system]
