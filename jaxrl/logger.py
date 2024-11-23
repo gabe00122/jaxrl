@@ -155,6 +155,7 @@ class NeptuneLogger(BaseLogger):
     def close(self) -> None:
         self.logger.stop()
 
+
 def describe(x: dict) -> dict:
     if not isinstance(x, jax.Array) or x.size <= 1:
         return x
