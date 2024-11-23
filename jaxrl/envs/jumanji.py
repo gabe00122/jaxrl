@@ -16,7 +16,7 @@ class Action:
 class JumanjiWrapper:
     def __init__(self):
         self.is_jittable = False
-    
+
     def reset(self) -> tuple[State, Transition]:
         return State(), Transition()
 

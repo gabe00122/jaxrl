@@ -24,7 +24,7 @@ class Action:
 class EnvPoolWrapper:
     def __init__(self):
         self.is_jittable = False
-    
+
     def reset(self) -> tuple[State, Transition]:
         return State(), Transition()
 
@@ -37,13 +37,13 @@ def main():
     # obs, info = env.reset()
 
 
-
 def compare():
     gym.register_envs(ale_py)
     env = gym.make_vec("ALE/Pong-v5", num_envs=4)
     obs, info = env.reset()
     print(obs.shape)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
     # compare()
