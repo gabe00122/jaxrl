@@ -11,7 +11,7 @@ class LoggerConfig(BaseModel):
     use_neptune: bool = False
 
 
-class OptimizerSettings(BaseModel):
+class OptimizerConfig(BaseModel):
     type: Literal["adamw"]
     learning_rate: float
     warmup_steps: int
@@ -21,13 +21,20 @@ class OptimizerSettings(BaseModel):
     beta2: float
 
 
-class LearnerSettings(BaseModel):
-    optimizer: OptimizerSettings
+class ModelConfig(BaseModel):
+    hidden_size: int
+    num_layers: int
+    num_actions: int
+    continuous: bool
+
+
+class LearnerConfig(BaseModel):
+    optimizer: OptimizerConfig
 
 
 class Config(BaseModel):
     seed: int | Literal["random"] = "random"
-    learner: LearnerSettings
+    learner: LearnerConfig
     logger: LoggerConfig = LoggerConfig()
 
 

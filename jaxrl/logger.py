@@ -8,8 +8,8 @@ from flax import nnx
 import numpy as np
 from pydantic import TypeAdapter
 from tensorboardX import SummaryWriter
-from sentiment_lm.training_settings import ExperimentSettings
-from sentiment_lm.util import json_normalize
+from jaxrl.config import Config
+from jaxrl.util import json_normalize
 
 import neptune
 from neptune.utils import stringify_unsupported
@@ -19,7 +19,7 @@ Metrics = dict[str, jax.Array | nnx.Metric]
 
 class BaseLogger(ABC):
     @abstractmethod
-    def __init__(self, cfg: ExperimentSettings, unique_token: str):
+    def __init__(self, cfg: Config, unique_token: str):
         pass
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
@@ -43,19 +43,19 @@ class MultiLogger(BaseLogger):
 
 
 class JaxLogger:
-    def __init__(self, cfg: ExperimentSettings, unique_token: str):
+    def __init__(self, cfg: Config, unique_token: str):
         loggers: list[BaseLogger] = []
 
         if cfg.logger.use_tb:
             loggers.append(TensorboardLogger(cfg, unique_token))
         if cfg.logger.use_console:
             loggers.append(ConsoleLogger(cfg, unique_token))
-        if cfg.logger.use_csv:
-            loggers.append(CSVLogger(cfg, unique_token))
+        # if cfg.logger.use_csv:
+        #     loggers.append(CSVLogger(cfg, unique_token))
         if cfg.logger.use_neptune:
             loggers.append(NeptuneLogger(cfg, unique_token))
-        if cfg.logger.use_wandb:
-            loggers.append(WandbLogger(cfg, unique_token))
+        # if cfg.logger.use_wandb:
+        #     loggers.append(WandbLogger(cfg, unique_token))
 
         self.logger = MultiLogger(loggers)
 
@@ -68,7 +68,7 @@ class JaxLogger:
 
 
 class TensorboardLogger(BaseLogger):
-    def __init__(self, cfg: ExperimentSettings, unique_token: str) -> None:
+    def __init__(self, cfg: Config, unique_token: str) -> None:
         log_path = Path("./logs/tensorboard") / unique_token
         self.writer = SummaryWriter(log_path.as_posix())
 
@@ -88,7 +88,7 @@ class TensorboardLogger(BaseLogger):
 
 
 class ConsoleLogger(BaseLogger):
-    def __init__(self, cfg: ExperimentSettings, unique_token: str) -> None:
+    def __init__(self, cfg: Config, unique_token: str) -> None:
         pass
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
@@ -163,5 +163,5 @@ def describe(x: dict) -> dict:
     return {"mean": np.mean(x), "std": np.std(x), "min": np.min(x), "max": np.max(x)}
 
 
-def dump_settings(settings: ExperimentSettings):
-    return stringify_unsupported(TypeAdapter(ExperimentSettings).dump_python(settings))
+def dump_settings(settings: Config):
+    return stringify_unsupported(settings.model_dump())

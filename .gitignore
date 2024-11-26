@@ -19,3 +19,5 @@ checkpoints
 tensorboard/
 videos/
 videos2/
+
+results/
