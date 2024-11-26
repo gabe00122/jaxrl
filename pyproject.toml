@@ -24,8 +24,13 @@ einops = "^0.8.0"
 flashbax = "^0.1.2"
 jumanji = "^1.0.1"
 pgx = "^2.4.2"
+typer = "^0.13.1"
+pydantic = "^2.10.1"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+jaxrl = "jaxrl.cli:app"

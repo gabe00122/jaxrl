@@ -28,7 +28,7 @@ class Experiment:
 
     def setup_experiment(self) -> None:
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
-        
+
         config_str = self.config.model_dump_json()
         self.config_path.write_text(config_str)
 
@@ -69,7 +69,7 @@ def generate_unique_token() -> str:
     nouns = ["fox", "dog", "cat", "mouse", "bear"]
     adjective = random.choice(adjectives)
     noun = random.choice(nouns)
-    unique_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    unique_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     return f"{adjective}-{noun}-{unique_id}"
 
 
