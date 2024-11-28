@@ -12,5 +12,11 @@
             "eps": 1e-12,
             "weight_decay": 0.1
         }
+    },
+    "environment": {
+        "backend": "envpool",
+        "name": "Pong-v5",
+        "num_envs": 10,
+        "max_steps": 1000
     }
 }

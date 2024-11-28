@@ -1,8 +1,11 @@
+from functools import cache, cached_property
+import dm_env.specs
 import envpool
 import dm_env
 
 from jax import Array
 
+from jaxrl.envs.specs import ActionSpec, ContinuousActionSpec, DiscreteActionSpec, ObservationSpec
 from jaxrl.envs.wrapper import EnvWrapper, StepType, TimeStep
 from jaxrl.types import Observation
 
@@ -37,31 +40,25 @@ class EnvPoolWrapper(EnvWrapper[None]):
         timestep = self.env.step(action)
         return None, _convert_timestep(timestep)
     
-    def observation_spec(self):
-        self.env.observation_spec()
-        return ObservationSpec(shape=self.env.observation_spec().shape)
+    @cached_property
+    def observation_spec(self) -> ObservationSpec:
+        spec = self.env.observation_spec().obs
+        return ObservationSpec(spec.shape)
     
-    def action_spec(self):
-        return ActionSpec(
-            shape=self.env.action_spec().shape,
-            discrete=self.env.action_spec().discrete,
-        )
+    @cached_property
+    def action_spec(self) -> ActionSpec:
+        spec = self.env.action_spec()
+        discrete = isinstance(spec, dm_env.specs.DiscreteArray)
+
+        if discrete:
+            return DiscreteActionSpec(spec.num_values)
+        else:
+            return ContinuousActionSpec(spec.shape)
 
 
 def _convert_timestep(dm_time_step: dm_env.TimeStep) -> TimeStep:
     return TimeStep(
-        StepType(dm_time_step.step_type),
-        Observation(dm_time_step.observation, None),
+        dm_time_step.step_type,
+        Observation(dm_time_step.observation.obs, None),
         dm_time_step.reward,
     )
-
-
-def main():
-    env = envpool.make_gymnasium("Pong-v5", num_envs=4)
-    # obs, info = env.reset()
-
-
-
-if __name__ == "__main__":
-    main()
-    # compare()

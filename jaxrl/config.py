@@ -32,9 +32,17 @@ class LearnerConfig(BaseModel):
     optimizer: OptimizerConfig
 
 
+class EnvironmentConfig(BaseModel):
+    backend: str
+    name: str
+    num_envs: int
+    max_steps: int
+
+
 class Config(BaseModel):
     seed: int | Literal["random"] = "random"
     learner: LearnerConfig
+    environment: EnvironmentConfig
     logger: LoggerConfig = LoggerConfig()
 
 
@@ -44,6 +52,6 @@ def load_config(file: Path) -> Config:
 
     config = Config.model_validate(json_config)
     if config.seed == "random":
-        config.seed = random.getrandbits(32)
+        config.seed = random.getrandbits(31)
 
     return config
