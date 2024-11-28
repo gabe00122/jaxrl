@@ -1,11 +1,10 @@
-from calendar import c
 import datetime
-from math import e
 from pathlib import Path
 from pydantic import BaseModel
 import random
 import string
 import subprocess
+from functools import cached_property
 
 from jaxrl.config import Config, load_config
 
@@ -25,6 +24,10 @@ class Experiment:
         self.experiment_dir = base_dir / self.unique_token
         self.config_path = self.experiment_dir / "config.json"
         self.meta_path = self.experiment_dir / "meta.json"
+
+        random.seed(self.config.seed)
+        self.environment_seed = random.getrandbits(31)
+        self.learner_seed = random.getrandbits(31)
 
     def setup_experiment(self) -> None:
         self.experiment_dir.mkdir(parents=True, exist_ok=True)

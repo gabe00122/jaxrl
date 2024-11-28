@@ -6,6 +6,13 @@ class ObservationSpec:
 
 
 @dataclass
-class ActionSpec:
+class ContinuousActionSpec:
     shape: tuple[int, ...]
-    discrete: bool
+
+
+@dataclass
+class DiscreteActionSpec:
+    num_actions: int
+
+
+ActionSpec = ContinuousActionSpec | DiscreteActionSpec

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from tkinter import FIRST
+from functools import cached_property
 from typing import Generic, TypeVar
 
+import chex
 from jax import Array
-from flax import nnx
 
 from jaxrl.types import Observation
 from jaxrl.envs.specs import ObservationSpec, ActionSpec
@@ -16,30 +16,12 @@ class StepType(enum.IntEnum):
     MID = 1
     LAST = 2
 
-    def first(self) -> bool:
-        return self is StepType.FIRST
-    
-    def mid(self) -> bool:
-        return self is StepType.MID
-    
-    def last(self) -> bool:
-        return self is StepType.LAST
-
 
 @dataclass
 class TimeStep:
-    step_type: StepType
+    step_type: Array
     observation: Observation
     reward: Array
-
-    def first(self) -> bool:
-        return self.step_type.first()
-    
-    def mid(self) -> bool:
-        return self.step_type.mid()
-    
-    def last(self) -> bool:
-        return self.step_type.last()
 
 
 State = TypeVar("State")
@@ -52,9 +34,11 @@ class EnvWrapper(ABC, Generic[State]):
     @abstractmethod
     def step(self, state: State, action: Array) -> tuple[State, TimeStep]: ...
 
+    @cached_property
     @abstractmethod
     def observation_spec(self) -> ObservationSpec: ...
 
+    @cached_property
     @abstractmethod
     def action_spec(self) -> ActionSpec: ...
 
