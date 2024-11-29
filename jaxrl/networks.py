@@ -64,6 +64,58 @@ class MlpTorso(nnx.Module):
         return self.layer_sizes[-1]
 
 
+class CnnTorso(nnx.Module):
+    def __init__(self, *, rngs: nnx.Rngs):
+        self.conv1 = nnx.Conv(
+            in_features=3,
+            out_features=32,
+            kernel_size=(4, 8, 8),
+            strides=(2, 4, 4),
+            padding="VALID",
+            rngs=rngs
+        )
+        
+        self.conv2 = nnx.Conv(
+            in_features=32,
+            out_features=64,
+            kernel_size=(2, 4, 4),
+            strides=(1, 2, 2),
+            padding="VALID",
+            rngs=rngs
+        )
+        
+        self.conv3 = nnx.Conv(
+            in_features=64,
+            out_features=64,
+            kernel_size=(1, 3, 3),
+            strides=(1, 1, 1),
+            padding="VALID",
+            rngs=rngs
+        )
+        
+        self.dense = nnx.LinearGeneral(in_features=(1, 7, 7, 64), axis=(-4, -3, -2, -1), out_features=512, rngs=rngs)
+    
+    def __call__(self, observation: chex.Array) -> chex.Array:
+        # x = jnp.expand_dims(observation, axis=-1)
+        x = observation / 255.0
+        # x = einops.rearrange(x, '... s x y c -> ... x y (s c)')
+
+        # x /= 255.0
+        
+        x = self.conv1(x)
+        x = nnx.relu(x)
+        x = self.conv2(x)
+        x = nnx.relu(x)
+        x = self.conv3(x)
+        x = nnx.relu(x)
+        
+        # x = einops.rearrange(x, '... w h c -> ... (w h c)')
+        x = self.dense(x)
+        x = nnx.relu(x)
+        
+        return x
+
+
 class DiscreteActionHead(nnx.Module):
     def __init__(
         self,
