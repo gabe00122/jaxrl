@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import random
 import string
 import subprocess
-from functools import cached_property
 
 from jaxrl.config import Config, load_config
 
@@ -26,8 +25,9 @@ class Experiment:
         self.meta_path = self.experiment_dir / "meta.json"
 
         random.seed(self.config.seed)
-        self.environment_seed = random.getrandbits(31)
-        self.learner_seed = random.getrandbits(31)
+        self.environments_seed = random.getrandbits(31)
+        self.params_seed = random.getrandbits(31)
+        self.actions_seed = random.getrandbits(31)
 
     def setup_experiment(self) -> None:
         self.experiment_dir.mkdir(parents=True, exist_ok=True)

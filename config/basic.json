@@ -11,6 +11,10 @@
             "beta2": 0.95,
             "eps": 1e-12,
             "weight_decay": 0.1
+        },
+        "model": {
+            "hidden_size": [256, 256],
+            "activation": "relu"
         }
     },
     "environment": {

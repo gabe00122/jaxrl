@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class ObservationSpec:
     shape: tuple[int, ...]

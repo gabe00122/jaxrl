@@ -1,4 +1,4 @@
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 import jax.lax
 from flax import nnx
