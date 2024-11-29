@@ -1,12 +1,18 @@
-from functools import cache, cached_property
+from functools import cached_property
 import dm_env.specs
 import envpool
 import dm_env
 
 from jax import Array
+import numpy as np
 
-from jaxrl.envs.specs import ActionSpec, ContinuousActionSpec, DiscreteActionSpec, ObservationSpec
-from jaxrl.envs.wrapper import EnvWrapper, StepType, TimeStep
+from jaxrl.envs.specs import (
+    ActionSpec,
+    ContinuousActionSpec,
+    DiscreteActionSpec,
+    ObservationSpec,
+)
+from jaxrl.envs.wrapper import EnvWrapper, TimeStep
 from jaxrl.types import Observation
 
 
@@ -22,11 +28,11 @@ class EnvPoolWrapper(EnvWrapper[None]):
     @property
     def is_jittable(self) -> bool:
         return False
-    
+
     @property
     def num_envs(self) -> int:
         return self._num_envs
-    
+
     @property
     def players(self) -> int:
         return 1
@@ -37,14 +43,14 @@ class EnvPoolWrapper(EnvWrapper[None]):
         return None, _convert_timestep(timestep)
 
     def step(self, state, action: Array) -> tuple[None, TimeStep]:
-        timestep = self.env.step(action)
+        timestep = self.env.step(np.asarray(action))
         return None, _convert_timestep(timestep)
-    
+
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        spec = self.env.observation_spec().obs
-        return ObservationSpec(spec.shape)
-    
+        obs = self.env.observation_spec().obs
+        return ObservationSpec(obs.shape)
+
     @cached_property
     def action_spec(self) -> ActionSpec:
         spec = self.env.action_spec()

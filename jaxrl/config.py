@@ -22,14 +22,19 @@ class OptimizerConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    hidden_size: int
-    num_layers: int
-    num_actions: int
-    continuous: bool
+    hidden_size: list[int]
+    activation: Literal["relu", "tanh", "gelu", "silu", "mish"]
+    dtype: Literal["float32", "bfloat16"] = "float32"
+    param_dtype: Literal["float32", "bfloat16"] = "float32"
 
 
 class LearnerConfig(BaseModel):
     optimizer: OptimizerConfig
+    model: ModelConfig
+    discount: float = 0.99
+    actor_coefficient: float = 1.0
+    critic_coefficient: float = 1.0
+    entropy_coefficient: float = 0.0
 
 
 class EnvironmentConfig(BaseModel):

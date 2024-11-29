@@ -23,8 +23,8 @@ class MlpTorso(nnx.Module):
         layer_sizes: Sequence[int],
         activation: str,
         *,
-        dtype=jnp.float32,
-        param_dtype=jnp.float32,
+        dtype: jnp.dtype = jnp.float32,
+        param_dtype: jnp.dtype = jnp.float32,
         rngs: nnx.Rngs,
     ):
         self.observation_size = observation_dim
@@ -58,6 +58,10 @@ class MlpTorso(nnx.Module):
             x = self.activation_fn(x)
 
         return x
+
+    @property
+    def output_size(self) -> int:
+        return self.layer_sizes[-1]
 
 
 class DiscreteActionHead(nnx.Module):
@@ -107,8 +111,8 @@ class ContinuousActionHead(nnx.Module):
         action_dim: int,
         min_scale: float = 1e-3,
         *,
-        dtype,
-        param_dtype,
+        dtype: jnp.dtype = jnp.float32,
+        param_dtype: jnp.dtype = jnp.float32,
         input_specific_std: bool = True,
         rngs: nnx.Rngs,
     ):
@@ -191,19 +195,17 @@ class FeedForwardValueNet(nnx.Module):
     def __init__(
         self,
         torso: Callable[[chex.Array], chex.Array],
-        embedding_dim: int,
         *,
         dtype=jnp.float32,
         param_dtype=jnp.float32,
         rngs: nnx.Rngs,
     ):
         self.torso = torso
-        self.embedding_dim = embedding_dim
         self.dtype = dtype
         self.param_dtype = param_dtype
 
         self.output = nnx.Linear(
-            self.embedding_dim,
+            self.torso.output_size,
             1,
             dtype=self.dtype,
             param_dtype=self.param_dtype,

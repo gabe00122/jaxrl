@@ -62,9 +62,7 @@ def default_model(
             hidden_size[-1], action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         ),
     )
-    critic = Critic(
-        critic_torso, hidden_size[-1], dtype=dtype, param_dtype=param_dtype, rngs=rngs
-    )
+    critic = Critic(critic_torso, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
     model = ActorCritic(actor, critic)
 
     return model
