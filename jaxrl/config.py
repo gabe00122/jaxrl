@@ -21,8 +21,26 @@ class OptimizerConfig(BaseModel):
     beta2: float
 
 
+class MlpConfig(BaseModel):
+    type: Literal["mlp"]
+    layers: list[int]
+
+
+class CnnLayerConfig(BaseModel):
+    features: int
+    kernel_size: list[int]
+    stride: list[int]
+    # padding: Literal["valid", "same"]
+
+
+class CnnConfig(BaseModel):
+    type: Literal["cnn"]
+    layers: list[CnnLayerConfig]
+    output_size: int
+
+
 class ModelConfig(BaseModel):
-    hidden_size: list[int]
+    body: MlpConfig | CnnConfig
     activation: Literal["relu", "tanh", "gelu", "silu", "mish"]
     dtype: Literal["float32", "bfloat16"] = "float32"
     param_dtype: Literal["float32", "bfloat16"] = "float32"
