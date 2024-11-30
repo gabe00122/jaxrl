@@ -2,9 +2,16 @@ from jax import numpy as jnp
 from flax import nnx
 import optax
 
-from jaxrl.config import LearnerConfig, ModelConfig, OptimizerConfig
+from jaxrl.config import (
+    CnnConfig,
+    LearnerConfig,
+    MlpConfig,
+    ModelConfig,
+    OptimizerConfig,
+)
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec, ActionSpec
 from jaxrl.networks import (
+    CnnTorso,
     ContinuousActionHead,
     DiscreteActionHead,
     FeedForwardActorCritic as ActorCritic,
@@ -43,6 +50,7 @@ def create_actor_head(
 
 def create_mlp_model(
     model_config: ModelConfig,
+    mlp_config: MlpConfig,
     observation_space: ObservationSpec,
     action_space: ActionSpec,
     *,
@@ -53,7 +61,7 @@ def create_mlp_model(
 
     actor_torso = MlpTorso(
         observation_space.shape[0],
-        model_config.hidden_size,
+        mlp_config.layers,
         model_config.activation,
         dtype=dtype,
         param_dtype=param_dtype,
@@ -61,7 +69,7 @@ def create_mlp_model(
     )
     actor_head = create_actor_head(
         action_space,
-        model_config.hidden_size[-1],
+        mlp_config.layers[-1],
         dtype=dtype,
         param_dtype=param_dtype,
         rngs=rngs,
@@ -70,7 +78,49 @@ def create_mlp_model(
 
     critic_torso = MlpTorso(
         observation_space.shape[0],
-        model_config.hidden_size,
+        mlp_config.layers,
+        model_config.activation,
+        dtype=dtype,
+        param_dtype=param_dtype,
+        rngs=rngs,
+    )
+    critic = Critic(critic_torso, rngs=rngs)
+
+    actor_critic = ActorCritic(actor, critic)
+    return actor_critic
+
+
+def create_cnn_model(
+    model_config: ModelConfig,
+    cnn_config: CnnConfig,
+    observation_space: ObservationSpec,
+    action_space: ActionSpec,
+    *,
+    rngs: nnx.Rngs
+):
+    dtype = jnp.dtype(model_config.dtype)
+    param_dtype = jnp.dtype(model_config.param_dtype)
+
+    actor_torso = CnnTorso(
+        observation_space.shape,
+        cnn_config,
+        model_config.activation,
+        dtype=dtype,
+        param_dtype=param_dtype,
+        rngs=rngs,
+    )
+    actor_head = create_actor_head(
+        action_space,
+        cnn_config.output_size,
+        dtype=dtype,
+        param_dtype=param_dtype,
+        rngs=rngs,
+    )
+    actor = Actor(actor_torso, actor_head)
+
+    critic_torso = CnnTorso(
+        observation_space.shape,
+        cnn_config,
         model_config.activation,
         dtype=dtype,
         param_dtype=param_dtype,
@@ -99,9 +149,25 @@ def create_learner(
     *,
     rngs: nnx.Rngs
 ):
-    model = create_mlp_model(
-        learner_config.model, observation_space, action_space, rngs=rngs
-    )
+    body_config = learner_config.model.body
+
+    if body_config.type == "mlp":
+        model = create_mlp_model(
+            learner_config.model,
+            body_config,
+            observation_space,
+            action_space,
+            rngs=rngs,
+        )
+    else:
+        model = create_cnn_model(
+            learner_config.model,
+            body_config,
+            observation_space,
+            action_space,
+            rngs=rngs,
+        )
+
     optimizer = create_optimizer(learner_config.optimizer)
 
     learner = ActorCriticLearner(

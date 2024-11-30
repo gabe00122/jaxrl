@@ -1,5 +1,4 @@
-from collections.abc import Sequence
-from typing import Callable
+from collections.abc import Sequence, Callable
 from functools import partial
 
 import chex
@@ -9,6 +8,7 @@ from flax import nnx
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 
+from jaxrl.config import CnnConfig
 from jaxrl.types import Observation
 from jaxrl.distributions import IdentityTransformation, TanhTransformedDistribution
 
@@ -33,7 +33,7 @@ class MlpTorso(nnx.Module):
         self.dtype = dtype
         self.param_dtype = param_dtype
 
-        self.activation_fn = _parse_activation_fn(self.activation)
+        self.activation_fn = parse_activation_fn(self.activation)
 
         self.layers = []
 
@@ -64,55 +64,67 @@ class MlpTorso(nnx.Module):
         return self.layer_sizes[-1]
 
 
-class CnnTorso(nnx.Module):
-    def __init__(self, *, rngs: nnx.Rngs):
-        self.conv1 = nnx.Conv(
-            in_features=3,
-            out_features=32,
-            kernel_size=(4, 8, 8),
-            strides=(2, 4, 4),
-            padding="VALID",
-            rngs=rngs
-        )
-        
-        self.conv2 = nnx.Conv(
-            in_features=32,
-            out_features=64,
-            kernel_size=(2, 4, 4),
-            strides=(1, 2, 2),
-            padding="VALID",
-            rngs=rngs
-        )
-        
-        self.conv3 = nnx.Conv(
-            in_features=64,
-            out_features=64,
-            kernel_size=(1, 3, 3),
-            strides=(1, 1, 1),
-            padding="VALID",
-            rngs=rngs
-        )
-        
-        self.dense = nnx.LinearGeneral(in_features=(1, 7, 7, 64), axis=(-4, -3, -2, -1), out_features=512, rngs=rngs)
-    
-    def __call__(self, observation: chex.Array) -> chex.Array:
-        # x = jnp.expand_dims(observation, axis=-1)
-        x = observation / 255.0
-        # x = einops.rearrange(x, '... s x y c -> ... x y (s c)')
+def cnn_output_size(
+    dims: Sequence[int], kernel_size: Sequence[int], stride: Sequence[int]
+) -> Sequence[int]:
+    return [(d - k) // s + 1 for d, k, s in zip(dims, kernel_size, stride)]
 
-        # x /= 255.0
-        
-        x = self.conv1(x)
-        x = nnx.relu(x)
-        x = self.conv2(x)
-        x = nnx.relu(x)
-        x = self.conv3(x)
-        x = nnx.relu(x)
-        
-        # x = einops.rearrange(x, '... w h c -> ... (w h c)')
+
+class CnnTorso(nnx.Module):
+    def __init__(
+        self,
+        observation_dims: Sequence[int],
+        cnn_config: CnnConfig,
+        activation: str,
+        *,
+        dtype: jnp.dtype = jnp.float32,
+        param_dtype: jnp.dtype = jnp.float32,
+        rngs: nnx.Rngs,
+    ):
+        self.activation_fn = parse_activation_fn(activation)
+        self.output_size = cnn_config.output_size
+
+        features = 1
+        dimensions = observation_dims
+
+        self.conv_layers = []
+        for layer in cnn_config.layers:
+            conv = nnx.Conv(
+                in_features=features,
+                out_features=layer.features,
+                kernel_size=layer.kernel_size,
+                strides=layer.stride,
+                padding="VALID",
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
+            self.conv_layers.append(conv)
+            features = layer.features
+            dimensions = cnn_output_size(
+                dimensions, layer.kernel_size, layer.stride
+            )
+
+        self.dense = nnx.LinearGeneral(
+            in_features=(*dimensions, features),
+            axis=tuple(range(-len(dimensions) - 1, 0)),
+            out_features=cnn_config.output_size,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+
+    def __call__(self, observation: chex.Array) -> chex.Array:
+        x = observation / 255.0
+        x = jnp.expand_dims(x, axis=-1)
+
+        for conv in self.conv_layers:
+            x = conv(x)
+            x = self.activation_fn(x)
+
         x = self.dense(x)
-        x = nnx.relu(x)
-        
+        x = self.activation_fn(x)
+
         return x
 
 
@@ -287,11 +299,17 @@ class FeedForwardActorCritic(nnx.Module):
         return value, policy
 
 
-def _parse_activation_fn(activation_name: str) -> Callable[[chex.Array], chex.Array]:
+def parse_activation_fn(activation_name: str) -> Callable[[chex.Array], chex.Array]:
     match activation_name:
         case "relu":
             return jax.nn.relu
         case "mish":
             return jax.nn.mish
+        case "gelu":
+            return jax.nn.gelu
+        case "silu":
+            return jax.nn.silu
+        case "tanh":
+            return jax.nn.tanh
         case _:
             raise f"Activation function {activation_name} not recognized"
