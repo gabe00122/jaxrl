@@ -111,7 +111,7 @@ class ConsoleLogger(BaseLogger):
 class CSVLogger(BaseLogger):
     csv_writer: csv.DictWriter | None = None
 
-    def __init__(self, cfg: ExperimentSettings, unique_token: str) -> None:
+    def __init__(self, cfg: Config, unique_token: str) -> None:
         directory = Path("./logs/csv")
         os.makedirs(directory, exist_ok=True)
 
@@ -137,7 +137,7 @@ class CSVLogger(BaseLogger):
 
 
 class NeptuneLogger(BaseLogger):
-    def __init__(self, cfg: ExperimentSettings, unique_token: str):
+    def __init__(self, cfg: Config, unique_token: str):
         self.logger = neptune.init_run(
             project="gabe00122/sentiment-lm",
         )

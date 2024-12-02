@@ -1,6 +1,7 @@
 {
     "logger": {
-        "use_neptune": true
+        "use_neptune": false,
+        "use_console": true
     },
     "learner": {
         "optimizer": {
