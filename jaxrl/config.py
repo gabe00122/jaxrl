@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 class LoggerConfig(BaseModel):
+    log_rate: int = 1000
     use_console: bool = True
     use_tb: bool = False
     use_neptune: bool = False

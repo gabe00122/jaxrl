@@ -26,17 +26,24 @@ class Experiment:
 
         random.seed(self.config.seed)
         self.environments_seed = random.getrandbits(31)
+
+        self.default_seed = random.getrandbits(31)
         self.params_seed = random.getrandbits(31)
         self.actions_seed = random.getrandbits(31)
 
     def setup_experiment(self) -> None:
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
+        self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
         config_str = self.config.model_dump_json()
         self.config_path.write_text(config_str)
 
         meta_str = self.meta.model_dump_json()
         self.meta_path.write_text(meta_str)
+
+    @property
+    def checkpoints_dir(self) -> Path:
+        return self.experiment_dir / "checkpoints"
 
     @classmethod
     def load(cls, unique_token: str) -> "Experiment":
