@@ -44,7 +44,7 @@ class EnvPoolWrapper(EnvWrapper[None]):
 
     def step(self, state, action: Array) -> tuple[None, TimeStep]:
         timestep = self.env.step(np.asarray(action))
-        
+
         # gymnasium autoreset
         done = timestep.step_type == dm_env.StepType.LAST
         env_ids_to_reset = np.where(done)[0]
