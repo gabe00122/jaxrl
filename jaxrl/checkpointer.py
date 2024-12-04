@@ -7,7 +7,7 @@ from typing import TypeVar, Generic
 T = TypeVar("T")
 
 
-class Checkpointer(Generic[T]):
+class Checkpointer:
     def __init__(self, directory: str | Path):
         directory = Path(directory)
         directory = directory.absolute()
@@ -27,7 +27,7 @@ class Checkpointer(Generic[T]):
         return nnx.merge(graphdef, restored_state)
 
     def restore_latest(self, model: T) -> T:
-        return nnx.merge(graphdef, restored_state)
+        return self.restore(model, self.mngr.latest_step() or 0)
 
     def close(self):
         self.mngr.close()

@@ -95,20 +95,20 @@ class CnnTorso(nnx.Module):
                 kernel_size=layer.kernel_size,
                 strides=layer.stride,
                 padding="VALID",
+                kernel_init=nnx.initializers.he_normal(),
                 dtype=dtype,
                 param_dtype=param_dtype,
                 rngs=rngs,
             )
             self.conv_layers.append(conv)
             features = layer.features
-            dimensions = cnn_output_size(
-                dimensions, layer.kernel_size, layer.stride
-            )
+            dimensions = cnn_output_size(dimensions, layer.kernel_size, layer.stride)
 
         self.dense = nnx.LinearGeneral(
             in_features=(*dimensions, features),
             axis=tuple(range(-len(dimensions) - 1, 0)),
             out_features=cnn_config.output_size,
+            kernel_init=nnx.initializers.he_normal(),
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -161,6 +161,7 @@ class DiscreteActionHead(nnx.Module):
 
         #  We transform this distribution with the `Identity()` transformation to
         # keep the API identical to the ContinuousActionHead.
+        # jax.debug.print("{}", nnx.softmax(actor_logits))
         return IdentityTransformation(distribution=tfd.Categorical(logits=actor_logits))
 
 

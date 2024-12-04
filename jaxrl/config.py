@@ -15,7 +15,6 @@ class LoggerConfig(BaseModel):
 class OptimizerConfig(BaseModel):
     type: Literal["adamw"]
     learning_rate: float
-    warmup_steps: int
     weight_decay: float
     eps: float
     beta1: float
