@@ -1,4 +1,5 @@
 from pathlib import Path
+import jax
 import typer
 
 from jaxrl.experiment import Experiment
@@ -15,6 +16,7 @@ def train(config_file: Path):
 @app.command()
 def record(token: str):
     experiment = Experiment.load(token)
+    # with jax.explain_cache_misses():
     record_fn(experiment)
 
 if __name__ == "__main__":
