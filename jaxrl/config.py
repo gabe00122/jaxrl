@@ -10,6 +10,7 @@ class LoggerConfig(BaseModel):
     use_console: bool = True
     use_tb: bool = False
     use_neptune: bool = False
+    use_wandb: bool = False
 
 
 class OptimizerConfig(BaseModel):

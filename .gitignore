@@ -21,3 +21,8 @@ videos/
 videos2/
 
 results/
+
+.neptune/
+.repoproject/
+
+.wandb/

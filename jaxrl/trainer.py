@@ -42,6 +42,7 @@ class Trainer:
             
             fn_learner.learn(transition, fn_rngs)
             action = fn_learner.act(transition.next_observation, fn_rngs)
+            action = action[:, jnp.newaxis]
 
             return nnx.state(fn_learner), nnx.state(fn_rngs), action
         
@@ -56,11 +57,11 @@ class Trainer:
         
         self._compute_metrics = jax.jit(_compute_metrics, donate_argnums=0)
     
-    def act(self, observation):
+    def act(self, observation) -> Action:
         self.learner_state, self.rngs_state, action = self._act(self.learner_state, self.rngs_state, observation)
         return action
     
-    def learn_act(self, transition):
+    def learn_act(self, transition) -> Action:
         self.learner_state, self.rngs_state, action = self._learn_act(self.learner_state, self.rngs_state, transition)
         return action
     
@@ -113,11 +114,8 @@ def train(experiment: Experiment):
     for global_step in range(experiment.config.environment.max_steps):
         # action = act(learner, time_step.observation, rngs)
         state, next_time_step = environment.step(state, action)
-
         transition = make_transition(time_step, action, next_time_step)
-
         action = trainer.learn_act(transition)
-
         time_step = next_time_step
 
         if (
@@ -142,7 +140,7 @@ def make_transition(
         reward=next_time_step.reward,
         next_observation=next_time_step.observation,
         terminated=next_time_step.step_type == StepType.LAST,
-        truncated=jnp.bool(False),
+        truncated=time_step.step_type == StepType.LAST,
     )
 
 

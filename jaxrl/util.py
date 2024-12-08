@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 
 def generate_unique_token() -> str:
@@ -73,17 +73,17 @@ def _normalise_json_ordered(data: dict[str, Any], separator: str) -> dict[str, A
     )
     return {**top_dict_, **nested_dict_}
 
+T = TypeVar("T", dict[str, Any], list[dict[str, Any]])
 
-# Taken from pandas
 def json_normalize(
-    ds: dict | list[dict],
-    sep: str = ".",
-) -> dict | list[dict] | Any:
-    normalised_json_object = {}
+    ds: T,
+    sep: str = "/",
+) -> T:
+    normalised_json_object: dict[str, Any] = {}
     # expect a dictionary, as most jsons are. However, lists are perfectly valid
     if isinstance(ds, dict):
         normalised_json_object = _normalise_json_ordered(data=ds, separator=sep)
     elif isinstance(ds, list):
-        normalised_json_list = [json_normalize(row, sep=sep) for row in ds]
+        normalised_json_list: list[dict[str, Any]] = [json_normalize(row, sep=sep) for row in ds]  # type: ignore
         return normalised_json_list
     return normalised_json_object

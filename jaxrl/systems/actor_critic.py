@@ -82,7 +82,8 @@ class ActorCriticLearner(nnx.Optimizer):
         next_value = jax.lax.stop_gradient(model.critic(transition.next_observation))
 
         # if done is true then the next state should be ignored
-        target = transition.reward + discount * next_value * (
+        reward = jnp.clip(transition.reward, -1.0, 1.0)
+        target = reward + discount * next_value * (
             1.0 - transition.terminated
         )
 
