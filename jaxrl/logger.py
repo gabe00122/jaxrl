@@ -2,17 +2,18 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 import csv
+from typing import Any
 
 import jax
 from flax import nnx
 import numpy as np
-from pydantic import TypeAdapter
 from tensorboardX import SummaryWriter
 from jaxrl.config import Config
 from jaxrl.util import json_normalize
 
-import neptune
-from neptune.utils import stringify_unsupported
+# import neptune
+# from neptune.utils import stringify_unsupported
+import wandb
 
 Metrics = dict[str, jax.Array | nnx.Metric]
 
@@ -52,10 +53,10 @@ class JaxLogger:
             loggers.append(ConsoleLogger(cfg, unique_token))
         # if cfg.logger.use_csv:
         #     loggers.append(CSVLogger(cfg, unique_token))
-        if cfg.logger.use_neptune:
-            loggers.append(NeptuneLogger(cfg, unique_token))
-        # if cfg.logger.use_wandb:
-        #     loggers.append(WandbLogger(cfg, unique_token))
+        # if cfg.logger.use_neptune:
+        #     loggers.append(NeptuneLogger(cfg, unique_token))
+        if cfg.logger.use_wandb:
+            loggers.append(WandbLogger(cfg, unique_token))
 
         self.logger = MultiLogger(loggers)
 
@@ -71,9 +72,6 @@ class TensorboardLogger(BaseLogger):
     def __init__(self, cfg: Config, unique_token: str) -> None:
         log_path = Path("./logs/tensorboard") / unique_token
         self.writer = SummaryWriter(log_path.as_posix())
-
-        # flattened = flattened_settings(cfg)
-        # self.writer.add_hparams(hparam_dict=flattened)
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
         data = json_normalize(data, sep="/")
@@ -136,25 +134,38 @@ class CSVLogger(BaseLogger):
         self.writer.close()
 
 
-class NeptuneLogger(BaseLogger):
-    def __init__(self, cfg: Config, unique_token: str):
-        self.logger = neptune.init_run(
-            project="gabe00122/sentiment-lm",
-        )
+# class NeptuneLogger(BaseLogger):
+#     def __init__(self, cfg: Config, unique_token: str):
+#         self.logger = neptune.init_run(
+#             project="gabe00122/sentiment-lm",
+#         )
 
-        self.logger["config"] = dump_settings(cfg)
+#         self.logger["config"] = dump_settings(cfg)
+
+#     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
+#         data = json_normalize(data, sep="/")
+#         if event_type is not None:
+#             data = {f"{event_type}/{k}": v for k, v in data.items()}
+
+#         for key, value in data.items():
+#             self.logger[key].log(value, step=step)
+
+#     def close(self) -> None:
+#         self.logger.stop()
+
+class WandbLogger(BaseLogger):
+    def __init__(self, cfg: Config, unique_token: str):
+        wandb.init(project="sentiment_lm", config=dump_settings(cfg))
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
-        data = json_normalize(data, sep="/")
+        normalized_data = json_normalize(data)
         if event_type is not None:
-            data = {f"{event_type}/{k}": v for k, v in data.items()}
+            normalized_data = {f"{event_type}/{k}": v for k, v in normalized_data.items()}
 
-        for key, value in data.items():
-            self.logger[key].log(value, step=step)
+        wandb.log(normalized_data, step=step)
 
     def close(self) -> None:
-        self.logger.stop()
-
+        wandb.finish()
 
 def describe(x: dict) -> dict:
     if not isinstance(x, jax.Array) or x.size <= 1:
@@ -164,4 +175,4 @@ def describe(x: dict) -> dict:
 
 
 def dump_settings(settings: Config):
-    return stringify_unsupported(settings.model_dump())
+    return settings.model_dump()

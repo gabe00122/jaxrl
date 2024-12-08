@@ -17,8 +17,6 @@ chex = "^0.1.86"
 optax = "^0.2.3"
 gymnasium = {extras = ["atari", "box2d", "classic-control", "jax", "other"], version = "^1.0.0"}
 ale-py = "^0.10.1"
-tensorboard = "^2.17.1"
-neptune = "^1.13.0"
 envpool = "^0.8.4"
 einops = "^0.8.0"
 flashbax = "^0.1.2"
@@ -27,6 +25,8 @@ pgx = "^2.4.2"
 typer = "^0.13.1"
 pydantic = "^2.10.1"
 python-ffmpeg = "^2.0.12"
+tensorflow = "^2.18.0"
+wandb = "^0.19.0"
 
 
 [build-system]

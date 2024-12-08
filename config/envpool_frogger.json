@@ -5,18 +5,18 @@
         "use_tensorboard": true
     },
     "learner": {
-        "entropy_coefficient": 0.01,
-        "actor_coefficient": 0.2,
+        "entropy_coefficient": 0.001,
+        "actor_coefficient": 0.5,
         "optimizer": {
             "type": "adamw",
-            "learning_rate": 0.0012,
+            "learning_rate": 0.0001,
             "beta1": 0.9,
-            "beta2": 0.95,
-            "eps": 1e-12,
-            "weight_decay": 0.1
+            "beta2": 0.999,
+            "eps": 1e-8,
+            "weight_decay": 0.01
         },
         "model": {
-            "activation": "relu",
+            "activation": "silu",
             "body": {
                 "type": "cnn",
                 "layers": [
@@ -42,8 +42,8 @@
     },
     "environment": {
         "backend": "envpool",
-        "name": "Frogger-v5",
-        "num_envs": 64,
+        "name": "DemonAttack-v5",
+        "num_envs": 128,
         "max_steps": 1000000
     }
 }

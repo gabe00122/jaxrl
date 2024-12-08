@@ -45,7 +45,6 @@ class MlpTorso(nnx.Module):
                 dtype=dtype,
                 param_dtype=param_dtype,
                 kernel_init=nnx.initializers.he_normal(),
-                # kernel_init=nnx.initializers.orthogonal(jnp.sqrt(2)),
                 rngs=rngs,
             )
             self.layers.append(linear)
@@ -104,9 +103,11 @@ class CnnTorso(nnx.Module):
             features = layer.features
             dimensions = cnn_output_size(dimensions, layer.kernel_size, layer.stride)
 
+        dense_in_features = (*dimensions, features)
+
         self.dense = nnx.LinearGeneral(
-            in_features=(*dimensions, features),
-            axis=tuple(range(-len(dimensions) - 1, 0)),
+            in_features=dense_in_features,
+            axis=tuple(range(-len(dense_in_features), 0)),
             out_features=cnn_config.output_size,
             kernel_init=nnx.initializers.he_normal(),
             dtype=dtype,

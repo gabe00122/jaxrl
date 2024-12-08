@@ -1,5 +1,4 @@
 from pathlib import Path
-import jax
 import typer
 
 from jaxrl.experiment import Experiment
@@ -16,8 +15,17 @@ def train(config_file: Path):
 @app.command()
 def record(token: str):
     experiment = Experiment.load(token)
-    # with jax.explain_cache_misses():
     record_fn(experiment)
+
+
+@app.command()
+def list_experiment():
+    # read the directors in "./expereiments"
+    experiment_directories = list(Path("./results").iterdir())
+    experiments = [Experiment.load(d.name) for d in experiment_directories]
+
+    print(experiments)
+
 
 if __name__ == "__main__":
     app()
