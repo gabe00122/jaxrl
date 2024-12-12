@@ -3,6 +3,7 @@ from functools import partial
 
 import chex
 import jax
+import einops
 from jax import numpy as jnp
 from flax import nnx
 
@@ -94,7 +95,6 @@ class CnnTorso(nnx.Module):
                 kernel_size=layer.kernel_size,
                 strides=layer.stride,
                 padding="VALID",
-                kernel_init=nnx.initializers.he_normal(),
                 dtype=dtype,
                 param_dtype=param_dtype,
                 rngs=rngs,
@@ -109,15 +109,17 @@ class CnnTorso(nnx.Module):
             in_features=dense_in_features,
             axis=tuple(range(-len(dense_in_features), 0)),
             out_features=cnn_config.output_size,
-            kernel_init=nnx.initializers.he_normal(),
+            # kernel_init=nnx.initializers.he_normal(),
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
         )
 
     def __call__(self, observation: chex.Array) -> chex.Array:
+        # jax.debug.breakpoint()
         x = observation / 255.0
         x = jnp.expand_dims(x, axis=-1)
+        # x = einops.rearrange(x, "b c h w -> b h w c")
 
         for conv in self.conv_layers:
             x = conv(x)
@@ -133,7 +135,7 @@ class DiscreteActionHead(nnx.Module):
     def __init__(
         self,
         input_dim: int,
-        action_dim: int | Sequence[int],
+        action_dim: int,
         *,
         dtype=jnp.float32,
         param_dtype=jnp.float32,
@@ -144,7 +146,7 @@ class DiscreteActionHead(nnx.Module):
         self.dtype = dtype
         self.param_dtype = param_dtype
 
-        self.action_layer = nnx.LinearGeneral(
+        self.action_layer = nnx.Linear(
             input_dim, action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         )
 

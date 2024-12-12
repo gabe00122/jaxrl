@@ -103,14 +103,14 @@ class ActorCriticLearner(nnx.Optimizer):
         entropy_loss = -policy.entropy(seed=entropy_seed)
 
         loss = (
-            critic_coefficient * critic_loss
-            + actor_coefficient * actor_loss
-            + entropy_coefficient * entropy_loss
+            critic_coefficient * jnp.mean(critic_loss)
+            + actor_coefficient * jnp.mean(actor_loss)
+            + entropy_coefficient * jnp.mean(entropy_loss)
         )
 
         # ignore truncated transitions
-        loss *= 1.0 - transition.truncated
-        loss = jnp.mean(loss)
+        # loss *= 1.0 - transition.truncated
+        # loss = jnp.mean(loss)
 
         metrics = {
             "loss": loss,
@@ -122,5 +122,7 @@ class ActorCriticLearner(nnx.Optimizer):
             "value": value,
             "reward": transition.reward,
         }
+
+        # jax.debug.breakpoint()
 
         return loss, metrics

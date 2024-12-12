@@ -42,7 +42,6 @@ class Trainer:
             
             fn_learner.learn(transition, fn_rngs)
             action = fn_learner.act(transition.next_observation, fn_rngs)
-            action = action[:, jnp.newaxis]
 
             return nnx.state(fn_learner), nnx.state(fn_rngs), action
         
@@ -130,6 +129,8 @@ def train(experiment: Experiment):
     checkpointer.close()
     logger.close()
 
+    print(f"Training finished: {experiment.unique_token}")
+
 
 def make_transition(
     time_step: TimeStep, action: Action, next_time_step: TimeStep
@@ -140,7 +141,7 @@ def make_transition(
         reward=next_time_step.reward,
         next_observation=next_time_step.observation,
         terminated=next_time_step.step_type == StepType.LAST,
-        truncated=time_step.step_type == StepType.LAST,
+        truncated=False,
     )
 
 

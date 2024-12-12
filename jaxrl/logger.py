@@ -71,6 +71,7 @@ class JaxLogger:
 class TensorboardLogger(BaseLogger):
     def __init__(self, cfg: Config, unique_token: str) -> None:
         log_path = Path("./logs/tensorboard") / unique_token
+        os.makedirs(log_path, exist_ok=True)
         self.writer = SummaryWriter(log_path.as_posix())
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
@@ -155,7 +156,7 @@ class CSVLogger(BaseLogger):
 
 class WandbLogger(BaseLogger):
     def __init__(self, cfg: Config, unique_token: str):
-        wandb.init(project="sentiment_lm", config=dump_settings(cfg))
+        wandb.init(project="jaxrl", config=dump_settings(cfg))
 
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
         normalized_data = json_normalize(data)
