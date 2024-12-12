@@ -46,11 +46,11 @@ class EnvPoolWrapper(EnvWrapper[None]):
         timestep = self.env.step(np.asarray(action))
 
         # gymnasium autoreset
-        # done = timestep.step_type == dm_env.StepType.LAST
-        # env_ids_to_reset = np.where(done)[0]
-        # if len(env_ids_to_reset) > 0:
-        #     reset_time_step = self.env.step(np.zeros_like(action), env_ids_to_reset)
-        #     timestep.observation.obs[env_ids_to_reset] = reset_time_step.observation.obs
+        done = timestep.step_type == dm_env.StepType.LAST
+        env_ids_to_reset = np.where(done)[0]
+        if len(env_ids_to_reset) > 0:
+            reset_time_step = self.env.step(np.zeros_like(action), env_ids_to_reset)
+            timestep.observation.obs[env_ids_to_reset] = reset_time_step.observation.obs
 
         return None, _convert_timestep(timestep)
 

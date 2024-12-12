@@ -134,7 +134,7 @@ def create_cnn_model(
 
 def create_optimizer(optimizer_config: OptimizerConfig) -> optax.GradientTransformation:
     return optax.adamw(
-        optax.linear_schedule(optimizer_config.learning_rate, 0, 1000000),
+        optax.linear_schedule(optimizer_config.learning_rate, 0, 200_000),
         b1=optimizer_config.beta1,
         b2=optimizer_config.beta2,
         weight_decay=optimizer_config.weight_decay,
@@ -178,7 +178,7 @@ def create_learner(
         discount=learner_config.discount,
         actor_coefficient=learner_config.actor_coefficient,
         critic_coefficient=learner_config.critic_coefficient,
-        entropy_coefficient=optax.linear_schedule(learner_config.entropy_coefficient, 0, 1000000),
+        entropy_coefficient=learner_config.entropy_coefficient,
     )
 
     return learner

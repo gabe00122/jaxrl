@@ -1,8 +1,8 @@
 {
     "logger": {
-        "use_neptune": false,
+        "use_wandb": true,
         "use_console": true,
-        "use_tensorboard": true
+        "use_tb": true
     },
     "learner": {
         "entropy_coefficient": 0.001,
@@ -13,10 +13,10 @@
             "beta1": 0.9,
             "beta2": 0.999,
             "eps": 1e-8,
-            "weight_decay": 0.01
+            "weight_decay": 0.001
         },
         "model": {
-            "activation": "silu",
+            "activation": "relu",
             "body": {
                 "type": "cnn",
                 "layers": [
@@ -43,7 +43,7 @@
     "environment": {
         "backend": "envpool",
         "name": "DemonAttack-v5",
-        "num_envs": 128,
-        "max_steps": 1000000
+        "num_envs": 64,
+        "max_steps": 7000000
     }
 }
