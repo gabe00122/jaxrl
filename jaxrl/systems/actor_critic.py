@@ -3,6 +3,7 @@ from collections.abc import Callable, Sequence
 import jax.lax
 from flax import nnx
 from jax import numpy as jnp
+from optax import ScalarOrSchedule
 
 from jaxrl.types import Observation, Action
 from jaxrl.systems.types import Transition
@@ -16,10 +17,10 @@ class ActorCriticLearner(nnx.Optimizer):
         model: ActorCritic,
         tx,
         agents_shape: Sequence[int],
-        discount: float | Callable[[int], float],
-        actor_coefficient: float | Callable[[int], float],
-        critic_coefficient: float | Callable[[int], float],
-        entropy_coefficient: float | Callable[[int], float],
+        discount: ScalarOrSchedule,
+        actor_coefficient: ScalarOrSchedule,
+        critic_coefficient: ScalarOrSchedule,
+        entropy_coefficient: ScalarOrSchedule,
     ):
         self.model = model
         self.discount = discount

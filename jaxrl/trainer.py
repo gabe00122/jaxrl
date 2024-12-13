@@ -123,7 +123,8 @@ def train(experiment: Experiment):
         ):
             logger.log(trainer.compute_metrics(), global_step)
 
-            # checkpointer.save(learner, global_step)
+        if global_step % 200_000 == 200_000 - 1:
+            checkpointer.save(trainer.get_learner(), global_step)
 
     checkpointer.save(trainer.get_learner(), experiment.config.environment.max_steps)
     checkpointer.close()
@@ -176,7 +177,7 @@ def record(experiment: Experiment):
 
     trainer = Trainer(learner, rngs)
 
-    samples = 60 * 60
+    samples = 21600 * 2
     observations = np.zeros((samples, 84, 84), dtype=np.uint8)
     observations[0] = time_step.observation.agents_view[0, 3]
 
