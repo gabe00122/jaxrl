@@ -1,4 +1,5 @@
 {
+    "seed": 955945228,
     "logger": {
         "use_wandb": true,
         "use_console": true,
