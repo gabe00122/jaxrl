@@ -2,7 +2,7 @@ import orbax.checkpoint as ocp
 from flax import nnx
 from pathlib import Path
 import jax
-from typing import TypeVar, Generic
+from typing import TypeVar
 
 T = TypeVar("T")
 

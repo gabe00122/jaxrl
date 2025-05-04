@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 import csv
-from typing import Any
 
 import jax
 from flax import nnx

@@ -17,6 +17,9 @@ class Observation(NamedTuple):
     step_count: the number of steps elapsed since the beginning of the episode.
     """
 
-    agents_view: chex.Array  # (num_agents, num_obs_features)
-    action_mask: chex.Array | None  # (num_agents, num_actions)
+    agents_view: jax.Array  # (num_agents, num_obs_features)
+    time_steps: jax.Array
+    last_action: jax.Array
+    last_reward: jax.Array
+    action_mask: jax.Array | None  # (num_agents, num_actions)
     # step_count: chex.Array  # (num_agents, )
