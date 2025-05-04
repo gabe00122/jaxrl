@@ -3,7 +3,6 @@ from functools import partial
 
 import chex
 import jax
-import einops
 from jax import numpy as jnp
 from flax import nnx
 
@@ -303,7 +302,7 @@ class FeedForwardActorCritic(nnx.Module):
         return value, policy
 
 
-def parse_activation_fn(activation_name: str) -> Callable[[chex.Array], chex.Array]:
+def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
     match activation_name:
         case "relu":
             return jax.nn.relu
@@ -316,4 +315,4 @@ def parse_activation_fn(activation_name: str) -> Callable[[chex.Array], chex.Arr
         case "tanh":
             return jax.nn.tanh
         case _:
-            raise f"Activation function {activation_name} not recognized"
+            raise ValueError(f"Activation function {activation_name} not recognized")

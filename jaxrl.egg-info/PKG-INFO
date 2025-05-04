@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: jaxrl
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: chex>=0.1.89
+Requires-Dist: distrax>=0.1.5
+Requires-Dist: flax>=0.10.6
+Requires-Dist: jax[cuda12]>=0.6.0
+Requires-Dist: optax>=0.2.4
+Requires-Dist: orbax>=0.1.9
+Requires-Dist: pydantic>=2.11.4
+Requires-Dist: python-ffmpeg>=2.0.12
+Requires-Dist: rich>=14.0.0
+Requires-Dist: tensorboardx>=2.6.2.2
+Requires-Dist: typer>=0.15.3
+Requires-Dist: wandb>=0.19.10
+
+## JaxRL
+
+* A actor critic implementation written with flax/nnx
+* Plans to implement more RL algorithms
+
+Inspired by [mava](https://github.com/instadeepai/Mava)
+
+![lunar lander agent demo](/videos/rl-video-episode-5.mp4)
+
+## Installation
+
+Install python 3.12
+Install poetry
+Install a c++ compiler for gymnasium[box2d]
+Install ffmpeg for (this might be installed automatically on first use)
+
+```bash
+poetry install
+```
+
+## Training
+
+```bash
+poetry run python -m jaxrl.envs.gym
+```
+
+videos will be rendered to ./videos

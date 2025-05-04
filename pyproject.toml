@@ -1,37 +1,32 @@
-[tool.poetry]
+[project]
 name = "jaxrl"
 version = "0.1.0"
-description = ""
-authors = ["Gabriel Keith"]
+description = "Add your description here"
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "3.11.10"
-numpy = "1.26.4"
-jax = "^0.4.31"
-orbax = "^0.1.9"
-flax = "^0.9.0"
-distrax = "^0.1.5"
-tensorboardx = "^2.6.2.2"
-chex = "^0.1.86"
-optax = "^0.2.3"
-gymnasium = {extras = ["atari", "box2d", "classic-control", "jax", "other"], version = "^1.0.0"}
-ale-py = "^0.10.1"
-envpool = "^0.8.4"
-einops = "^0.8.0"
-flashbax = "^0.1.2"
-jumanji = "^1.0.1"
-pgx = "^2.4.2"
-typer = "^0.13.1"
-pydantic = "^2.10.1"
-python-ffmpeg = "^2.0.12"
-tensorflow = "^2.18.0"
-wandb = "^0.19.0"
-
+requires-python = ">=3.12"
+dependencies = [
+    "chex>=0.1.89",
+    "distrax>=0.1.5",
+    "flax>=0.10.6",
+    "jax[cuda12]>=0.6.0",
+    "optax>=0.2.4",
+    "orbax>=0.1.9",
+    "pydantic>=2.11.4",
+    "python-ffmpeg>=2.0.12",
+    "rich>=14.0.0",
+    "tensorboardx>=2.6.2.2",
+    "typer>=0.15.3",
+    "wandb>=0.19.10",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.poetry.scripts]
-jaxrl = "jaxrl.cli:app"
+[tool.setuptools.packages.find]
+# look for packages in the project root …
+where = ["."]
+# … but only accept the real python package
+include = ["jaxrl*"]
+# ignore non-python top-level folders that confused the auto-discovery
+exclude = ["config*", "videos*"]
