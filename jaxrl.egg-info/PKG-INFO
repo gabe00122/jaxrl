@@ -14,6 +14,7 @@ Requires-Dist: pydantic>=2.11.4
 Requires-Dist: python-ffmpeg>=2.0.12
 Requires-Dist: rich>=14.0.0
 Requires-Dist: tensorboardx>=2.6.2.2
+Requires-Dist: tensorflow>=2.19.0
 Requires-Dist: typer>=0.15.3
 Requires-Dist: wandb>=0.19.10
 

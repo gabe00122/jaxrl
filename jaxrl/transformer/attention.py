@@ -17,7 +17,7 @@ def position_mask(time_steps, max_seq_length: int):
     return mask[:, None, :, :]
 
 
-def einsum_attention(query, key, value, time_steps, *, attention_softcap: float | None = None):
+def einsum_attention(query, key, value, time_steps, mask, *, attention_softcap: float | None = None):
     dtype = query.dtype
 
     depth = query.shape[-1]
@@ -25,7 +25,6 @@ def einsum_attention(query, key, value, time_steps, *, attention_softcap: float 
 
     attn_weights = jnp.einsum("...qhd,...khd->...hqk", query, key)
 
-    mask = position_mask(time_steps, key.shape[1])
     big_neg = jnp.finfo(dtype).min
     attn_weights = jnp.where(mask, attn_weights, big_neg)
 
@@ -92,7 +91,7 @@ class AttentionBlock(nnx.Module):
         self.value_cache = nnx.Variable(jnp.zeros(shape, dtype=dtype))
     
     def update_kv_cache(self, time_steps, key, value):
-        batch_idx = jnp.arange(self.key_cache.shape[0], device=time_steps.device, dtype=index_type)
+        batch_idx = jnp.arange(self.key_cache.shape[0], dtype=index_type)
         batch_idx = batch_idx[:, None]
         
         self.key_cache.value = self.key_cache.value.at[batch_idx, time_steps].set(key)
@@ -100,22 +99,18 @@ class AttentionBlock(nnx.Module):
 
         return self.key_cache.value, self.value_cache.value
 
-    def __call__(self, inputs, time_steps, use_kv_cache: bool):
+    def __call__(self, inputs, time_steps, mask, rope_values, use_kv_cache: bool):
         in_proj = self.in_proj(inputs)
 
         query, key, value = jnp.split(in_proj, 3, -1)
 
-        query = positional_embeddings.apply_rope(
-            query, time_steps, head_dim=self.head_dim
-        )
-        key = positional_embeddings.apply_rope(
-            key, time_steps, head_dim=self.head_dim
-        )
+        query = positional_embeddings.apply_rope(query, rope_values)
+        key = positional_embeddings.apply_rope(key, rope_values)
 
         if use_kv_cache:
-            key, query = self.update_kv_cache(time_steps, key, value)
+            key, value = self.update_kv_cache(time_steps, key, value)
 
-        x = einsum_attention(query, key, value, time_steps, attention_softcap=self.attention_softcap)
+        x = einsum_attention(query, key, value, time_steps, mask, attention_softcap=self.attention_softcap)
         out = self.out(x)
 
         return out

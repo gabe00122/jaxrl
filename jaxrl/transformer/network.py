@@ -6,6 +6,8 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 
 
+from jaxrl.transformer import positional_embeddings
+from jaxrl.transformer.attention import position_mask
 from jaxrl.transformer.transformer import TransformerBlock
 from jaxrl.types import Observation
 
@@ -37,11 +39,12 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs
         )
 
-        self.layers = []
+        layers = []
         for _ in range(num_layers):
-            self.layers.append(
+            layers.append(
                 TransformerBlock(num_heads, hidden_features, ffn_size, activation=activation, glu=glu, gtrxl_gate=gtrxl_gate, kernel_init=kernel_init, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
             )
+        self.layers = tuple(layers)
         
         self.output_norm = nnx.LayerNorm(
             hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
@@ -73,13 +76,17 @@ class TransformerActorCritic(nnx.Module):
     def __call__(self, observation: Observation, use_kv_cache: bool) -> tuple[jax.Array, tfd.Distribution]:
         net_input = jnp.concatenate((
             observation.agents_view,
-            observation.last_action,
-            observation.last_reward
+            observation.last_action[..., None],
+            observation.last_reward[..., None]
         ), axis=-1)
 
         x = self.obs_encoder(net_input)
+        
+        mask = position_mask(observation.time_steps, 1024)
+        position_values = positional_embeddings.calculate_rope_values(observation.time_steps, 16)
+
         for layer in self.layers:
-            x = layer(x, observation.time_steps, use_kv_cache)
+            x = layer(x, observation.time_steps, mask, position_values, use_kv_cache)
         
         x = self.output_norm(x)
 
