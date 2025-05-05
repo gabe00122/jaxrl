@@ -31,7 +31,7 @@ class FFBlock(nnx.Module):
             rngs=rngs,
         )
 
-        self.activation = activation
+        self.activation = parse_activation_fn(activation)
         self.up_proj = linear(d_model, hidden_features)
         self.down_proj = linear(d_model, hidden_features)
 

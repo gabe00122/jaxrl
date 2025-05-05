@@ -24,10 +24,10 @@ class TransformerBlock(nnx.Module):
     ):
         self.gtrxl_gate = gtrxl_gate
 
-        self.attention_norm = nnx.LayerNorm(num_features=hidden_features, rngs=rngs)
-        self.attention = AttentionBlock(num_heads, hidden_features, rngs=rngs)
+        self.attention_norm = nnx.LayerNorm(num_features=hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+        self.attention = AttentionBlock(num_heads, hidden_features, dtype=dtype, param_dtype=param_dtype,  rngs=rngs)
 
-        self.ffn_norm = nnx.LayerNorm(num_features=hidden_features, rngs=rngs)
+        self.ffn_norm = nnx.LayerNorm(num_features=hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         ff_block = GLUBlock if glu else FFBlock
         self.ffn = ff_block(hidden_features, ffn_size, activation=activation, kernel_init=kernel_init, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
 
@@ -38,9 +38,9 @@ class TransformerBlock(nnx.Module):
     def create_kv_cache(self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None):
         self.attention.create_kv_cache(batch_size, context_size, dtype=dtype)
 
-    def __call__(self, x, time_steps, use_kv_cache: bool):
+    def __call__(self, x, time_steps, mask, rope_values, use_kv_cache: bool):
         attention_input = self.attention_norm(x)
-        attention = self.attention(attention_input, time_steps, use_kv_cache=use_kv_cache)
+        attention = self.attention(attention_input, time_steps, mask, rope_values, use_kv_cache=use_kv_cache)
         x = self.attention_gate(x, attention) if self.gtrxl_gate else x + attention
 
         feed_forward_input = self.ffn_norm(x)
