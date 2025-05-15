@@ -33,18 +33,18 @@ class Trainer:
             action = fn_learner.act(observation, fn_rngs)
 
             return nnx.state(fn_learner), nnx.state(fn_rngs), action
-        
+
         self._act = jax.jit(_act, donate_argnums=(0, 1))
 
         def _learn_act(fn_learner_state, fn_rngs_state, transition):
             fn_learner = nnx.merge(learner_def, fn_learner_state)
             fn_rngs = nnx.merge(rngs_def, fn_rngs_state)
-            
+
             fn_learner.learn(transition, fn_rngs)
             action = fn_learner.act(transition.next_observation, fn_rngs)
 
             return nnx.state(fn_learner), nnx.state(fn_rngs), action
-        
+
         self._learn_act = jax.jit(_learn_act, donate_argnums=(0, 1))
 
         def _compute_metrics(fn_learner_state):
@@ -53,24 +53,28 @@ class Trainer:
             fn_learner.metrics.reset()
 
             return nnx.state(fn_learner), metrics
-        
+
         self._compute_metrics = jax.jit(_compute_metrics, donate_argnums=0)
-    
+
     def act(self, observation) -> Action:
-        self.learner_state, self.rngs_state, action = self._act(self.learner_state, self.rngs_state, observation)
+        self.learner_state, self.rngs_state, action = self._act(
+            self.learner_state, self.rngs_state, observation
+        )
         return action
-    
+
     def learn_act(self, transition) -> Action:
-        self.learner_state, self.rngs_state, action = self._learn_act(self.learner_state, self.rngs_state, transition)
+        self.learner_state, self.rngs_state, action = self._learn_act(
+            self.learner_state, self.rngs_state, transition
+        )
         return action
-    
+
     def compute_metrics(self):
         self.learner_state, metrics = self._compute_metrics(self.learner_state)
         return metrics
-    
+
     def get_learner(self):
         return nnx.merge(self.learner_def, self.learner_state)
-    
+
     def get_rngs(self):
         return nnx.merge(self.rngs_def, self.rngs_state)
 
@@ -152,7 +156,7 @@ def record(experiment: Experiment):
 
     environment: EnvWrapper = EnvPoolWrapper(
         experiment.config.environment.name,
-        1, #experiment.config.environment.num_envs,
+        1,  # experiment.config.environment.num_envs,
         experiment.environments_seed,
     )
 
@@ -185,5 +189,5 @@ def record(experiment: Experiment):
         action = trainer.act(time_step.observation)
         state, time_step = environment.step(state, action)
         observations[n] = time_step.observation.agents_view[0, 3]
-    
+
     vw.save_video(observations, "output.mp4", fps=60)

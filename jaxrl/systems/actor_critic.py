@@ -84,9 +84,7 @@ class ActorCriticLearner(nnx.Optimizer):
 
         # if done is true then the next state should be ignored
         reward = jnp.clip(transition.reward, -1.0, 1.0)
-        target = reward + discount * next_value * (
-            1.0 - transition.terminated
-        )
+        target = reward + discount * next_value * (1.0 - transition.terminated)
 
         temporal_difference_error = target - value
 

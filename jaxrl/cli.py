@@ -12,6 +12,7 @@ def train(config_file: Path):
     experiment = Experiment.from_config_file(config_file)
     train_fn(experiment)
 
+
 @app.command()
 def record(token: str):
     experiment = Experiment.load(token)

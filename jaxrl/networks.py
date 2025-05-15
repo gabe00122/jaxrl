@@ -316,3 +316,12 @@ def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array
             return jax.nn.tanh
         case _:
             raise ValueError(f"Activation function {activation_name} not recognized")
+
+
+def create_norm(name: str, num_features: int, *, dtype, param_dtype, rngs: nnx.Rngs) -> nnx.Module:
+    if name == 'layer':
+        return nnx.LayerNorm(num_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+    elif name == 'rms':
+        return nnx.RMSNorm(num_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+    else:
+        raise ValueError(f"Normalization layer {name} not recognized")

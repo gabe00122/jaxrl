@@ -1,6 +1,8 @@
 import numpy as np
+
 # import ffmpeg
 from ffmpeg import FFmpeg
+
 
 # converts video grayscale to rgb
 def grayscale_to_rgb(image: np.ndarray) -> np.ndarray:
@@ -8,12 +10,14 @@ def grayscale_to_rgb(image: np.ndarray) -> np.ndarray:
         image = np.repeat(image[..., np.newaxis], 3, axis=-1)
     return image
 
+
 # def save_frame(frame: np.ndarray):
 #     import matplotlib.pyplot as plt
 #     # save to a file
 #     plt.imshow(frame)
 #     plt.savefig('frame.png')
 #     plt.close()
+
 
 def save_video(frames: np.ndarray, filename, fps=60):
     print("Saving video...")
@@ -24,9 +28,17 @@ def save_video(frames: np.ndarray, filename, fps=60):
         FFmpeg()
         .option("y")
         .input("pipe:0", {"f": "rawvideo", "pix_fmt": "rgb24", "s": f"{w}x{h}"})
-        .output(filename, {"vf": "scale=iw*4:ih*4:flags=neighbor", "pix_fmt": "yuv420p", "codec:v": "libx264", "framerate": fps})
+        .output(
+            filename,
+            {
+                "vf": "scale=iw*4:ih*4:flags=neighbor",
+                "pix_fmt": "yuv420p",
+                "codec:v": "libx264",
+                "framerate": fps,
+            },
+        )
     )
-    print(' '.join(ffmpeg.arguments))
+    print(" ".join(ffmpeg.arguments))
 
     vid_bytes = frames.astype(np.uint8).tobytes()
 
