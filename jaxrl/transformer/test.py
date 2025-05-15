@@ -5,6 +5,7 @@ from flax import nnx
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.types import Observation
 
+
 def main():
     rngs = nnx.Rngs(default=0)
     transformer = TransformerActorCritic(
@@ -14,15 +15,15 @@ def main():
         8,
         128,
         128,
-        glu = False,
-        gtrxl_gate = True,
+        glu=False,
+        gtrxl_gate=True,
         activation="relu",
         kernel_init=nnx.initializers.normal(),
         dtype=jnp.float32,
         param_dtype=jnp.float32,
-        rngs=rngs
+        rngs=rngs,
     )
-    
+
     iterations = 10
     batch_size = 144 * 2
     context_size = 1024
@@ -30,18 +31,22 @@ def main():
 
     print("Warming up...")
     for _ in range(10):
-        model, rngs, action_buffer, value_buffer = bench(transformer, rngs, batch_size, context_size)
-    
+        model, rngs, action_buffer, value_buffer = bench(
+            transformer, rngs, batch_size, context_size
+        )
+
     action_buffer.block_until_ready()
     value_buffer.block_until_ready()
     print("Warmup finished.")
 
     print("Benchmarking...")
     start_time = time.time()
-    
+
     for _ in range(iterations):
-        model, rngs, action_buffer, value_buffer = bench(model, rngs, batch_size, context_size)
-    
+        model, rngs, action_buffer, value_buffer = bench(
+            model, rngs, batch_size, context_size
+        )
+
     action_buffer.block_until_ready()
     value_buffer.block_until_ready()
     end_time = time.time()
@@ -59,12 +64,16 @@ def main():
 
 
 @nnx.jit(donate_argnums=(0, 1), static_argnums=(2, 3))
-def bench(model: TransformerActorCritic, rngs: nnx.Rngs, batch_size: int, context_size: int):
+def bench(
+    model: TransformerActorCritic, rngs: nnx.Rngs, batch_size: int, context_size: int
+):
     def body(i, input: tuple[TransformerActorCritic, nnx.Rngs, Array, Array]):
         model, rngs, ab, vb = input
 
         obs = Observation(
-            agents_view=random.normal(rngs.default(), (batch_size, 1, 8), dtype=jnp.bfloat16),
+            agents_view=random.normal(
+                rngs.default(), (batch_size, 1, 8), dtype=jnp.bfloat16
+            ),
             time_steps=jnp.full((1, 1), i),
             last_action=jnp.zeros((batch_size, 1), dtype=jnp.int32),
             last_reward=jnp.zeros((batch_size, 1), dtype=jnp.bfloat16),
@@ -81,9 +90,11 @@ def bench(model: TransformerActorCritic, rngs: nnx.Rngs, batch_size: int, contex
     action_buffer = jnp.zeros((batch_size, context_size), dtype=jnp.int32)
     value_buffer = jnp.zeros((batch_size, context_size), dtype=jnp.float32)
 
-    model, rngs, action_buffer, value_buffer = nnx.fori_loop(0, context_size, body, (model, rngs, action_buffer, value_buffer))
+    model, rngs, action_buffer, value_buffer = nnx.fori_loop(
+        0, context_size, body, (model, rngs, action_buffer, value_buffer)
+    )
     return model, rngs, action_buffer, value_buffer
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

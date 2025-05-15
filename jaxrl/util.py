@@ -73,7 +73,9 @@ def _normalise_json_ordered(data: dict[str, Any], separator: str) -> dict[str, A
     )
     return {**top_dict_, **nested_dict_}
 
+
 T = TypeVar("T", dict[str, Any], list[dict[str, Any]])
+
 
 def json_normalize(
     ds: T,
@@ -84,6 +86,8 @@ def json_normalize(
     if isinstance(ds, dict):
         normalised_json_object = _normalise_json_ordered(data=ds, separator=sep)
     elif isinstance(ds, list):
-        normalised_json_list: list[dict[str, Any]] = [json_normalize(row, sep=sep) for row in ds]  # type: ignore
+        normalised_json_list: list[dict[str, Any]] = [
+            json_normalize(row, sep=sep) for row in ds
+        ]  # type: ignore
         return normalised_json_list
     return normalised_json_object

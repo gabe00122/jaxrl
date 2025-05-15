@@ -28,7 +28,7 @@ def create_actor_head(
     *,
     dtype: jnp.dtype,
     param_dtype: jnp.dtype,
-    rngs: nnx.Rngs
+    rngs: nnx.Rngs,
 ):
     if isinstance(action_space, DiscreteActionSpec):
         return DiscreteActionHead(
@@ -54,7 +54,7 @@ def create_mlp_model(
     observation_space: ObservationSpec,
     action_space: ActionSpec,
     *,
-    rngs: nnx.Rngs
+    rngs: nnx.Rngs,
 ):
     dtype = jnp.dtype(model_config.dtype)
     param_dtype = jnp.dtype(model_config.param_dtype)
@@ -96,7 +96,7 @@ def create_cnn_model(
     observation_space: ObservationSpec,
     action_space: ActionSpec,
     *,
-    rngs: nnx.Rngs
+    rngs: nnx.Rngs,
 ):
     dtype = jnp.dtype(model_config.dtype)
     param_dtype = jnp.dtype(model_config.param_dtype)
@@ -148,7 +148,7 @@ def create_learner(
     observation_space: ObservationSpec,
     action_space: ActionSpec,
     *,
-    rngs: nnx.Rngs
+    rngs: nnx.Rngs,
 ):
     body_config = learner_config.model.body
 
@@ -178,7 +178,9 @@ def create_learner(
         discount=learner_config.discount,
         actor_coefficient=learner_config.actor_coefficient,
         critic_coefficient=learner_config.critic_coefficient,
-        entropy_coefficient=optax.linear_schedule(learner_config.entropy_coefficient, 0, 7_000_000),
+        entropy_coefficient=optax.linear_schedule(
+            learner_config.entropy_coefficient, 0, 7_000_000
+        ),
     )
 
     return learner

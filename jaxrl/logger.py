@@ -153,6 +153,7 @@ class CSVLogger(BaseLogger):
 #     def close(self) -> None:
 #         self.logger.stop()
 
+
 class WandbLogger(BaseLogger):
     def __init__(self, cfg: Config, unique_token: str):
         wandb.init(project="jaxrl", config=dump_settings(cfg))
@@ -160,12 +161,15 @@ class WandbLogger(BaseLogger):
     def log_dict(self, data: Metrics, step: int, event_type: str | None = None) -> None:
         normalized_data = json_normalize(data)
         if event_type is not None:
-            normalized_data = {f"{event_type}/{k}": v for k, v in normalized_data.items()}
+            normalized_data = {
+                f"{event_type}/{k}": v for k, v in normalized_data.items()
+            }
 
         wandb.log(normalized_data, step=step)
 
     def close(self) -> None:
         wandb.finish()
+
 
 def describe(x: dict) -> dict:
     if not isinstance(x, jax.Array) or x.size <= 1:

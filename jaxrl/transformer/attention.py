@@ -17,7 +17,9 @@ def position_mask(time_steps, max_seq_length: int):
     return mask[:, None, :, :]
 
 
-def einsum_attention(query, key, value, time_steps, mask, *, attention_softcap: float | None = None):
+def einsum_attention(
+    query, key, value, mask, *, attention_softcap: float | None = None
+):
     dtype = query.dtype
 
     depth = query.shape[-1]
@@ -85,17 +87,21 @@ class AttentionBlock(nnx.Module):
             rngs=rngs,
         )
 
-    def create_kv_cache(self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None):
+    def create_kv_cache(
+        self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
+    ):
         shape = (batch_size, context_size, self.num_heads, self.head_dim)
         self.key_cache = nnx.Variable(jnp.zeros(shape, dtype=dtype))
         self.value_cache = nnx.Variable(jnp.zeros(shape, dtype=dtype))
-    
+
     def update_kv_cache(self, time_steps, key, value):
         batch_idx = jnp.arange(self.key_cache.shape[0], dtype=index_type)
         batch_idx = batch_idx[:, None]
-        
+
         self.key_cache.value = self.key_cache.value.at[batch_idx, time_steps].set(key)
-        self.value_cache.value = self.value_cache.value.at[batch_idx, time_steps].set(value)
+        self.value_cache.value = self.value_cache.value.at[batch_idx, time_steps].set(
+            value
+        )
 
         return self.key_cache.value, self.value_cache.value
 
@@ -110,7 +116,13 @@ class AttentionBlock(nnx.Module):
         if use_kv_cache:
             key, value = self.update_kv_cache(time_steps, key, value)
 
-        x = einsum_attention(query, key, value, time_steps, mask, attention_softcap=self.attention_softcap)
+        x = einsum_attention(
+            query,
+            key,
+            value,
+            mask,
+            attention_softcap=self.attention_softcap,
+        )
         out = self.out(x)
 
         return out

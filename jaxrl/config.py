@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class LoggerConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     log_rate: int = 1000
     use_console: bool = True
@@ -16,7 +16,7 @@ class LoggerConfig(BaseModel):
 
 
 class OptimizerConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["adamw"]
     learning_rate: float
@@ -27,14 +27,14 @@ class OptimizerConfig(BaseModel):
 
 
 class MlpConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["mlp"]
     layers: list[int]
 
 
 class CnnLayerConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     features: int
     kernel_size: list[int]
@@ -43,7 +43,7 @@ class CnnLayerConfig(BaseModel):
 
 
 class CnnConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["cnn"]
     layers: list[CnnLayerConfig]
@@ -51,7 +51,7 @@ class CnnConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     body: MlpConfig | CnnConfig
     activation: Literal["relu", "tanh", "gelu", "silu", "mish"]
@@ -60,7 +60,7 @@ class ModelConfig(BaseModel):
 
 
 class LearnerConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     optimizer: OptimizerConfig
     model: ModelConfig
@@ -71,7 +71,7 @@ class LearnerConfig(BaseModel):
 
 
 class EnvironmentConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     backend: str
     name: str
@@ -80,7 +80,7 @@ class EnvironmentConfig(BaseModel):
 
 
 class Config(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     seed: int | Literal["random"] = "random"
     learner: LearnerConfig

@@ -4,21 +4,63 @@ from jax import numpy as jnp, nn
 
 class GatingMechanism(nnx.Module):
     def __init__(
-            self,
+        self,
+        d_input,
+        bg=0.1,
+        *,
+        dtype: jnp.dtype = jnp.float32,
+        param_dtype: jnp.dtype = jnp.float32,
+        rngs: nnx.Rngs,
+    ):
+        self.Wr = nnx.Linear(
             d_input,
-            bg=0.1,
-            *,
-            dtype: jnp.dtype = jnp.float32,
-            param_dtype: jnp.dtype = jnp.float32,
-            rngs: nnx.Rngs,
-        ):
-        self.Wr = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.Ur = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.Wz = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.Uz = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.Wg = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.Ug = nnx.Linear(d_input, d_input, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.bg = bg
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.Ur = nnx.Linear(
+            d_input,
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.Wz = nnx.Linear(
+            d_input,
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.Uz = nnx.Linear(
+            d_input,
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.Wg = nnx.Linear(
+            d_input,
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.Ug = nnx.Linear(
+            d_input,
+            d_input,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
+        self.bg = nnx.Param(jnp.full(d_input, bg))
 
     def __call__(self, x, y):
         r = nn.sigmoid(self.Wr(y) + self.Ur(x))
