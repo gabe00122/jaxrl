@@ -45,8 +45,9 @@ class AttentionBlock(nnx.Module):
         num_heads: int,
         d_model: int,
         *,
+        max_seq_length: int,
+        rope_max_wavelength: float,
         attention_softcap: float | None = None,
-        use_bias: bool = False,
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
         kernel_init: nnx.Initializer = nnx.initializers.normal(),
@@ -54,6 +55,8 @@ class AttentionBlock(nnx.Module):
     ):
         self.num_heads = num_heads
         self.d_model = d_model
+        self.max_seq_length = max_seq_length
+        self.rope_max_wavelength = rope_max_wavelength
         self.attention_softcap = attention_softcap
         self.dtype = dtype
         self.param_dtype = param_dtype
@@ -72,7 +75,6 @@ class AttentionBlock(nnx.Module):
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
-            use_bias=use_bias,
             rngs=rngs,
         )
 
@@ -83,7 +85,6 @@ class AttentionBlock(nnx.Module):
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
-            use_bias=use_bias,
             rngs=rngs,
         )
 
@@ -98,23 +99,24 @@ class AttentionBlock(nnx.Module):
         batch_idx = jnp.arange(self.key_cache.shape[0], dtype=index_type)
         batch_idx = batch_idx[:, None]
 
+        # todo: investigate dynamic slice?
         self.key_cache.value = self.key_cache.value.at[batch_idx, time_steps].set(key)
-        self.value_cache.value = self.value_cache.value.at[batch_idx, time_steps].set(
-            value
-        )
+        self.value_cache.value = self.value_cache.value.at[batch_idx, time_steps].set(value)
 
         return self.key_cache.value, self.value_cache.value
 
-    def __call__(self, inputs, time_steps, mask, rope_values, use_kv_cache: bool):
+    def __call__(self, inputs, time_steps, use_kv_cache: bool):
         in_proj = self.in_proj(inputs)
 
         query, key, value = jnp.split(in_proj, 3, -1)
 
-        query = positional_embeddings.apply_rope(query, rope_values)
-        key = positional_embeddings.apply_rope(key, rope_values)
+        query = positional_embeddings.apply_rope(query, time_steps, self.head_dim, self.rope_max_wavelength)
+        key = positional_embeddings.apply_rope(key, time_steps, self.head_dim, self.rope_max_wavelength)
 
         if use_kv_cache:
             key, value = self.update_kv_cache(time_steps, key, value)
+        
+        mask = position_mask(time_steps, self.max_seq_length)
 
         x = einsum_attention(
             query,

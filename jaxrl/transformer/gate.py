@@ -1,6 +1,6 @@
 from flax import nnx
 from jax import numpy as jnp, nn
-
+from jax.typing import DTypeLike
 
 class GatingMechanism(nnx.Module):
     def __init__(
@@ -8,14 +8,13 @@ class GatingMechanism(nnx.Module):
         d_input,
         bg=0.1,
         *,
-        dtype: jnp.dtype = jnp.float32,
-        param_dtype: jnp.dtype = jnp.float32,
+        dtype: DTypeLike = jnp.float32,
+        param_dtype: DTypeLike = jnp.float32,
         rngs: nnx.Rngs,
     ):
         self.Wr = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -23,7 +22,6 @@ class GatingMechanism(nnx.Module):
         self.Ur = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -31,7 +29,6 @@ class GatingMechanism(nnx.Module):
         self.Wz = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -39,7 +36,6 @@ class GatingMechanism(nnx.Module):
         self.Uz = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -47,7 +43,6 @@ class GatingMechanism(nnx.Module):
         self.Wg = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -55,12 +50,11 @@ class GatingMechanism(nnx.Module):
         self.Ug = nnx.Linear(
             d_input,
             d_input,
-            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
         )
-        self.bg = nnx.Param(jnp.full(d_input, bg))
+        self.bg = bg
 
     def __call__(self, x, y):
         r = nn.sigmoid(self.Wr(y) + self.Ur(x))
