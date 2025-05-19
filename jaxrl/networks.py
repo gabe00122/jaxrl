@@ -140,23 +140,15 @@ class DiscreteActionHead(nnx.Module):
         param_dtype=jnp.float32,
         rngs: nnx.Rngs,
     ):
-        self.input_dim = input_dim
-        self.action_dim = action_dim
         self.dtype = dtype
-        self.param_dtype = param_dtype
+        self.action_layer = nnx.Linear(input_dim, action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
 
-        self.action_layer = nnx.Linear(
-            input_dim, action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs
-        )
-
-    def __call__(
-        self, obs_embedding: chex.Array, observation: Observation
-    ) -> tfd.TransformedDistribution:
+    def __call__(self, obs_embedding: jax.Array, action_mask: jax.Array | None) -> tfd.Distribution:
         actor_logits = self.action_layer(obs_embedding)
 
-        if observation.action_mask is not None:
+        if action_mask is not None:
             actor_logits = jnp.where(
-                observation.action_mask,
+                action_mask,
                 actor_logits,
                 jnp.finfo(self.dtype).min,
             )
@@ -317,11 +309,3 @@ def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array
         case _:
             raise ValueError(f"Activation function {activation_name} not recognized")
 
-
-def create_norm(name: str, num_features: int, *, dtype, param_dtype, rngs: nnx.Rngs) -> nnx.Module:
-    if name == 'layer':
-        return nnx.LayerNorm(num_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-    elif name == 'rms':
-        return nnx.RMSNorm(num_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-    else:
-        raise ValueError(f"Normalization layer {name} not recognized")
