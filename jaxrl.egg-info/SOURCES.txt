@@ -30,8 +30,8 @@ jaxrl/systems/types.py
 jaxrl/transformer/attention.py
 jaxrl/transformer/feed_forward.py
 jaxrl/transformer/gate.py
+jaxrl/transformer/learner.py
 jaxrl/transformer/network.py
 jaxrl/transformer/positional_embeddings.py
 jaxrl/transformer/test.py
-jaxrl/transformer/transformer.py
 jaxrl/utils/video_writter.py

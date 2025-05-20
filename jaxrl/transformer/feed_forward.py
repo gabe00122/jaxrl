@@ -6,8 +6,6 @@ import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
 
-from jaxrl.networks import parse_activation_fn
-
 
 class FFBlock(nnx.Module):
     def __init__(
