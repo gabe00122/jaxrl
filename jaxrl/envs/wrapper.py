@@ -1,9 +1,7 @@
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Generic, TypeVar
+from typing import Generic, NamedTuple, TypeVar
 
-import chex
 from jax import Array
 
 from jaxrl.types import Observation
@@ -17,8 +15,7 @@ class StepType(enum.IntEnum):
     LAST = 2
 
 
-@dataclass
-class TimeStep:
+class TimeStep(NamedTuple):
     step_type: Array
     observation: Observation
     reward: Array

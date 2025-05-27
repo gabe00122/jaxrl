@@ -51,7 +51,7 @@ class TransformerActorCriticConfig(BaseModel):
     activation: Literal["relu","gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
     kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = "glorot_uniform"
-    dtype: Literal["float32", "bfloat16"] = "float32"
+    dtype: Literal["float32", "bfloat16", "float16"] = "float32"
     param_dtype: Literal["float32", "bfloat16"] = "float32"
 
 

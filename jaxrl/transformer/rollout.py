@@ -6,11 +6,8 @@ from jax import numpy as jnp
 from jax.typing import DTypeLike
 from jax import random
 from flax import nnx
-from numpy import dtype
 
 from jaxrl.constants import index_type
-from jaxrl.envs.wrapper import TimeStep
-from jaxrl.types import Observation
 
 class ObservationSpec(NamedTuple):
     shape: tuple[int, ...]
@@ -19,6 +16,10 @@ class ObservationSpec(NamedTuple):
 
 class Rollout(nnx.Module):
     def __init__(self, batch_size: int, trajectory_length: int, obs_spec: ObservationSpec):
+        self.batch_size = batch_size
+        self.trajectory_length = trajectory_length
+        self.obs_spec = obs_spec
+
         # observation gets plus one because we need to store the next trailing observation
         self.obs = nnx.Variable(jnp.zeros((batch_size, trajectory_length, *obs_spec.shape), dtype=obs_spec.dtype))
         self.actions = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=index_type))
@@ -37,7 +38,7 @@ class Rollout(nnx.Module):
         self.actions.value = self.actions.value.at[:, step].set(action)
         self.log_prob.value = self.log_prob.value.at[:, step].set(log_prob)
         self.values.value = self.values.value.at[:, step].set(value)
-        self.rewards.value = self.rewards.value.at[:, step].set(reward)
+        self.rewards.value = self.rewards.value.at[:,step].set(reward)
     
     def calculate_advantage(self, discount: float, gae_lambda: float):
         def _inner_calc(rewards, values):
@@ -86,7 +87,7 @@ def bench(batch_size: int, context_size: int, obs_size: int, action_size: int, r
 def main():
     batch_size = 1024
     context_size = 128
-    obs_size = 8
+    obs_size = 8 * 8 * 24
     action_size = 8
     rngs = nnx.Rngs(default=0)
 
@@ -94,8 +95,6 @@ def main():
 
     
     jitted_bench = nnx.cached_partial(nnx.jit(bench, static_argnums=(0, 1, 2, 3), donate_argnums=(4, 5)), batch_size, context_size, obs_size, action_size, rollout, rngs)
-
-    iterations = 10
 
     print("warmup")
     for _ in range(10):

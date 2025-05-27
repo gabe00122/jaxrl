@@ -118,6 +118,7 @@ class AttentionBlock(nnx.Module):
         
         mask = position_mask(time_steps, self.max_seq_length)
 
+        # x = jax.nn.dot_product_attention(query, key, value, implementation='cudnn')
         x = einsum_attention(
             query,
             key,
