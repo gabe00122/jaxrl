@@ -9,6 +9,7 @@ Requires-Dist: distrax>=0.1.5
 Requires-Dist: einops>=0.8.1
 Requires-Dist: flax>=0.10.6
 Requires-Dist: jax[cuda12]>=0.6.0
+Requires-Dist: jumanji>=0.3.1
 Requires-Dist: optax>=0.2.4
 Requires-Dist: orbax>=0.1.9
 Requires-Dist: pydantic>=2.11.4

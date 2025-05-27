@@ -16,14 +16,14 @@ def main():
     
     config = TransformerActorCriticConfig(
         obs_encoder=LinearObsEncoderConfig(),
-        hidden_features=768, #256,
-        num_layers=12, #3,
+        hidden_features=512,
+        num_layers=3,
         transformer_block=TransformerBlockConfig(
-            ffn_size=2048, #512,
+            ffn_size=512,
             glu=True,
             gtrxl_gate=False,
-            max_seq_length=512,
-            num_heads=12,
+            max_seq_length=1024,
+            num_heads=8,
             gtrxl_bias=2.0,
         ),
         activation="gelu",
@@ -36,7 +36,7 @@ def main():
     transformer = TransformerActorCritic(config, 10, 10, rngs=rngs)
 
     iterations = 10
-    batch_size = 32
+    batch_size = 4
     context_size = config.transformer_block.max_seq_length
     transformer.create_kv_cache(batch_size, context_size, dtype=config.dtype)
 
