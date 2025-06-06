@@ -9,7 +9,7 @@ Done: TypeAlias = chex.Array
 Metrics = dict[str, chex.Array]
 
 
-class Observation(NamedTuple):
+class TimeStep(NamedTuple):
     """The observation that the agent sees.
 
     agents_view: the agent's view of the environment.
@@ -21,5 +21,5 @@ class Observation(NamedTuple):
     time_steps: jax.Array
     last_action: jax.Array
     last_reward: jax.Array
+    step_type: jax.Array
     action_mask: jax.Array | None  # (num_agents, num_actions)
-    # step_count: chex.Array  # (num_agents, )
