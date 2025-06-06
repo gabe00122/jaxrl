@@ -9,7 +9,7 @@ import numpy as np
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.experiment import Experiment
-from jaxrl.envs.wrapper import EnvWrapper, StepType, TimeStep
+from jaxrl.envs.environment import Environment, StepType, TimeStep
 from jaxrl.envs.envpool import EnvPoolWrapper
 from jaxrl.logger import JaxLogger
 from jaxrl.model import create_learner
@@ -83,7 +83,7 @@ def train(experiment: Experiment):
     print("Training...")
     print(experiment.config)
 
-    environment: EnvWrapper = EnvPoolWrapper(
+    environment: Environment = EnvPoolWrapper(
         experiment.config.environment.name,
         experiment.config.environment.num_envs,
         experiment.environments_seed,
@@ -154,7 +154,7 @@ def record(experiment: Experiment):
     print("Recording...")
     print(experiment.config)
 
-    environment: EnvWrapper = EnvPoolWrapper(
+    environment: Environment = EnvPoolWrapper(
         experiment.config.environment.name,
         1,  # experiment.config.environment.num_envs,
         experiment.environments_seed,

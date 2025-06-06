@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Generic, NamedTuple, TypeVar
+from typing import Generic, TypeVar
 
 from jax import Array
 
-from jaxrl.types import Observation
+from jaxrl.types import TimeStep
 from jaxrl.envs.specs import ObservationSpec, ActionSpec
 import enum
 
@@ -15,21 +15,15 @@ class StepType(enum.IntEnum):
     LAST = 2
 
 
-class TimeStep(NamedTuple):
-    step_type: Array
-    observation: Observation
-    reward: Array
-
-
 State = TypeVar("State")
 
 
-class EnvWrapper(ABC, Generic[State]):
+class Environment(ABC, Generic[State]):
     @abstractmethod
-    def reset(self) -> tuple[State, TimeStep]: ...
+    def reset(self, rng_key: Array) -> tuple[State, TimeStep]: ...
 
     @abstractmethod
-    def step(self, state: State, action: Array) -> tuple[State, TimeStep]: ...
+    def step(self, state: State, action: Array, rng_key: Array) -> tuple[State, TimeStep]: ...
 
     @cached_property
     @abstractmethod
@@ -41,12 +35,9 @@ class EnvWrapper(ABC, Generic[State]):
 
     @property
     @abstractmethod
-    def players(self) -> int: ...
+    def num_agents(self) -> int: ...
 
     @property
     @abstractmethod
     def is_jittable(self) -> bool: ...
 
-    @property
-    @abstractmethod
-    def num_envs(self) -> int: ...
