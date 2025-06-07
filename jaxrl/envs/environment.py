@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Generic, TypeVar
 
 from jax import Array
 
@@ -15,10 +14,7 @@ class StepType(enum.IntEnum):
     LAST = 2
 
 
-State = TypeVar("State")
-
-
-class Environment(ABC, Generic[State]):
+class Environment[State](ABC):
     @abstractmethod
     def reset(self, rng_key: Array) -> tuple[State, TimeStep]: ...
 

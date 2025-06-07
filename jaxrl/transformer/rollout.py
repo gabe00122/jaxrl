@@ -8,10 +8,11 @@ from jax import random
 from flax import nnx
 
 from jaxrl.constants import index_type
+from jaxrl.envs.specs import ObservationSpec
 
-class ObservationSpec(NamedTuple):
-    shape: tuple[int, ...]
-    dtype: DTypeLike = jnp.float32
+# class ObservationSpec(NamedTuple):
+#     shape: tuple[int, ...]
+#     dtype: DTypeLike = jnp.float32
 
 
 class Rollout(nnx.Module):
@@ -91,7 +92,7 @@ def main():
     action_size = 8
     rngs = nnx.Rngs(default=0)
 
-    rollout = Rollout(batch_size, context_size, ObservationSpec(shape=(obs_size,)))
+    rollout = Rollout(batch_size, context_size, ObservationSpec(shape=(obs_size,), dtype=jnp.float32))
 
     
     jitted_bench = nnx.cached_partial(nnx.jit(bench, static_argnums=(0, 1, 2, 3), donate_argnums=(4, 5)), batch_size, context_size, obs_size, action_size, rollout, rngs)

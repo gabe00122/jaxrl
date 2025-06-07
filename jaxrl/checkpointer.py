@@ -2,9 +2,6 @@ import orbax.checkpoint as ocp
 from flax import nnx
 from pathlib import Path
 import jax
-from typing import TypeVar
-
-T = TypeVar("T")
 
 
 class Checkpointer:
@@ -13,11 +10,11 @@ class Checkpointer:
         directory = directory.absolute()
         self.mngr = ocp.CheckpointManager(directory)
 
-    def save(self, model, global_step: int):
+    def save(self, model: object, global_step: int):
         state = nnx.state(model)
         self.mngr.save(global_step, args=ocp.args.StandardSave(state))
 
-    def restore(self, model: T, step: int) -> T:
+    def restore[T](self, model: T, step: int) -> T:
         graphdef, state = nnx.split(model)
         abstract_state = jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, state)
         restored_state = self.mngr.restore(
@@ -26,7 +23,7 @@ class Checkpointer:
 
         return nnx.merge(graphdef, restored_state)
 
-    def restore_latest(self, model: T) -> T:
+    def restore_latest[T](self, model: T) -> T:
         return self.restore(model, self.mngr.latest_step() or 0)
 
     def close(self):

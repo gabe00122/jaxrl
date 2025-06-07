@@ -9,7 +9,7 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 
 from jaxrl.config import CnnConfig
-from jaxrl.types import Observation
+from jaxrl.types import TimeStep
 from jaxrl.distributions import IdentityTransformation, TanhTransformedDistribution
 
 
@@ -200,14 +200,14 @@ class ContinuousActionHead(nnx.Module):
         )
 
     def __call__(
-        self, obs_embedding: chex.Array, observation: Observation
+        self, obs_embedding: chex.Array, time_step: TimeStep
     ) -> tfd.TransformedDistribution:
         """Action selection for continuous action space environments.
 
         Args:
         ----
             obs_embedding (chex.Array): Observation embedding.
-            observation (Observation): Observation object.
+            time_step (TimeStep): Time step object.
 
         Returns:
         -------
@@ -237,15 +237,15 @@ class FeedForwardActor(nnx.Module):
     def __init__(
         self,
         torso: Callable[[chex.Array], chex.Array],
-        action_head: Callable[[chex.Array, Observation], tfd.Distribution],
+        action_head: Callable[[chex.Array, TimeStep], tfd.Distribution],
     ):
         self.torso = torso
         self.action_head = action_head
 
-    def __call__(self, observation: Observation) -> tfd.Distribution:
+    def __call__(self, time_step: TimeStep) -> tfd.Distribution:
         """Forward pass."""
-        obs_embedding = self.torso(observation.agents_view)
-        return self.action_head(obs_embedding, observation)
+        obs_embedding = self.torso(time_step.obs)
+        return self.action_head(obs_embedding, time_step)
 
 
 class FeedForwardValueNet(nnx.Module):
@@ -272,11 +272,9 @@ class FeedForwardValueNet(nnx.Module):
             rngs=rngs,
         )
 
-    def __call__(self, observation: Observation) -> chex.Array:
+    def __call__(self, time_step: TimeStep) -> chex.Array:
         """Forward pass."""
-        observation = observation.agents_view
-
-        critic_output = self.torso(observation)
+        critic_output = self.torso(time_step.obs)
         critic_output = self.output(critic_output)
 
         return jnp.squeeze(critic_output, axis=-1)
@@ -287,9 +285,9 @@ class FeedForwardActorCritic(nnx.Module):
         self.actor = actor
         self.critic = critic
 
-    def __call__(self, observation: Observation) -> tuple[chex.Array, tfd.Distribution]:
-        value = self.critic(observation)
-        policy = self.actor(observation)
+    def __call__(self, time_step: TimeStep) -> tuple[chex.Array, tfd.Distribution]:
+        value = self.critic(time_step)
+        policy = self.actor(time_step)
 
         return value, policy
 

@@ -17,8 +17,8 @@ class TimeStep(NamedTuple):
     step_count: the number of steps elapsed since the beginning of the episode.
     """
 
-    agents_view: jax.Array  # (num_agents, num_obs_features)
-    time_steps: jax.Array
+    obs: jax.Array  # (num_agents, num_obs_features)
+    time: jax.Array
     last_action: jax.Array
     last_reward: jax.Array
     step_type: jax.Array
