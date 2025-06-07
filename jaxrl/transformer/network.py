@@ -7,8 +7,9 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 from pydantic import BaseModel, ConfigDict, Field
 
-from jaxrl.networks import DiscreteActionHead, parse_activation_fn
-from jaxrl.types import Observation
+from jaxrl.distributions import IdentityTransformation
+from jaxrl.networks import parse_activation_fn
+from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.transformer.gate import GatingMechanism
@@ -179,6 +180,37 @@ class TransformerBlock(nnx.Module):
         return x
 
 
+class Embedder(nnx.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        embedding_features: int,
+        *,
+        dtype: DTypeLike,
+        param_dtype: DTypeLike,
+        rngs: nnx.Rngs
+    ):
+        self.dtype = dtype
+        self.embedding_features = embedding_features
+        self.param_dtype = param_dtype
+
+        key = rngs.param()
+        self.embedding_table = nnx.Param(
+            jax.random.normal(key, (vocab_size, embedding_features)) * 0.01,
+            dtype=param_dtype,
+        )
+
+    def encode(self, x: jax.Array):
+        x = jnp.take(self.embedding_table.value, x, axis=0, fill_value=0)
+
+        x = jnp.asarray(x, dtype=self.dtype)
+        x *= jnp.sqrt(self.embedding_features).astype(self.dtype)
+        return x
+
+    def decode(self, x: jax.Array):
+        return jnp.dot(x, self.embedding_table.value.T)
+
+
 class TransformerActorCritic(nnx.Module):
     def __init__(
         self,
@@ -201,6 +233,8 @@ class TransformerActorCritic(nnx.Module):
         param_dtype = get_dtype(config.param_dtype)
         norm = get_norm(config.norm)
         
+        self.reward_encoder = nnx.Linear(1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+        self.action_encoder = Embedder(action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_dim=obs_dim, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
 
         layers = []
@@ -227,7 +261,6 @@ class TransformerActorCritic(nnx.Module):
             param_dtype=param_dtype,
             rngs=rngs,
         )
-        self.action_head = DiscreteActionHead(hidden_features, action_dim=action_dim, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
 
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
@@ -235,17 +268,28 @@ class TransformerActorCritic(nnx.Module):
         for layer in self.layers:
             layer.create_kv_cache(batch_size, context_size, dtype=dtype)
 
-    def __call__(self, observation: Observation, use_kv_cache: bool) -> tuple[jax.Array, tfd.Distribution]:
-        x = self.obs_encoder(observation.agents_view)
-        # todo create an action emender
-        # todo create a value embedder
+    def __call__(self, ts: TimeStep, use_kv_cache: bool) -> tuple[jax.Array, tfd.Distribution]:
+        obs_embedding = self.obs_encoder(ts.obs)
+        reward_embedding = self.reward_encoder(ts.last_reward[..., None])
+        action_embedding = self.action_encoder.encode(ts.last_action)
 
+        x = obs_embedding + reward_embedding + action_embedding
+
+        # todo: evaluate nnx scan for this
         for layer in self.layers:
-            x = layer(x, observation.time_steps, use_kv_cache)
+            x = layer(x, ts.time, use_kv_cache)
 
         x = self.output_norm(x)
 
-        action_logits = self.action_head(x, observation.action_mask)
-        value = self.value_head(x)
+        action_logits = self.action_encoder.decode(x)
+        if ts.action_mask is not None:
+            action_logits = jnp.where(
+                ts.action_mask,
+                action_logits,
+                jnp.finfo(action_logits.dtype).min,
+            )
 
-        return value, action_logits
+        policy = IdentityTransformation(distribution=tfd.Categorical(logits=action_logits))
+        value = self.value_head(x).squeeze(-1)
+
+        return value, policy
