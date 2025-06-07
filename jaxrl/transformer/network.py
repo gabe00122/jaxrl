@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.networks import parse_activation_fn
 from jaxrl.types import TimeStep
-from jaxrl.transformer.attention import AttentionBlock
+from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.transformer.gate import GatingMechanism
 
@@ -163,13 +163,13 @@ class TransformerBlock(nnx.Module):
 
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
-    ):
-        self.attention.create_kv_cache(batch_size, context_size, dtype=dtype)
+    ) -> KVCache:
+        return self.attention.create_kv_cache(batch_size, context_size, dtype=dtype)
 
-    def __call__(self, x, time_steps, use_kv_cache: bool):
+    def __call__(self, x, time_steps, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
         attention_input = self.attention_norm(x)
-        attention = self.attention(
-            attention_input, time_steps, use_kv_cache=use_kv_cache
+        attention, kv_cache = self.attention(
+            attention_input, time_steps, kv_cache
         )
         x = self.attention_gate(x, attention) if self.gtrxl_gate else x + attention
 
@@ -177,7 +177,7 @@ class TransformerBlock(nnx.Module):
         feed_forward = self.ffn(feed_forward_input)
         x = self.ffn_gate(x, feed_forward) if self.gtrxl_gate else x + feed_forward
 
-        return x
+        return x, kv_cache
 
 
 class Embedder(nnx.Module):
@@ -264,11 +264,10 @@ class TransformerActorCritic(nnx.Module):
 
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
-    ):
-        for layer in self.layers:
-            layer.create_kv_cache(batch_size, context_size, dtype=dtype)
+    ) -> tuple[KVCache, ...]:
+        return tuple(layer.create_kv_cache(batch_size, context_size, dtype=dtype) for layer in self.layers)
 
-    def __call__(self, ts: TimeStep, use_kv_cache: bool) -> tuple[jax.Array, tfd.Distribution]:
+    def __call__(self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_encoder.encode(ts.last_action)
@@ -276,8 +275,15 @@ class TransformerActorCritic(nnx.Module):
         x = obs_embedding + reward_embedding + action_embedding
 
         # todo: evaluate nnx scan for this
-        for layer in self.layers:
-            x = layer(x, ts.time, use_kv_cache)
+        if kv_cache is not None:
+            out_kv_cache = []
+            for layer, _kv_cache in zip(self.layers, kv_cache):
+                x, _kv_cache = layer(x, ts.time, _kv_cache)
+                out_kv_cache.append(_kv_cache)
+            kv_cache = tuple(out_kv_cache)
+        else:
+            for layer in self.layers:
+                x, _ = layer(x, ts.time)
 
         x = self.output_norm(x)
 
@@ -292,4 +298,4 @@ class TransformerActorCritic(nnx.Module):
         policy = IdentityTransformation(distribution=tfd.Categorical(logits=action_logits))
         value = self.value_head(x).squeeze(-1)
 
-        return value, policy
+        return value, policy, kv_cache

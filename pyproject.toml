@@ -19,6 +19,7 @@ dependencies = [
     "rich>=14.0.0",
     "rlax>=0.1.7",
     "tensorboardx>=2.6.2.2",
+    "tensorflow>=2.19.0",
     "typer>=0.15.3",
     "wandb>=0.19.10",
 ]

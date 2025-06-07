@@ -1,3 +1,4 @@
+from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 from jax.typing import DTypeLike
@@ -37,6 +38,11 @@ def einsum_attention(
 
     x = jnp.einsum("...hqk,...khd->...qhd", attn_weights, value)
     return x
+
+
+class KVCache(NamedTuple):
+    key: jax.Array
+    value: jax.Array
 
 
 class AttentionBlock(nnx.Module):
@@ -90,33 +96,36 @@ class AttentionBlock(nnx.Module):
 
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
-    ):
+    ) -> KVCache:
         shape = (batch_size, context_size, self.num_heads, self.head_dim)
-        self.key_cache = nnx.Variable(jnp.zeros(shape, dtype=dtype))
-        self.value_cache = nnx.Variable(jnp.zeros(shape, dtype=dtype))
+        key = jnp.zeros(shape, dtype=dtype)
+        value = jnp.zeros(shape, dtype=dtype)
+        return KVCache(key, value)
 
-    def update_kv_cache(self, time_steps, key, value):
-        batch_idx = jnp.arange(self.key_cache.shape[0], dtype=index_type)
+    def update_kv_cache(self, kv_cache: KVCache, seq_pos, key, value) -> KVCache:
+        batch_idx = jnp.arange(kv_cache.key.shape[0], dtype=index_type)
         batch_idx = batch_idx[:, None]
 
         # todo: investigate dynamic slice?
-        self.key_cache.value = self.key_cache.value.at[batch_idx, time_steps].set(key)
-        self.value_cache.value = self.value_cache.value.at[batch_idx, time_steps].set(value)
+        key = kv_cache.key.at[batch_idx, seq_pos].set(key)
+        value = kv_cache.value.at[batch_idx, seq_pos].set(value)
 
-        return self.key_cache.value, self.value_cache.value
+        return KVCache(key, value)
 
-    def __call__(self, inputs, time_steps, use_kv_cache: bool):
+    def __call__(self, inputs, seq_pos, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
         in_proj = self.in_proj(inputs)
 
         query, key, value = jnp.split(in_proj, 3, -1)
 
-        query = positional_embeddings.apply_rope(query, time_steps, self.head_dim, self.rope_max_wavelength)
-        key = positional_embeddings.apply_rope(key, time_steps, self.head_dim, self.rope_max_wavelength)
+        query = positional_embeddings.apply_rope(query, seq_pos, self.head_dim, self.rope_max_wavelength)
+        key = positional_embeddings.apply_rope(key, seq_pos, self.head_dim, self.rope_max_wavelength)
 
-        if use_kv_cache:
-            key, value = self.update_kv_cache(time_steps, key, value)
+        if kv_cache is not None:
+            kv_cache = self.update_kv_cache(kv_cache, seq_pos, key, value)
+            key = kv_cache.key
+            value = kv_cache.value
         
-        mask = position_mask(time_steps, self.max_seq_length)
+        mask = position_mask(seq_pos, self.max_seq_length)
 
         # x = jax.nn.dot_product_attention(query, key, value, implementation='cudnn')
         x = einsum_attention(
@@ -128,4 +137,4 @@ class AttentionBlock(nnx.Module):
         )
         out = self.out(x)
 
-        return out
+        return out, kv_cache

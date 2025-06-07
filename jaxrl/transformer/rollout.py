@@ -40,6 +40,7 @@ class Rollout(nnx.Module):
         self.log_prob.value = self.log_prob.value.at[:, step].set(log_prob)
         self.values.value = self.values.value.at[:, step].set(value)
         self.rewards.value = self.rewards.value.at[:,step].set(reward)
+        # jax.debug.breakpoint()
     
     def calculate_advantage(self, discount: float, gae_lambda: float):
         def _inner_calc(rewards, values):
