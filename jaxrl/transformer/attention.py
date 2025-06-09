@@ -103,12 +103,13 @@ class AttentionBlock(nnx.Module):
         return KVCache(key, value)
 
     def update_kv_cache(self, kv_cache: KVCache, seq_pos, key, value) -> KVCache:
-        batch_idx = jnp.arange(kv_cache.key.shape[0], dtype=index_type)
-        batch_idx = batch_idx[:, None]
+        # batch_idx = jnp.arange(kv_cache.key.shape[0], dtype=index_type)
+        # batch_idx = batch_idx[:, None]
+        pos = seq_pos[0, 0]
 
         # todo: investigate dynamic slice?
-        key = kv_cache.key.at[batch_idx, seq_pos].set(key)
-        value = kv_cache.value.at[batch_idx, seq_pos].set(value)
+        key = jax.lax.dynamic_update_slice(kv_cache.key, key, (0, pos, 0, 0))
+        value = jax.lax.dynamic_update_slice(kv_cache.value, value, (0, pos, 0, 0))
 
         return KVCache(key, value)
 
