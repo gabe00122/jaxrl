@@ -298,4 +298,7 @@ class TransformerActorCritic(nnx.Module):
         policy = IdentityTransformation(distribution=tfd.Categorical(logits=action_logits))
         value = self.value_head(x).squeeze(-1)
 
+        value = value.astype(jnp.float32)
+        action_logits = action_logits.astype(jnp.float32)
+
         return value, policy, kv_cache

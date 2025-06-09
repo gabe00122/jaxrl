@@ -1,19 +1,17 @@
 from dataclasses import dataclass
+from typing import NamedTuple
 from jax.typing import DTypeLike
 
-@dataclass
-class ObservationSpec:
+class ObservationSpec(NamedTuple):
     dtype: DTypeLike
     shape: tuple[int, ...]
 
 
-@dataclass
-class ContinuousActionSpec:
+class ContinuousActionSpec(NamedTuple):
     num_actions: int
 
 
-@dataclass
-class DiscreteActionSpec:
+class DiscreteActionSpec(NamedTuple):
     num_actions: int
 
 

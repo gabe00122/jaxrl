@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
+import optax
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
@@ -27,7 +28,7 @@ def add_seq_dim(ts: TimeStep):
 def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
-    kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length)
+    kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length, dtype=jnp.bfloat16)
 
     def _step(i, x):
         rollout, rngs, env_state, ts, kv_cache = x
@@ -66,7 +67,69 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
     rollout.calculate_advantage(discount=0.99, gae_lambda=0.95)
 
-    return rollout, env_state, rngs
+    return rollout, rngs
+
+def ppo_loss(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs):
+    vf_coef = 0.5
+    entropy_coef = 0.01
+    vf_clip = 0.2
+    
+    batch_obs = rollout.obs.value
+    batch_target = rollout.targets.value#[start:stop]
+    batch_log_prob = rollout.log_prob.value#[start:stop]
+    batch_actions = rollout.actions.value#[start:stop]
+    batch_advantage = rollout.advantages.value#[start:stop]
+    batch_values = rollout.values.value#[start:stop, :-1]
+    batch_rewards = rollout.rewards.value#[start:stop]
+
+    # TODO: make this conditional
+    batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
+
+    positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
+    print(batch_obs.shape)
+    print(positions.shape)
+
+    values, policy, _ = model(TimeStep(
+        obs=batch_obs,
+        time=positions,
+        last_action=batch_actions,
+        last_reward=batch_rewards,
+        step_type=jnp.zeros_like(batch_target),
+        action_mask=None
+    ))
+    log_probs = policy.log_prob(batch_actions)
+
+    value_pred_clipped = batch_values + jnp.clip(values - batch_values, -vf_clip, vf_clip)
+
+    value_losses = jnp.square(values - batch_target)
+    value_losses_clipped = jnp.square(value_pred_clipped - batch_target)
+    value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
+
+    ratio = jnp.exp(log_probs - batch_log_prob)
+
+    loss_actor1 = ratio * batch_advantage
+    loss_actor2 = jnp.clip(ratio, 1.0 - vf_clip, 1.0 + vf_clip) * batch_advantage
+
+    actor_loss = -jnp.minimum(loss_actor1, loss_actor2).mean()
+
+    # Entropy regularization
+    entropy = policy.entropy()
+    entropy_loss = -entropy.mean()
+
+    total_loss = vf_coef * value_loss + actor_loss + entropy_coef * entropy_loss
+
+    return total_loss
+
+
+
+def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment):
+    rollout, rngs = evaluate(optimizer.model, rollout, rngs, env)
+    
+    grads = nnx.grad(ppo_loss)(optimizer.model, rollout, rngs)
+    optimizer.update(grads)
+
+    return optimizer, rngs
+
 
 
 def main():
@@ -80,7 +143,10 @@ def main():
 
     rngs = nnx.Rngs(default=42)
     rollout = Rollout(batch_size, length, obs_spec)
-
+# num_layers: 12
+# num_heads: 12
+# d_model: 768
+# ffn_size: 2048
     model = TransformerActorCritic(
         TransformerActorCriticConfig(
             obs_encoder=LinearObsEncoderConfig(),
@@ -97,28 +163,28 @@ def main():
             activation='gelu',
             norm='layer_norm',
             kernel_init='glorot_uniform',
-            dtype='float32',
+            dtype='bfloat16',
             param_dtype='float32'
         ),
         obs_spec.shape[0],
         action_spec.num_actions,
         rngs=rngs
     )
-    jitted_evaluate = nnx.jit(evaluate, static_argnums=(3,))
+
+    optimizer = nnx.Optimizer(model, optax.adam(learning_rate=1e-4))
+
+    
+    jitted_train = nnx.jit(train, static_argnums=(3,))
     for _ in range(10):
-        rollout, _, _ = jitted_evaluate(model, rollout, rngs, env)
+        optimizer, rngs = jitted_train(optimizer, rollout, rngs, env)
         rollout.rewards.block_until_ready()
-        rollout.actions.block_until_ready()
-        rollout.log_prob.block_until_ready()
-        rollout.values.block_until_ready()
+        model.value_head.kernel.value.block_until_ready()
     
     start_time = time.time()
-    rollout, _, _ = jitted_evaluate(model, rollout, rngs, env)
-    end_time = time.time()
+    optimizer, rngs = jitted_train(optimizer, rollout, rngs, env)
     rollout.rewards.block_until_ready()
-    rollout.actions.block_until_ready()
-    rollout.log_prob.block_until_ready()
-    rollout.values.block_until_ready()
+    model.value_head.kernel.value.block_until_ready()
+    end_time = time.time()
     print(f"Time taken: {end_time - start_time} seconds")
 
     total_steps = rollout.trajectory_length * batch_size
