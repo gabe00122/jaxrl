@@ -24,7 +24,7 @@ class NBackMemory(Environment[NBackMemoryState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(shape=(self.max_value,), dtype=jnp.int32)
+        return ObservationSpec(shape=(self.max_value,), dtype=jnp.float32)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:

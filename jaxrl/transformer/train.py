@@ -79,7 +79,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs):
     batch_log_prob = rollout.log_prob.value#[start:stop]
     batch_actions = rollout.actions.value#[start:stop]
     batch_advantage = rollout.advantages.value#[start:stop]
-    batch_values = rollout.values.value#[start:stop, :-1]
+    batch_values = rollout.values.value[:, :-1]#[start:stop, :-1]
     batch_rewards = rollout.rewards.value#[start:stop]
 
     # TODO: make this conditional
@@ -94,7 +94,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs):
         time=positions,
         last_action=batch_actions,
         last_reward=batch_rewards,
-        step_type=jnp.zeros_like(batch_target),
+        step_type=jnp.zeros_like(batch_target, dtype=jnp.int32),
         action_mask=None
     ))
     log_probs = policy.log_prob(batch_actions)
@@ -133,7 +133,7 @@ def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Envir
 
 
 def main():
-    batch_size = 4096
+    batch_size = 512
     length = 128
 
     env = NBackMemory(n=2, max_value=5, length=length)
@@ -180,11 +180,12 @@ def main():
         rollout.rewards.block_until_ready()
         model.value_head.kernel.value.block_until_ready()
     
-    start_time = time.time()
-    optimizer, rngs = jitted_train(optimizer, rollout, rngs, env)
-    rollout.rewards.block_until_ready()
-    model.value_head.kernel.value.block_until_ready()
-    end_time = time.time()
+    with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
+        start_time = time.time()
+        optimizer, rngs = jitted_train(optimizer, rollout, rngs, env)
+        rollout.rewards.block_until_ready()
+        model.value_head.kernel.value.block_until_ready()
+        end_time = time.time()
     print(f"Time taken: {end_time - start_time} seconds")
 
     total_steps = rollout.trajectory_length * batch_size
