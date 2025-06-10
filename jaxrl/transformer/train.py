@@ -69,18 +69,18 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
     return rollout, rngs
 
-def ppo_loss(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs):
+def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Array, rngs: nnx.Rngs):
     vf_coef = 0.5
     entropy_coef = 0.01
     vf_clip = 0.2
     
-    batch_obs = rollout.obs.value
-    batch_target = rollout.targets.value#[start:stop]
-    batch_log_prob = rollout.log_prob.value#[start:stop]
-    batch_actions = rollout.actions.value#[start:stop]
-    batch_advantage = rollout.advantages.value#[start:stop]
-    batch_values = rollout.values.value[:, :-1]#[start:stop, :-1]
-    batch_rewards = rollout.rewards.value#[start:stop]
+    batch_obs = rollout.obs.value[batch_idx]
+    batch_target = rollout.targets.value[batch_idx]
+    batch_log_prob = rollout.log_prob.value[batch_idx]
+    batch_actions = rollout.actions.value[batch_idx]
+    batch_advantage = rollout.advantages.value[batch_idx]
+    batch_values = rollout.values.value[batch_idx, :-1]
+    batch_rewards = rollout.rewards.value[batch_idx]
 
     # TODO: make this conditional
     batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
@@ -125,15 +125,26 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs):
 def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment):
     rollout, rngs = evaluate(optimizer.model, rollout, rngs, env)
     
-    grads = nnx.grad(ppo_loss)(optimizer.model, rollout, rngs)
-    optimizer.update(grads)
+    minibatch_count = 8
+    minibatch_size = rollout.batch_size // minibatch_count
+
+    batch_idx = jnp.arange(rollout.batch_size, dtype=jnp.int32)
+    batch_idx = jnp.reshape(batch_idx, (minibatch_count, minibatch_size))
+
+    def _step(i, x):
+        optimizer, rollout, rngs = x
+        grads = nnx.grad(ppo_loss)(optimizer.model, rollout, batch_idx[i], rngs)
+        optimizer.update(grads)
+        return optimizer, rollout, rngs
+
+    optimizer, rollout, rngs = nnx.fori_loop(0, minibatch_count, _step, init_val=(optimizer, rollout, rngs))
 
     return optimizer, rngs
 
 
 
 def main():
-    batch_size = 512
+    batch_size = 4096
     length = 128
 
     env = NBackMemory(n=2, max_value=5, length=length)
@@ -153,7 +164,7 @@ def main():
             transformer_block=TransformerBlockConfig(
                 num_heads=4,
                 ffn_size=512,
-                gtrxl_gate=True,
+                gtrxl_gate=False,
                 gtrxl_bias=2.0,
                 glu=False,
                 max_seq_length=length,
