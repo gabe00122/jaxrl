@@ -8,21 +8,18 @@ from jax import random
 from flax import nnx
 
 from jaxrl.constants import index_type
-from jaxrl.envs.specs import ObservationSpec
-
-# class ObservationSpec(NamedTuple):
-#     shape: tuple[int, ...]
-#     dtype: DTypeLike = jnp.float32
+from jaxrl.envs.specs import ActionSpec, ObservationSpec
 
 
 class Rollout(nnx.Module):
-    def __init__(self, batch_size: int, trajectory_length: int, obs_spec: ObservationSpec):
+    def __init__(self, batch_size: int, trajectory_length: int, obs_spec: ObservationSpec, action_spec: ActionSpec):
         self.batch_size = batch_size
         self.trajectory_length = trajectory_length
         self.obs_spec = obs_spec
 
         # observation gets plus one because we need to store the next trailing observation
         self.obs = nnx.Variable(jnp.zeros((batch_size, trajectory_length, *obs_spec.shape), dtype=obs_spec.dtype))
+        self.action_mask = nnx.Variable(jnp.zeros((batch_size, trajectory_length, action_spec.num_actions), dtype=jnp.bool_))
         self.actions = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=index_type))
         self.rewards = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=jnp.float32))
 
@@ -33,9 +30,10 @@ class Rollout(nnx.Module):
         self.advantages = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=jnp.float32))
         self.targets = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=jnp.float32))
 
-    def store(self, step: jax.Array, obs: jax.Array, action: jax.Array, reward: jax.Array, log_prob: jax.Array, value: jax.Array):
+    def store(self, step: jax.Array, obs: jax.Array, action_mask: jax.Array, action: jax.Array, reward: jax.Array, log_prob: jax.Array, value: jax.Array):
         # perhaps the order should be (timestep, batch, obs) for insertion and rotated to (batch, timestep, obs) for training but this could be a premature optimization
         self.obs.value = self.obs.value.at[:, step].set(obs)
+        self.action_mask.value = self.action_mask.value.at[:, step].set(action_mask)
         self.actions.value = self.actions.value.at[:, step].set(action)
         self.log_prob.value = self.log_prob.value.at[:, step].set(log_prob)
         self.values.value = self.values.value.at[:, step].set(value)
