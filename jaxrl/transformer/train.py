@@ -1,8 +1,4 @@
-# import jumanji
-# from jumanji import Environment
-
 import random
-import time
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
@@ -10,6 +6,8 @@ from flax import nnx
 from einops import rearrange
 import optax
 import optuna
+import typer
+from rich.console import Console
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
@@ -76,9 +74,9 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
         value, policy, kv_cache = model(add_seq_dim(ts), kv_cache)
         
         action = policy.sample(seed=action_key)
-        log_prob = policy.log_prob(action).squeeze(-1)
-        action = action.squeeze(-1)
-        value = value.squeeze(-1)
+        log_prob = policy.log_prob(action).squeeze(axis=-1)
+        action = action.squeeze(axis=-1)
+        value = value.squeeze(axis=-1)
         # jax.debug.breakpoint()
 
         env_state, next_timestep = env.step(env_state, action, env_key)
@@ -139,10 +137,10 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Arr
 
     ratio = jnp.exp(log_probs - batch_log_prob)
 
-    loss_actor1 = ratio * batch_advantage
-    loss_actor2 = jnp.clip(ratio, 1.0 - hypers.vf_clip, 1.0 + hypers.vf_clip) * batch_advantage
+    pg_loss1 = ratio * batch_advantage
+    pg_loss2 = jnp.clip(ratio, 1.0 - hypers.vf_clip, 1.0 + hypers.vf_clip) * batch_advantage
 
-    actor_loss = -jnp.minimum(loss_actor1, loss_actor2).mean()
+    actor_loss = -jnp.minimum(pg_loss1, pg_loss2).mean()
 
     # Entropy regularization
     entropy = policy.entropy()
@@ -192,19 +190,21 @@ def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Envir
 
     return optimizer, rngs, logs
 
+app = typer.Typer()
 
 
-def objective(trial: optuna.Trial):
-    vf_coef = trial.suggest_float("vf_coef", 0.5, 2.0)
-    entropy_coef = trial.suggest_float("entropy_coef", 0.0, 0.01)
-    vf_clip = trial.suggest_float("vf_clip", 0.1, 0.3)
-    discount = trial.suggest_float("discount", 0.9, 0.99)
-    gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True)
-    gradient_clip = trial.suggest_float("gradient_clip", 0.1, 1.0)
-    b1 = 0.9 #trial.suggest_float("b1", 0.8, 0.99)
-    b2 = 0.999 #trial.suggest_float("b2", 0.9, 0.999)
-
+def train_run(
+    vf_coef: float,
+    entropy_coef: float,
+    vf_clip: float,
+    discount: float,
+    gae_lambda: float,
+    learning_rate: float,
+    gradient_clip: float,
+    b1: float,
+    b2: float,
+    trial: optuna.Trial | None = None,
+):
     batch_size = 2048
     length = 128
 
@@ -255,18 +255,48 @@ def objective(trial: optuna.Trial):
     
     jitted_train = nnx.jit(train, static_argnums=(3, 4))
     
+    logs = None
     for i in range(1000):
         optimizer, rngs, logs = jitted_train(optimizer, rollout, rngs, env, hypers)
-        trial.report(logs.rewards.item(), i)
         logger.log_dict(logs._asdict(), i)
-        # print(f"Step {i} - Rewards: {rewards.item()}")
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+        if trial:
+            trial.report(logs.rewards.item(), i)
+            if trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
-    return logs.rewards.item()
+    if logs:
+        return logs.rewards.item()
+    return -1.0
 
 
-def main():
+def objective(trial: optuna.Trial):
+    vf_coef = trial.suggest_float("vf_coef", 0.5, 2.0)
+    entropy_coef = trial.suggest_float("entropy_coef", 0.0, 0.01)
+    vf_clip = trial.suggest_float("vf_clip", 0.1, 0.3)
+    discount = trial.suggest_float("discount", 0.9, 0.99)
+    gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True)
+    gradient_clip = trial.suggest_float("gradient_clip", 0.1, 1.0)
+    b1 = 0.9
+    b2 = 0.999
+
+    return train_run(
+        vf_coef=vf_coef,
+        entropy_coef=entropy_coef,
+        vf_clip=vf_clip,
+        discount=discount,
+        gae_lambda=gae_lambda,
+        learning_rate=learning_rate,
+        gradient_clip=gradient_clip,
+        b1=b1,
+        b2=b2,
+        trial=trial,
+    )
+
+
+@app.command()
+def sweep():
+    """Runs an Optuna sweep."""
     storage_name = "sqlite:///jaxrl_study_2.db"
     study_name = "jaxrl_study"
     study = optuna.create_study(
@@ -282,19 +312,46 @@ def main():
     pruned_trials = study.get_trials(deepcopy=False, states=[optuna.trial.TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[optuna.trial.TrialState.COMPLETE])
 
-    print("Study statistics: ")
-    print(f"  Number of finished trials: {len(study.trials)}")
-    print(f"  Number of pruned trials: {len(pruned_trials)}")
-    print(f"  Number of complete trials: {len(complete_trials)}")
+    console = Console()
+    console.print("Study statistics: ")
+    console.print(f"  Number of finished trials: {len(study.trials)}")
+    console.print(f"  Number of pruned trials: {len(pruned_trials)}")
+    console.print(f"  Number of complete trials: {len(complete_trials)}")
 
-    print("Best trial:")
+    console.print("Best trial:")
     trial = study.best_trial
 
-    print(f"  Value: {trial.value}")
+    console.print(f"  Value: {trial.value}")
 
-    print("  Params: ")
+    console.print("  Params: ")
     for key, value in trial.params.items():
-        print(f"    {key}: {value}")
-    
+        console.print(f"    {key}: {value}")
+
+
+@app.command()
+def train_cmd(
+    vf_coef: float = typer.Option(1.0, help="Value function coefficient"),
+    entropy_coef: float = typer.Option(0.005, help="Entropy coefficient"),
+    vf_clip: float = typer.Option(0.2, help="Value function clip range"),
+    discount: float = typer.Option(0.95, help="Discount factor"),
+    gae_lambda: float = typer.Option(0.95, help="GAE lambda"),
+    learning_rate: float = typer.Option(1e-4, help="Learning rate"),
+    gradient_clip: float = typer.Option(0.5, help="Gradient clipping"),
+    b1: float = typer.Option(0.9, help="Adam b1"),
+    b2: float = typer.Option(0.999, help="Adam b2"),
+):
+    """Trains a single model with the given hyperparameters."""
+    train_run(
+        vf_coef=vf_coef,
+        entropy_coef=entropy_coef,
+        vf_clip=vf_clip,
+        discount=discount,
+        gae_lambda=gae_lambda,
+        learning_rate=learning_rate,
+        gradient_clip=gradient_clip,
+        b1=b1,
+        b2=b2,
+    )
+
 if __name__ == '__main__':
-    main()
+    app()
