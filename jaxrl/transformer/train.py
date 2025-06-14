@@ -208,7 +208,7 @@ def train_run(
     batch_size = 2048
     length = 128
 
-    logger = ConsoleLogger(None, "trial")
+    logger = ConsoleLogger("trial")
 
     env = NBackMemory(n=2, max_value=5, length=length)
     env = VmapWrapper(env, batch_size)
