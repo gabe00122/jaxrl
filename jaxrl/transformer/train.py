@@ -1,33 +1,23 @@
-import random
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
-import optax
 import optuna
 import typer
 from rich.console import Console
+from rich.progress import track
 
+from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.vmap_wrapper import VmapWrapper
-from jaxrl.transformer.network import LinearObsEncoderConfig, TransformerActorCritic, TransformerActorCriticConfig, TransformerBlockConfig
-from jaxrl.transformer.rollout import ObservationSpec, Rollout
+from jaxrl.experiment import Experiment
+from jaxrl.optimizer import create_optimizer
+from jaxrl.transformer.network import TransformerActorCritic
+from jaxrl.transformer.rollout import Rollout
 from jaxrl.types import TimeStep
-from jaxrl.logger import ConsoleLogger
-
-
-class TrainerHypers(NamedTuple):
-    vf_coef: float
-    entropy_coef: float
-    vf_clip: float
-    discount: float
-    gae_lambda: float
-
-    gradient_clip: float
-
-    minibatch_count: int
+from jaxrl.checkpointer import Checkpointer
 
 
 class TrainingLogs(NamedTuple):
@@ -60,7 +50,7 @@ def add_seq_dim(ts: TimeStep):
         action_mask=rearrange(ts.action_mask, 'b ... -> b 1 ...') if ts.action_mask is not None else None,
     )
 
-def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: TrainerHypers):
+def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
     kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length, dtype=jnp.float32)
@@ -72,7 +62,7 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
         env_key = rngs.env()
 
         value, policy, kv_cache = model(add_seq_dim(ts), kv_cache)
-        
+
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
@@ -92,7 +82,7 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
         )
 
         return rollout, rngs, env_state, next_timestep, kv_cache
-    
+
     rollout, rngs, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
@@ -104,8 +94,7 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
     return rollout, rngs
 
-def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Array, hypers: TrainerHypers, logs: TrainingLogs):
-    
+def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Array, hypers: PPOConfig, logs: TrainingLogs):
     batch_obs = rollout.obs.value[batch_idx]
     batch_target = rollout.targets.value[batch_idx]
     batch_log_prob = rollout.log_prob.value[batch_idx]
@@ -161,9 +150,9 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Arr
 
 
 
-def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: TrainerHypers):
+def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
     rollout, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
-    
+
     minibatch_size = rollout.batch_size // hypers.minibatch_count
 
     batch_idx = jnp.arange(rollout.batch_size, dtype=jnp.int32)
@@ -172,7 +161,6 @@ def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Envir
     def _step(i, x):
         optimizer, rollout, logs = x
         grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout, batch_idx[i], hypers, logs)
-        grads = jax.tree_util.tree_map(lambda x: jnp.clip(x, -hypers.gradient_clip, hypers.gradient_clip), grads)
         optimizer.update(grads)
         return optimizer, rollout, logs
 
@@ -194,75 +182,53 @@ app = typer.Typer()
 
 
 def train_run(
-    vf_coef: float,
-    entropy_coef: float,
-    vf_clip: float,
-    discount: float,
-    gae_lambda: float,
-    learning_rate: float,
-    gradient_clip: float,
-    b1: float,
-    b2: float,
+    experiment: Experiment,
     trial: optuna.Trial | None = None,
 ):
-    batch_size = 2048
-    length = 128
+    max_steps = experiment.config.max_env_steps
 
-    logger = ConsoleLogger("trial")
+    logger = experiment.create_logger()
+    checkpointer = Checkpointer(experiment.checkpoints_dir)
+    checkpoint_interval = 200
 
-    env = NBackMemory(n=2, max_value=5, length=length)
-    env = VmapWrapper(env, batch_size)
+    env = NBackMemory(n=2, max_value=5, length=max_steps)
+    env = VmapWrapper(env, experiment.config.num_envs)
+    batch_size = env.num_agents
+
     obs_spec = env.observation_spec
     action_spec = env.action_spec
 
-    rngs = nnx.Rngs(default=random.randint(0, 1000000))
-    rollout = Rollout(batch_size, length, obs_spec, action_spec)
+    rngs = nnx.Rngs(default=experiment.default_seed)
+    rollout = Rollout(batch_size, max_steps, obs_spec, action_spec)
 
     model = TransformerActorCritic(
-        TransformerActorCriticConfig(
-            obs_encoder=LinearObsEncoderConfig(),
-            transformer_block=TransformerBlockConfig(
-                num_heads=4,
-                ffn_size=128,
-                gtrxl_gate=False,
-                gtrxl_bias=2.0,
-                glu=False,
-                max_seq_length=length,
-            ),
-            hidden_features=128,
-            num_layers=3,
-            activation='gelu',
-            norm='layer_norm',
-            kernel_init='glorot_uniform',
-            dtype='bfloat16',
-            param_dtype='float32'
-        ),
+        experiment.config.learner.model,
         obs_spec.shape[0],
         action_spec.num_actions,
+        max_seq_length=max_steps,
         rngs=rngs
     )
 
-    optimizer = nnx.Optimizer(model, optax.adam(learning_rate=learning_rate, b1=b1, b2=b2))
-    hypers = TrainerHypers(
-        vf_coef=vf_coef,
-        entropy_coef=entropy_coef,
-        vf_clip=vf_clip,
-        discount=discount,
-        gae_lambda=gae_lambda,
-        minibatch_count=1,
-        gradient_clip=gradient_clip
-    )
-    
+    optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps))
+    trainer_hypers = experiment.config.learner.trainer
     jitted_train = nnx.jit(train, static_argnums=(3, 4))
-    
+
     logs = None
-    for i in range(1000):
-        optimizer, rngs, logs = jitted_train(optimizer, rollout, rngs, env, hypers)
-        logger.log_dict(logs._asdict(), i)
+    for i in track(range(experiment.config.update_steps), description="Training"):
+        optimizer, rngs, logs = jitted_train(optimizer, rollout, rngs, env, trainer_hypers)
+
+        # this should be delayed n-1 for jax to use async dispatch
+        logger.log(logs._asdict(), i)
         if trial:
             trial.report(logs.rewards.item(), i)
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
+
+        if i % checkpoint_interval == checkpoint_interval - 1:
+            checkpointer.save(optimizer, i)
+
+    logger.close()
+    checkpointer.close()
 
     if logs:
         return logs.rewards.item()
@@ -270,26 +236,47 @@ def train_run(
 
 
 def objective(trial: optuna.Trial):
-    vf_coef = trial.suggest_float("vf_coef", 0.5, 2.0)
-    entropy_coef = trial.suggest_float("entropy_coef", 0.0, 0.01)
-    vf_clip = trial.suggest_float("vf_clip", 0.1, 0.3)
-    discount = trial.suggest_float("discount", 0.9, 0.99)
-    gae_lambda = trial.suggest_float("gae_lambda", 0.9, 0.99)
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True)
-    gradient_clip = trial.suggest_float("gradient_clip", 0.1, 1.0)
-    b1 = 0.9
-    b2 = 0.999
+    config=Config(
+        seed="random",
+        num_envs=2048,
+        max_env_steps=128,
+        update_steps=1000,
+        learner=LearnerConfig(
+            model=TransformerActorCriticConfig(
+                obs_encoder=LinearObsEncoderConfig(),
+                hidden_features=128,
+                num_layers=3,
+                activation="gelu",
+                norm="layer_norm",
+                transformer_block=TransformerBlockConfig(
+                    num_heads=4,
+                    ffn_size=256,
+                )
+            ),
+            optimizer=OptimizerConfig(
+                type="adamw",
+                learning_rate=trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True),
+                weight_decay=0.0,
+                eps=1e-8,
+                beta1=0.9,
+                beta2=0.999,
+                max_norm=trial.suggest_float("max_norm", 0.1, 1.0),
+            ),
+            trainer=PPOConfig(
+                learner_type="ppo",
+                minibatch_count=1,
+                vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
+                entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
+                vf_clip=trial.suggest_float("vf_clip", 0.1, 0.3),
+                discount=trial.suggest_float("discount", 0.9, 0.99),
+                gae_lambda=trial.suggest_float("gae_lambda", 0.9, 0.99),
+            ),
+        ),
+        logger=LoggerConfig(),
+    )
 
     return train_run(
-        vf_coef=vf_coef,
-        entropy_coef=entropy_coef,
-        vf_clip=vf_clip,
-        discount=discount,
-        gae_lambda=gae_lambda,
-        learning_rate=learning_rate,
-        gradient_clip=gradient_clip,
-        b1=b1,
-        b2=b2,
+        experiment=Experiment.from_config(config=config, unique_token=f"trial_{trial.number}"),
         trial=trial,
     )
 
@@ -297,7 +284,7 @@ def objective(trial: optuna.Trial):
 @app.command()
 def sweep():
     """Runs an Optuna sweep."""
-    storage_name = "sqlite:///jaxrl_study_2.db"
+    storage_name = "sqlite:///jaxrl_study.db"
     study_name = "jaxrl_study"
     study = optuna.create_study(
         study_name=study_name,
@@ -328,30 +315,48 @@ def sweep():
         console.print(f"    {key}: {value}")
 
 
-@app.command()
-def train_cmd(
-    vf_coef: float = typer.Option(1.0, help="Value function coefficient"),
-    entropy_coef: float = typer.Option(0.005, help="Entropy coefficient"),
-    vf_clip: float = typer.Option(0.2, help="Value function clip range"),
-    discount: float = typer.Option(0.95, help="Discount factor"),
-    gae_lambda: float = typer.Option(0.95, help="GAE lambda"),
-    learning_rate: float = typer.Option(1e-4, help="Learning rate"),
-    gradient_clip: float = typer.Option(0.5, help="Gradient clipping"),
-    b1: float = typer.Option(0.9, help="Adam b1"),
-    b2: float = typer.Option(0.999, help="Adam b2"),
-):
-    """Trains a single model with the given hyperparameters."""
-    train_run(
-        vf_coef=vf_coef,
-        entropy_coef=entropy_coef,
-        vf_clip=vf_clip,
-        discount=discount,
-        gae_lambda=gae_lambda,
-        learning_rate=learning_rate,
-        gradient_clip=gradient_clip,
-        b1=b1,
-        b2=b2,
+@app.command("train")
+def train_cmd():
+    config=Config(
+        seed="random",
+        num_envs=128,
+        max_env_steps=128,
+        update_steps=1000,
+        learner=LearnerConfig(
+            model=TransformerActorCriticConfig(
+                obs_encoder=LinearObsEncoderConfig(),
+                hidden_features=128,
+                num_layers=3,
+                activation="gelu",
+                norm="layer_norm",
+                transformer_block=TransformerBlockConfig(
+                    num_heads=4,
+                    ffn_size=256,
+                )
+            ),
+            optimizer=OptimizerConfig(
+                type="adamw",
+                learning_rate=1e-3,
+                weight_decay=0.0,
+                eps=1e-8,
+                beta1=0.9,
+                beta2=0.999,
+                max_norm=0.5,
+            ),
+            trainer=PPOConfig(
+                learner_type="ppo",
+                minibatch_count=1,
+                vf_coef=1.0,
+                entropy_coef=0.001,
+                vf_clip=0.2,
+                discount=0.99,
+                gae_lambda=0.9,
+            ),
+        ),
+        logger=LoggerConfig(),
     )
+
+    train_run(Experiment.from_config("trial_0", config))
 
 if __name__ == '__main__':
     app()
