@@ -6,6 +6,7 @@ import string
 import subprocess
 
 from jaxrl.config import Config, load_config
+from jaxrl.logger import JaxLogger
 
 
 class ExperimentMeta(BaseModel):
@@ -35,11 +36,14 @@ class Experiment:
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-        config_str = self.config.model_dump_json()
+        config_str = self.config.model_dump_json(indent=2)
         self.config_path.write_text(config_str)
 
         meta_str = self.meta.model_dump_json()
         self.meta_path.write_text(meta_str)
+
+    def create_logger(self) -> JaxLogger:
+        return JaxLogger(self.config.logger, self.unique_token)
 
     @property
     def checkpoints_dir(self) -> Path:

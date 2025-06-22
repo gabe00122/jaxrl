@@ -7,6 +7,7 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 from pydantic import BaseModel, ConfigDict, Field
 
+from jaxrl.config import LinearObsEncoderConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.networks import parse_activation_fn
 from jaxrl.types import TimeStep
@@ -15,45 +16,15 @@ from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.transformer.gate import GatingMechanism
 
 
-class LinearObsEncoderConfig(BaseModel):
-    obs_type: Literal["linear"] = "linear"
-
 class LinearObsEncoder(nnx.Module):
     def __init__(self, config: LinearObsEncoderConfig, obs_dim: int, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
         self.linear = nnx.Linear(obs_dim, output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
 
     def __call__(self, x) -> Any:
         return self.linear(x)
-    
+
 def create_obs_encoder(config: LinearObsEncoderConfig, obs_dim: int, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs):
     return LinearObsEncoder(config, obs_dim, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
-
-class TransformerBlockConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")    
-    num_heads: int
-    ffn_size: int
-    max_seq_length: int
-    rope_max_wavelength: float = 10_000
-    glu: bool = True
-    gtrxl_gate: bool = True
-    gtrxl_bias: float = 0.0
-    attention_softcap: Optional[float] = None
-
-
-class TransformerActorCriticConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    obs_encoder: LinearObsEncoderConfig = Field(discriminator="obs_type")
-    hidden_features: int
-    
-    transformer_block: TransformerBlockConfig
-    num_layers: int
-
-    activation: Literal["relu","gelu", "silu", "mish"]
-    norm: Literal["layer_norm", "rms_norm"]
-    kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = "glorot_uniform"
-    dtype: Literal["float32", "bfloat16", "float16"] = "float32"
-    param_dtype: Literal["float32", "bfloat16"] = "float32"
 
 
 def get_kernel_init(init_name: str) -> nnx.Initializer:
@@ -98,6 +69,7 @@ class TransformerBlock(nnx.Module):
         hidden_features: int,
         activation: Callable[[jax.Array], jax.Array],
         normalizer,
+        max_seq_length: int,
         kernel_init: nnx.Initializer,
         dtype: DTypeLike,
         param_dtype: DTypeLike,
@@ -110,13 +82,12 @@ class TransformerBlock(nnx.Module):
 
         num_heads = config.num_heads
         ffn_size = config.ffn_size
-        max_seq_length = config.max_seq_length
         glu = config.glu
         gtrxl_gate = config.gtrxl_gate
         gtrxl_bias = config.gtrxl_bias
         attention_softcap = config.attention_softcap
         rope_max_wavelength = config.rope_max_wavelength
-        
+
         self.gtrxl_gate = gtrxl_gate
 
         self.attention_norm = normalizer(
@@ -217,22 +188,23 @@ class TransformerActorCritic(nnx.Module):
         config: TransformerActorCriticConfig,
         obs_dim: int,
         action_dim: int,
+        max_seq_length: int,
         *,
         rngs: nnx.Rngs,
     ):
         # Extract parameters from config
         transformer_config = config.transformer_block
         num_layers = config.num_layers
-        
+
         hidden_features = config.hidden_features
-        
+
         # Convert string representations to actual objects if needed
         kernel_init = get_kernel_init(config.kernel_init)
         activation = parse_activation_fn(config.activation)
         dtype = get_dtype(config.dtype)
         param_dtype = get_dtype(config.param_dtype)
         norm = get_norm(config.norm)
-        
+
         self.reward_encoder = nnx.Linear(1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.action_encoder = Embedder(action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_dim=obs_dim, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
@@ -245,6 +217,7 @@ class TransformerActorCritic(nnx.Module):
                     hidden_features=hidden_features,
                     activation=activation,
                     normalizer=norm,
+                    max_seq_length=max_seq_length,
                     kernel_init=kernel_init,
                     dtype=dtype,
                     param_dtype=param_dtype,
