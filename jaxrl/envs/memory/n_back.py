@@ -37,10 +37,13 @@ class NBackMemory(Environment[NBackMemoryState]):
     @property
     def num_agents(self) -> int:
         return 1
-    
+
     def reset(self, rng_key: jax.Array) -> tuple[NBackMemoryState, TimeStep]:
         data = jax.random.randint(rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32)
-        labels = jnp.equal(jnp.roll(data, self.n), data)
+        match = jnp.equal(jnp.roll(data, self.n), data)
+        mask = jnp.arange(self.length) >= self.n
+        labels = jnp.where(mask, match, False)
+
         position = jnp.array(0, dtype=jnp.int32)
 
         state = NBackMemoryState(
@@ -48,63 +51,41 @@ class NBackMemory(Environment[NBackMemoryState]):
             labels,
             position
         )
-        
+
         initial_timestep = self.encode_observation(
-            state, 
-            jnp.array(-1, dtype=jnp.int32), # Action -1 to indicate no previous action
-            jnp.array(0.0, dtype=jnp.float32), 
+            state,
+            jnp.array(0, dtype=jnp.int32), # Action -1 to indicate no previous action, edit 0 for now
+            jnp.array(0.0, dtype=jnp.float32),
             jnp.array(StepType.FIRST.value, dtype=jnp.int32) # Pass as JAX array
         )
         return state, initial_timestep
-    
+
     def step(self, state: NBackMemoryState, action: jax.Array, rng_key: jax.Array) -> tuple[NBackMemoryState, TimeStep]:
         # Determine reward - only give reward if there's an n-back value to compare against
         action = action.squeeze(axis=0)
-        
-        reward = jnp.where(
-            state.position >= self.n,  # Only calculate reward if we have an n-back value
-            jnp.where(action == state.labels[state.position].astype(jnp.int32), 1.0, 0.0),
-            0.0  # No reward for positions where n-back comparison isn't possible
-        )
+
+        reward = jnp.where(action == state.labels[state.position].astype(jnp.int32), 1.0, 0.0)
 
         # Update position
         next_position = state.position + 1
-        
+
         new_state = state._replace(position=next_position)
 
         done = next_position >= self.length
-        
+
         # Ensure current_step_type is a JAX array of int32
-        current_step_type = jnp.where(done, 
-                                      jnp.array(StepType.LAST.value, dtype=jnp.int32), 
+        current_step_type = jnp.where(done,
+                                      jnp.array(StepType.LAST.value, dtype=jnp.int32),
                                       jnp.array(StepType.MID.value, dtype=jnp.int32))
-        
+
         timestep = self.encode_observation(new_state, action, reward, current_step_type)
         return new_state, timestep
 
     def encode_observation(self, state: NBackMemoryState, last_action: jax.Array, last_reward: jax.Array, step_type: jax.Array) -> TimeStep:
-        # If position is out of bounds (e.g. after LAST step), we might need to return a dummy observation or handle it.
-        # For now, assume position is valid for observation encoding if not LAST step.
-        # If it's the last step, the agent_view might be for the terminal state.
-        # Let's use the current_value if position < length, otherwise a dummy value.
-        
-        valid_position = jnp.clip(state.position, 0, self.length - 1)
-        current_value = state.data[valid_position] 
-        
+        current_value = state.data[state.position]
+
         obs = jax.nn.one_hot(current_value, self.max_value, dtype=jnp.float32)
-        
-        # For LAST step, the observation is for the terminal state. 
-        # The action_mask might be all False, or it might not matter.
-        # The problem asks for action_mask=jnp.ones((2,), dtype=jnp.bool)
-        # This implies two actions (0 or 1 for match/no-match).
-        
         action_mask = jnp.ones((2,), dtype=jnp.bool)
-        
-        # If it's the last step type, and position is now == length,
-        # state.data[state.position] would be out of bounds.
-        # We use the view of the *final* state before termination.
-        # So, if step_type is LAST, agents_view should correspond to state.data[length-1]
-        # The current logic of valid_position handles this for data access.
 
         return TimeStep(
             step_type=step_type[None, ...],
@@ -114,7 +95,7 @@ class NBackMemory(Environment[NBackMemoryState]):
             last_action=last_action[None, ...],
             last_reward=last_reward[None, ...],
         )
-    
+
 class NBackMemoryClient:
     def __init__(self, env: NBackMemory) -> None:
         self.env = env
@@ -145,7 +126,7 @@ class NBackMemoryClient:
         assert self.font is not None, "Pygame font was not initialized."
 
         self.screen.fill((30, 30, 30))  # Dark background
-        
+
         position = ts.time[0].item()
         action_display = ts.last_action[0].item()
         reward_display = ts.last_reward[0].item()
@@ -153,15 +134,15 @@ class NBackMemoryClient:
         # Display game sequence
         history_text = self.font.render("History:", True, (200, 200, 200))
         self.screen.blit(history_text, (10, 10))
-        
+
         start_x = 10
         start_y = 40
-        
+
         for i, val in enumerate(state.data):
             color = (150, 150, 150) # Default history color
             if i == position:
                 color = (255, 255, 0) # Yellow for current position
-            
+
             val_text = self.font.render(str(val.item()), True, color)
             pos_x = start_x + i * (self.cell_size // 2)
             self.screen.blit(val_text, (pos_x, start_y))
@@ -177,7 +158,7 @@ class NBackMemoryClient:
                 n_back_val = state.data[position - self.env.n].item()
                 n_back_text = self.font.render(f"{self.env.n}-Back Value: {n_back_val}", True, (100, 100, 200))
                 self.screen.blit(n_back_text, (10, start_y + 60))
-                
+
                 correct_label = state.labels[position].item()
                 label_text = self.font.render(f"Correct: {'Match' if correct_label else 'No Match'}", True, (0, 255, 0) if correct_label else (255,100,100) )
                 self.screen.blit(label_text, (10, start_y + 90))
@@ -185,7 +166,7 @@ class NBackMemoryClient:
         # Display instructions
         instruction_text = self.font.render("Is it a match? (Left: No, Right: Yes)", True, (200, 200, 200))
         self.screen.blit(instruction_text, (10, self.screen_height - 90))
-        
+
         action_text_str = "Your Action: "
         if action_display != -1:
             action_text_str += "Match" if action_display == 1 else "No Match"
@@ -209,16 +190,16 @@ class NBackMemoryClient:
 def demo():
     n_env = NBackMemory(n=2, max_value=5, length=20)
     client = NBackMemoryClient(n_env)
-    
+
     key = jax.random.PRNGKey(random.randint(0, 1000000))
-    
+
     state, ts = n_env.reset(key)
 
     running = True
     while running:
         client.render(state, ts)
         pygame.display.flip()
-        
+
         if ts.step_type[0].item() == StepType.LAST.value:
             print("Episode finished.")
             pygame.time.wait(5000)
@@ -239,10 +220,10 @@ def demo():
                     elif event.key == pygame.K_RIGHT:
                         agent_action = jnp.array([1], dtype=jnp.int32)
                         input_received = True
-            
+
             if not running:
                 break
-            
+
             # Ensure clock is initialized before using it
             if client.clock is not None:
                 client.clock.tick(30)
@@ -252,7 +233,7 @@ def demo():
 
         step_key, key = jax.random.split(key)
         state, ts = n_env.step(state, agent_action, step_key)
-        
+
     client.close()
 
 
