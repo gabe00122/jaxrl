@@ -14,7 +14,7 @@ def softcap(x, cap):
 
 def position_mask(time_steps, max_seq_length: int):
     seq_range = jnp.arange(max_seq_length, dtype=index_type)
-    mask = seq_range[None, None, :] <= time_steps[:, None]
+    mask = seq_range[None, None, :] <= time_steps[:, :, None]
     return mask[:, None, :, :]
 
 
@@ -127,7 +127,7 @@ class AttentionBlock(nnx.Module):
             kv_cache = self.update_kv_cache(kv_cache, seq_pos, key, value)
             key = kv_cache.key
             value = kv_cache.value
-        
+
         mask = position_mask(seq_pos, self.max_seq_length)
 
         # x = jax.nn.dot_product_attention(query, key, value, implementation='cudnn')

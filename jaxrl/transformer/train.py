@@ -1,3 +1,5 @@
+from pathlib import Path
+import time
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
@@ -15,7 +17,7 @@ from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
-from jaxrl.transformer.rollout import Rollout
+from jaxrl.transformer.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
 
@@ -53,10 +55,12 @@ def add_seq_dim(ts: TimeStep):
 def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
+
+    rollout_state = rollout.create_state()
     kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length, dtype=jnp.float32)
 
     def _step(i, x):
-        rollout, rngs, env_state, ts, kv_cache = x
+        rollout_state, rngs, env_state, ts, kv_cache = x
 
         action_key = rngs.action()
         env_key = rngs.env()
@@ -71,7 +75,8 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
-        rollout.store(
+        rollout_state = rollout.store(
+            rollout_state,
             step=i,
             obs=ts.obs,
             action_mask=ts.action_mask,
@@ -81,27 +86,27 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
             value=value
         )
 
-        return rollout, rngs, env_state, next_timestep, kv_cache
+        return rollout_state, rngs, env_state, next_timestep, kv_cache
 
-    rollout, rngs, _, _, _ = nnx.fori_loop(
+    rollout_state, rngs, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
-        init_val=(rollout, rngs, env_state, timestep, kv_cache)
+        init_val=(rollout_state, rngs, env_state, timestep, kv_cache)
     )
 
-    rollout.calculate_advantage(discount=hypers.discount, gae_lambda=hypers.gae_lambda)
+    rollout_state = rollout.calculate_advantage(rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda)
 
-    return rollout, rngs
+    return rollout_state, rngs
 
-def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Array, hypers: PPOConfig, logs: TrainingLogs):
-    batch_obs = rollout.obs.value[batch_idx]
-    batch_target = rollout.targets.value[batch_idx]
-    batch_log_prob = rollout.log_prob.value[batch_idx]
-    batch_actions = rollout.actions.value[batch_idx]
-    batch_advantage = rollout.advantages.value[batch_idx]
-    batch_values = rollout.values.value[batch_idx, :-1]
-    batch_rewards = rollout.rewards.value[batch_idx]
+def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, batch_idx: jax.Array, hypers: PPOConfig, logs: TrainingLogs):
+    batch_obs = rollout.obs[batch_idx]
+    batch_target = rollout.targets[batch_idx]
+    batch_log_prob = rollout.log_prob[batch_idx]
+    batch_actions = rollout.actions[batch_idx]
+    batch_advantage = rollout.advantages[batch_idx]
+    batch_values = rollout.values[batch_idx, :-1]
+    batch_rewards = rollout.rewards[batch_idx]
 
     # TODO: make this conditional
     # batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
@@ -137,6 +142,8 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Arr
 
     total_loss = hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
 
+
+    # jax.debug.breakpoint()
     logs = logs._replace(
         n=logs.n + 1,
         rewards=logs.rewards + batch_rewards.mean(),
@@ -149,9 +156,8 @@ def ppo_loss(model: TransformerActorCritic, rollout: Rollout, batch_idx: jax.Arr
     return total_loss, logs
 
 
-
 def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
-    rollout, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
+    rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
 
     minibatch_size = rollout.batch_size // hypers.minibatch_count
 
@@ -159,13 +165,13 @@ def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Envir
     batch_idx = jnp.reshape(batch_idx, (hypers.minibatch_count, minibatch_size))
 
     def _step(i, x):
-        optimizer, rollout, logs = x
-        grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout, batch_idx[i], hypers, logs)
+        optimizer, rollout_state, logs = x
+        grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout_state, batch_idx[i], hypers, logs)
         optimizer.update(grads)
-        return optimizer, rollout, logs
+        return optimizer, rollout_state, logs
 
     logs = create_training_logs()
-    optimizer, rollout, logs = nnx.fori_loop(0, hypers.minibatch_count, _step, init_val=(optimizer, rollout, logs))
+    optimizer, rollout_state, logs = nnx.fori_loop(0, hypers.minibatch_count, _step, init_val=(optimizer, rollout_state, logs))
 
     logs = TrainingLogs(
         n=jnp.array(1.0),
@@ -178,7 +184,58 @@ def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Envir
 
     return optimizer, rngs, logs
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_show_locals=False)
+
+@app.command()
+def enjoy():
+    experiment: Experiment = Experiment.load("test")
+    max_steps = 10 #experiment.config.max_env_steps
+    num_envs = 1
+
+    env = NBackMemory(n=2, max_value=5, length=max_steps)
+    env = VmapWrapper(env, num_envs)
+
+    obs_spec = env.observation_spec
+    action_spec = env.action_spec
+    rngs = nnx.Rngs(default=experiment.default_seed)
+
+    model = TransformerActorCritic(
+        experiment.config.learner.model,
+        obs_spec.shape[0],
+        action_spec.num_actions,
+        max_seq_length=max_steps,
+        rngs=rngs
+    )
+    optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps))
+
+    with Checkpointer(experiment.checkpoints_dir) as checkpointer:
+        optimizer = checkpointer.restore_latest(optimizer)
+
+    kv_cache = model.create_kv_cache(num_envs, max_steps, dtype=jnp.float32)
+
+    guess = []
+    correct = []
+    reward = []
+
+    env_state, timestep = env.reset(rngs.env())
+    for i in range(max_steps):
+        action_key = rngs.action()
+        env_key = rngs.env()
+        value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        action = policy.sample(seed=action_key)
+        action = action.squeeze(axis=-1)
+
+        env_state, timestep = env.step(env_state, action, env_key)
+        print(f"t: {timestep.obs}, action: {action.item()}, reward: {timestep.last_reward.item()}, value: {value.item()}")
+
+        guess.append(action.item())
+        correct.append(int(env_state.labels[..., i-1].item()))
+        reward.append(timestep.last_reward.item())
+
+    print(env_state.data[0])
+    print(guess)
+    print(env_state.labels.astype(jnp.int32)[0])
+    print(reward)
 
 
 def train_run(
@@ -213,12 +270,21 @@ def train_run(
     trainer_hypers = experiment.config.learner.trainer
     jitted_train = nnx.jit(train, static_argnums=(3, 4))
 
+    env_steps_per_update = batch_size * max_steps
+
     logs = None
-    for i in track(range(experiment.config.update_steps), description="Training"):
+    for i in track(range(experiment.config.update_steps), description="Training", disable=False):
+        start_time = time.time()
         optimizer, rngs, logs = jitted_train(optimizer, rollout, rngs, env, trainer_hypers)
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs._asdict(), i)
+
+        stop_time = time.time()
+
+        sps = env_steps_per_update / (stop_time - start_time)
+        print(int(sps))
+
         if trial:
             trial.report(logs.rewards.item(), i)
             if trial.should_prune():
@@ -238,7 +304,7 @@ def train_run(
 def objective(trial: optuna.Trial):
     config=Config(
         seed="random",
-        num_envs=2048,
+        num_envs=256,
         max_env_steps=128,
         update_steps=1000,
         learner=LearnerConfig(
@@ -319,24 +385,26 @@ def sweep():
 def train_cmd():
     config=Config(
         seed="random",
-        num_envs=128,
+        num_envs=128 * 8,
         max_env_steps=128,
         update_steps=1000,
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=3,
+                num_layers=1,
                 activation="gelu",
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
-                    ffn_size=256,
+                    ffn_size=128,
+                    glu=False,
+                    gtrxl_gate=False,
                 )
             ),
             optimizer=OptimizerConfig(
                 type="adamw",
-                learning_rate=1e-3,
+                learning_rate=0.0001,
                 weight_decay=0.0,
                 eps=1e-8,
                 beta1=0.9,
@@ -346,17 +414,18 @@ def train_cmd():
             trainer=PPOConfig(
                 learner_type="ppo",
                 minibatch_count=1,
-                vf_coef=1.0,
+                vf_coef=0.2,
                 entropy_coef=0.001,
-                vf_clip=0.2,
-                discount=0.99,
-                gae_lambda=0.9,
+                vf_clip=1.0,
+                discount=0.0,
+                gae_lambda=1.0,
             ),
         ),
         logger=LoggerConfig(),
     )
+    # config = Config.model_validate_json(Path("./results/trial_183/config.json").read_text()
 
-    train_run(Experiment.from_config("trial_0", config))
+    train_run(Experiment.from_config("test", config))
 
 if __name__ == '__main__':
     app()

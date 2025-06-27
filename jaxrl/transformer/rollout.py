@@ -11,11 +11,27 @@ from jaxrl.constants import index_type
 from jaxrl.envs.specs import ActionSpec, ObservationSpec
 
 
+class RolloutState(NamedTuple):
+    # observation gets plus one because we need to store the next trailing observation
+    obs: jax.Array
+    action_mask: jax.Array
+    actions: jax.Array
+    rewards: jax.Array
+
+    log_prob: jax.Array
+    values: jax.Array
+
+    # these are calculated in the rollout
+    advantages: jax.Array
+    targets: jax.Array
+
+
 class Rollout(nnx.Module):
     def __init__(self, batch_size: int, trajectory_length: int, obs_spec: ObservationSpec, action_spec: ActionSpec):
         self.batch_size = batch_size
         self.trajectory_length = trajectory_length
         self.obs_spec = obs_spec
+        self.action_spec = action_spec
 
         # observation gets plus one because we need to store the next trailing observation
         self.obs = nnx.Variable(jnp.zeros((batch_size, trajectory_length, *obs_spec.shape), dtype=obs_spec.dtype))
@@ -30,17 +46,33 @@ class Rollout(nnx.Module):
         self.advantages = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=jnp.float32))
         self.targets = nnx.Variable(jnp.zeros((batch_size, trajectory_length), dtype=jnp.float32))
 
-    def store(self, step: jax.Array, obs: jax.Array, action_mask: jax.Array, action: jax.Array, reward: jax.Array, log_prob: jax.Array, value: jax.Array):
-        # perhaps the order should be (timestep, batch, obs) for insertion and rotated to (batch, timestep, obs) for training but this could be a premature optimization
-        self.obs.value = self.obs.value.at[:, step].set(obs)
-        self.action_mask.value = self.action_mask.value.at[:, step].set(action_mask)
-        self.actions.value = self.actions.value.at[:, step].set(action)
-        self.log_prob.value = self.log_prob.value.at[:, step].set(log_prob)
-        self.values.value = self.values.value.at[:, step].set(value)
-        self.rewards.value = self.rewards.value.at[:,step].set(reward)
-        # jax.debug.breakpoint()
-    
-    def calculate_advantage(self, discount: float, gae_lambda: float):
+    def create_state(self) -> RolloutState:
+        return RolloutState(
+            # observation gets plus one because we need to store the next trailing observation
+            obs = jnp.zeros((self.batch_size, self.trajectory_length, *self.obs_spec.shape), dtype=self.obs_spec.dtype),
+            action_mask = jnp.zeros((self.batch_size, self.trajectory_length, self.action_spec.num_actions), dtype=jnp.bool_),
+            actions = jnp.zeros((self.batch_size, self.trajectory_length), dtype=index_type),
+            rewards = jnp.zeros((self.batch_size, self.trajectory_length), dtype=jnp.float32),
+
+            log_prob = jnp.zeros((self.batch_size, self.trajectory_length), dtype=jnp.float32),
+            values = jnp.zeros((self.batch_size, self.trajectory_length + 1), dtype=jnp.float32),
+
+            # these are calculated in the rollout
+            advantages = jnp.zeros((self.batch_size, self.trajectory_length), dtype=jnp.float32),
+            targets = jnp.zeros((self.batch_size, self.trajectory_length), dtype=jnp.float32),
+        )
+
+    def store(self, state: RolloutState, step: jax.Array, obs: jax.Array, action_mask: jax.Array, action: jax.Array, reward: jax.Array, log_prob: jax.Array, value: jax.Array) -> RolloutState:
+        return state._replace(
+            obs = state.obs.at[:, step].set(obs),
+            action_mask = state.action_mask.at[:, step].set(action_mask),
+            actions = state.actions.at[:, step].set(action),
+            log_prob = state.log_prob.at[:, step].set(log_prob),
+            values = state.values.at[:, step].set(value),
+            rewards = state.rewards.at[:,step].set(reward),
+        )
+
+    def calculate_advantage(self, state: RolloutState, discount: float, gae_lambda: float) -> RolloutState:
         def _inner_calc(rewards, values):
             delta_t = rewards + discount * values[1:] - values[:-1]
 
@@ -54,66 +86,10 @@ class Rollout(nnx.Module):
             targets = values[:-1] + advantages
 
             return advantages, targets
-        
-        self.advantages.value, self.targets.value = jax.vmap(_inner_calc)(self.rewards.value, self.values.value)
 
+        advantages, targets = jax.vmap(_inner_calc)(state.rewards, state.values)
 
-def bench(batch_size: int, context_size: int, obs_size: int, action_size: int, rollout: Rollout, rngs: nnx.Rngs):
-    def _step(i, xs: tuple[Rollout, nnx.Rngs]):
-        rollout, rngs = xs
-        
-        obs_seed = rngs.default()
-        reward_seed = rngs.default()
-        action_seed = rngs.default()
-        log_prob_seed = rngs.default()
-        value_seed = rngs.default()
-
-        step = jnp.array(i, dtype=jnp.int32)
-        agents_view = random.normal(obs_seed, (batch_size, obs_size))
-        actions = random.randint(action_seed, (batch_size,), minval=0, maxval=action_size)
-        reward = random.normal(reward_seed, (batch_size,))
-        
-        log_prob = random.normal(log_prob_seed, (batch_size,))
-        value = random.normal(value_seed, (batch_size,))
-
-        rollout.store(step, agents_view, actions, reward, log_prob, value)
-        return rollout, rngs
-
-    nnx.fori_loop(0, context_size, _step, (rollout, rngs))
-    
-    rollout.calculate_advantage(0.99, 0.95)
-    # return rollout, rngs
-
-def main():
-    batch_size = 1024
-    context_size = 128
-    obs_size = 8 * 8 * 24
-    action_size = 8
-    rngs = nnx.Rngs(default=0)
-
-    rollout = Rollout(batch_size, context_size, ObservationSpec(shape=(obs_size,), dtype=jnp.float32))
-
-    
-    jitted_bench = nnx.cached_partial(nnx.jit(bench, static_argnums=(0, 1, 2, 3), donate_argnums=(4, 5)), batch_size, context_size, obs_size, action_size, rollout, rngs)
-
-    print("warmup")
-    for _ in range(10):
-        jitted_bench()
-    
-    rollout.targets.value.block_until_ready()
-    
-    print("benchmark")
-    start = time.time()
-    for _ in range(10000):
-        jitted_bench()
-
-    rollout.targets.value.block_until_ready()
-    end = time.time()
-    
-    print(f"Execution time: {end - start:.4f} seconds")
-
-
-
-
-if __name__ == '__main__':
-    main()
+        return state._replace(
+            advantages=advantages,
+            targets=targets,
+        )

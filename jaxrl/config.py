@@ -150,6 +150,6 @@ def load_config(file: Path) -> Config:
 
     config = Config.model_validate(json_config, strict=True)
     if config.seed == "random":
-        config.seed = random.getrandbits(31)
+        config = config.model_copy(update={"seed": random.getrandbits(31)})
 
     return config
