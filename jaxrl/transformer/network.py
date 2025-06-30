@@ -242,10 +242,10 @@ class TransformerActorCritic(nnx.Module):
 
     def __call__(self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
-        # reward_embedding = self.reward_encoder(ts.last_reward[..., None])
-        # action_embedding = self.action_encoder.encode(ts.last_action)
+        reward_embedding = self.reward_encoder(ts.last_reward[..., None])
+        action_embedding = self.action_encoder.encode(ts.last_action)
 
-        x = obs_embedding # + reward_embedding + action_embedding
+        x = obs_embedding + reward_embedding + action_embedding
 
         # todo: evaluate nnx scan for this
         if kv_cache is not None:

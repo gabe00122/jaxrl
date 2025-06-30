@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
+import optax
 import optuna
 import typer
 from rich.console import Console
@@ -60,12 +61,12 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
     kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length, dtype=jnp.float32)
 
     def _step(i, x):
-        rollout_state, rngs, env_state, ts, kv_cache = x
+        rollout_state, rngs, env_state, timestep, kv_cache = x
 
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, policy, kv_cache = model(add_seq_dim(ts), kv_cache)
+        value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
@@ -78,12 +79,10 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
         rollout_state = rollout.store(
             rollout_state,
             step=i,
-            obs=ts.obs,
-            action_mask=ts.action_mask,
-            action=next_timestep.last_action,
-            reward=next_timestep.last_reward,
+            timestep=timestep,
+            next_timestep=next_timestep,
             log_prob=log_prob,
-            value=value
+            value=value,
         )
 
         return rollout_state, rngs, env_state, next_timestep, kv_cache
@@ -100,13 +99,16 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
     return rollout_state, rngs
 
 def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, batch_idx: jax.Array, hypers: PPOConfig, logs: TrainingLogs):
-    batch_obs = rollout.obs[batch_idx]
-    batch_target = rollout.targets[batch_idx]
-    batch_log_prob = rollout.log_prob[batch_idx]
-    batch_actions = rollout.actions[batch_idx]
-    batch_advantage = rollout.advantages[batch_idx]
-    batch_values = rollout.values[batch_idx, :-1]
-    batch_rewards = rollout.rewards[batch_idx]
+    batch_obs = jax.lax.stop_gradient(rollout.obs[batch_idx])
+    batch_target = jax.lax.stop_gradient(rollout.targets[batch_idx])
+    batch_log_prob = jax.lax.stop_gradient(rollout.log_prob[batch_idx])
+    batch_actions = jax.lax.stop_gradient(rollout.actions[batch_idx])
+    batch_advantage = jax.lax.stop_gradient(rollout.advantages[batch_idx])
+    batch_values = jax.lax.stop_gradient(rollout.values[batch_idx, :-1])
+    batch_rewards = jax.lax.stop_gradient(rollout.rewards[batch_idx])
+
+    batch_last_actions = jax.lax.stop_gradient(rollout.last_actions[batch_idx])
+    batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards[batch_idx])
 
     # TODO: make this conditional
     # batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
@@ -116,8 +118,8 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, batch_idx: ja
     values, policy, _ = model(TimeStep(
         obs=batch_obs,
         time=positions,
-        last_action=batch_actions,
-        last_reward=batch_rewards,
+        last_action=batch_last_actions,
+        last_reward=batch_last_rewards,
         step_type=jnp.zeros_like(batch_target, dtype=jnp.int32),
         action_mask=None
     ))
@@ -268,7 +270,7 @@ def train_run(
 
     optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps))
     trainer_hypers = experiment.config.learner.trainer
-    jitted_train = nnx.jit(train, static_argnums=(3, 4))
+    jitted_train = nnx.jit(train, static_argnums=(1, 3, 4))
 
     env_steps_per_update = batch_size * max_steps
 
@@ -305,18 +307,20 @@ def objective(trial: optuna.Trial):
     config=Config(
         seed="random",
         num_envs=256,
-        max_env_steps=128,
-        update_steps=1000,
+        max_env_steps=32,
+        update_steps=10000,
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=3,
+                num_layers=1,
                 activation="gelu",
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
-                    ffn_size=256,
+                    ffn_size=128,
+                    glu=False,
+                    gtrxl_gate=False,
                 )
             ),
             optimizer=OptimizerConfig(
@@ -385,9 +389,9 @@ def sweep():
 def train_cmd():
     config=Config(
         seed="random",
-        num_envs=128 * 8,
+        num_envs=128,
         max_env_steps=128,
-        update_steps=1000,
+        update_steps=10000,
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
@@ -404,7 +408,7 @@ def train_cmd():
             ),
             optimizer=OptimizerConfig(
                 type="adamw",
-                learning_rate=0.0001,
+                learning_rate=0.0003,
                 weight_decay=0.0,
                 eps=1e-8,
                 beta1=0.9,
@@ -414,7 +418,7 @@ def train_cmd():
             trainer=PPOConfig(
                 learner_type="ppo",
                 minibatch_count=1,
-                vf_coef=0.2,
+                vf_coef=0.4,
                 entropy_coef=0.001,
                 vf_clip=1.0,
                 discount=0.0,
