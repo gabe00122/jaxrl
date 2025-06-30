@@ -8,7 +8,7 @@ def create_optimizer(optimizer_config: OptimizerConfig, update_steps: int) -> op
         case "adamw":
             return optax.chain(
                 optax.adamw(
-                    optax.linear_schedule(optimizer_config.learning_rate, 0, update_steps),
+                    optax.linear_onecycle_schedule(update_steps, optimizer_config.learning_rate),
                     b1=optimizer_config.beta1,
                     b2=optimizer_config.beta2,
                     weight_decay=optimizer_config.weight_decay,
