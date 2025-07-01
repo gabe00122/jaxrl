@@ -98,17 +98,17 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
     return rollout_state, rngs
 
-def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, batch_idx: jax.Array, hypers: PPOConfig, logs: TrainingLogs):
-    batch_obs = jax.lax.stop_gradient(rollout.obs[batch_idx])
-    batch_target = jax.lax.stop_gradient(rollout.targets[batch_idx])
-    batch_log_prob = jax.lax.stop_gradient(rollout.log_prob[batch_idx])
-    batch_actions = jax.lax.stop_gradient(rollout.actions[batch_idx])
-    batch_advantage = jax.lax.stop_gradient(rollout.advantages[batch_idx])
-    batch_values = jax.lax.stop_gradient(rollout.values[batch_idx, :-1])
-    batch_rewards = jax.lax.stop_gradient(rollout.rewards[batch_idx])
+def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig, logs: TrainingLogs):
+    batch_obs = jax.lax.stop_gradient(rollout.obs)
+    batch_target = jax.lax.stop_gradient(rollout.targets)
+    batch_log_prob = jax.lax.stop_gradient(rollout.log_prob)
+    batch_actions = jax.lax.stop_gradient(rollout.actions)
+    batch_advantage = jax.lax.stop_gradient(rollout.advantages)
+    batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
+    batch_rewards = jax.lax.stop_gradient(rollout.rewards)
 
-    batch_last_actions = jax.lax.stop_gradient(rollout.last_actions[batch_idx])
-    batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards[batch_idx])
+    batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
+    batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards)
 
     # TODO: make this conditional
     # batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
@@ -159,21 +159,17 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, batch_idx: ja
 
 
 def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
-    rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
-
-    minibatch_size = rollout.batch_size // hypers.minibatch_count
-
-    batch_idx = jnp.arange(rollout.batch_size, dtype=jnp.int32)
-    batch_idx = jnp.reshape(batch_idx, (hypers.minibatch_count, minibatch_size))
-
     def _step(i, x):
-        optimizer, rollout_state, logs = x
-        grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout_state, batch_idx[i], hypers, logs)
+        optimizer, rngs, logs = x
+
+        rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
+
+        grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout_state, hypers, logs)
         optimizer.update(grads)
-        return optimizer, rollout_state, logs
+        return optimizer, rngs, logs
 
     logs = create_training_logs()
-    optimizer, rollout_state, logs = nnx.fori_loop(0, hypers.minibatch_count, _step, init_val=(optimizer, rollout_state, logs))
+    optimizer, rngs, logs = nnx.fori_loop(0, hypers.minibatch_count, _step, init_val=(optimizer, rngs, logs))
 
     logs = TrainingLogs(
         n=jnp.array(1.0),
@@ -194,7 +190,7 @@ def enjoy():
     max_steps = 10 #experiment.config.max_env_steps
     num_envs = 1
 
-    env = NBackMemory(n=2, max_value=5, length=max_steps)
+    env = NBackMemory(n=12, max_value=2, length=max_steps)
     env = VmapWrapper(env, num_envs)
 
     obs_spec = env.observation_spec
@@ -250,7 +246,7 @@ def train_run(
     checkpointer = Checkpointer(experiment.checkpoints_dir)
     checkpoint_interval = 200
 
-    env = NBackMemory(n=2, max_value=5, length=max_steps)
+    env = NBackMemory(n=12, max_value=2, length=max_steps)
     env = VmapWrapper(env, experiment.config.num_envs)
     batch_size = env.num_agents
 
@@ -268,7 +264,7 @@ def train_run(
         rngs=rngs
     )
 
-    optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps))
+    optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps * experiment.config.learner.trainer.minibatch_count))
     trainer_hypers = experiment.config.learner.trainer
     jitted_train = nnx.jit(train, static_argnums=(1, 3, 4))
 
@@ -285,7 +281,7 @@ def train_run(
         stop_time = time.time()
 
         sps = env_steps_per_update / (stop_time - start_time)
-        print(int(sps))
+        print(int(sps * experiment.config.learner.trainer.minibatch_count))
 
         if trial:
             trial.report(logs.rewards.item(), i)
@@ -389,19 +385,19 @@ def sweep():
 def train_cmd():
     config=Config(
         seed="random",
-        num_envs=128,
+        num_envs=64,
         max_env_steps=128,
-        update_steps=10000,
+        update_steps=1000,
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=1,
+                num_layers=3,
                 activation="gelu",
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
-                    ffn_size=128,
+                    ffn_size=256,
                     glu=False,
                     gtrxl_gate=False,
                 )
@@ -417,7 +413,7 @@ def train_cmd():
             ),
             trainer=PPOConfig(
                 learner_type="ppo",
-                minibatch_count=1,
+                minibatch_count=100,
                 vf_coef=0.4,
                 entropy_coef=0.001,
                 vf_clip=1.0,
