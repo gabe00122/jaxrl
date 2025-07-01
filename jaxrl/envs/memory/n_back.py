@@ -39,8 +39,12 @@ class NBackMemory(Environment[NBackMemoryState]):
         return 1
 
     def reset(self, rng_key: jax.Array) -> tuple[NBackMemoryState, TimeStep]:
+        rng_key, n_key = jax.random.split(rng_key, 2)
+
+        n = jax.random.randint(n_key, (), 0, self.n, dtype=jnp.int32)
+
         data = jax.random.randint(rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32)
-        match = jnp.equal(jnp.roll(data, self.n), data)
+        match = jnp.equal(jnp.roll(data, n), data)
         mask = jnp.arange(self.length) >= self.n
         labels = jnp.where(mask, match, False)
 
