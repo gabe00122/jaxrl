@@ -45,7 +45,7 @@ class NBackMemory(Environment[NBackMemoryState]):
 
         data = jax.random.randint(rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32)
         match = jnp.equal(jnp.roll(data, n), data)
-        mask = jnp.arange(self.length) >= self.n
+        mask = jnp.arange(self.length) >= n
         labels = jnp.where(mask, match, False)
 
         position = jnp.array(0, dtype=jnp.int32)
