@@ -187,7 +187,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 @app.command()
 def enjoy():
     experiment: Experiment = Experiment.load("test")
-    max_steps = 10 #experiment.config.max_env_steps
+    max_steps = 128 #experiment.config.max_env_steps
     num_envs = 1
 
     env = NBackMemory(n=12, max_value=2, length=max_steps)
@@ -208,6 +208,8 @@ def enjoy():
 
     with Checkpointer(experiment.checkpoints_dir) as checkpointer:
         optimizer = checkpointer.restore_latest(optimizer)
+
+    model = optimizer.model
 
     kv_cache = model.create_kv_cache(num_envs, max_steps, dtype=jnp.float32)
 
@@ -230,10 +232,11 @@ def enjoy():
         correct.append(int(env_state.labels[..., i-1].item()))
         reward.append(timestep.last_reward.item())
 
-    print(env_state.data[0])
-    print(guess)
-    print(env_state.labels.astype(jnp.int32)[0])
-    print(reward)
+    print("data: ", env_state.data[0])
+    print("guess: ", jnp.array(guess))
+    print("label: ", env_state.labels.astype(jnp.int32)[0])
+    print("reward: ", jnp.array(reward, dtype=jnp.int32))
+    print(sum(reward) / max_steps)
 
 
 def train_run(
@@ -285,8 +288,8 @@ def train_run(
 
         if trial:
             trial.report(logs.rewards.item(), i)
-            if trial.should_prune():
-                raise optuna.exceptions.TrialPruned()
+            # if trial.should_prune():
+            #     raise optuna.exceptions.TrialPruned()
 
         if i % checkpoint_interval == checkpoint_interval - 1:
             checkpointer.save(optimizer, i)
@@ -302,14 +305,14 @@ def train_run(
 def objective(trial: optuna.Trial):
     config=Config(
         seed="random",
-        num_envs=256,
-        max_env_steps=32,
-        update_steps=10000,
+        num_envs=64,
+        max_env_steps=128,
+        update_steps=1000,
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=1,
+                num_layers=3,
                 activation="gelu",
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
@@ -330,7 +333,7 @@ def objective(trial: optuna.Trial):
             ),
             trainer=PPOConfig(
                 learner_type="ppo",
-                minibatch_count=1,
+                minibatch_count=100,
                 vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
                 entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
                 vf_clip=trial.suggest_float("vf_clip", 0.1, 0.3),
@@ -352,15 +355,19 @@ def sweep():
     """Runs an Optuna sweep."""
     storage_name = "sqlite:///jaxrl_study.db"
     study_name = "jaxrl_study"
+
+    import optunahub
+    module = optunahub.load_module(package="samplers/auto_sampler")
+
     study = optuna.create_study(
         study_name=study_name,
         storage=storage_name,
         direction='maximize',
         load_if_exists=True,
-        sampler=optuna.samplers.TPESampler(n_startup_trials=10),
-        pruner=optuna.pruners.HyperbandPruner()
+        sampler=module.AutoSampler(), #optuna.samplers.TPESampler(n_startup_trials=10),
+        # pruner=optuna.pruners.HyperbandPruner()
     )
-    study.optimize(objective, n_trials=200)
+    study.optimize(objective, n_trials=300)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[optuna.trial.TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[optuna.trial.TrialState.COMPLETE])
@@ -425,7 +432,7 @@ def train_cmd():
     )
     # config = Config.model_validate_json(Path("./results/trial_183/config.json").read_text()
 
-    train_run(Experiment.from_config("test", config))
+    train_run(Experiment.from_config("test_0", config))
 
 if __name__ == '__main__':
     app()
