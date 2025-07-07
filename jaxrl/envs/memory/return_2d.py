@@ -14,26 +14,46 @@ from jaxrl.types import TimeStep
 NUM_CLASSES = 3
 
 map_template = """
-xxxxxxxxxxxxxxxxxxxx
-x                  x
-x x  xxxx xxxx  x  x
-x    x       x     x
-x    x       x     x
-x  x     x         x
-x    x       x  x  x
-x    x       x     x
-x    xxxx xxxx     x
-x    x        x    x
-x              x   x
-xxxxxxxxxx      x  x
-x          x x     x
-x x    x   x       x
-x   x      x   x   x
-x   xxxxxxxx       x
-x   x        x     x
-x           x   x  x
-x   x      x       x
-xxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+x                  xx                  x
+x x  xxxx xxxx  x  xx x  xxxx xxxx  x  x
+x    x       x     xx    x       x     x
+x    x       x     xx    x       x     x
+x  x     x         xx  x     x         x
+x    x       x  x  xx    x       x  x  x
+x    x       x     xx    x       x     x
+x    xxxx xxxx     xx    xxxx xxxx     x
+x    x        x    xx    x        x    x
+x              x   xx              x   x
+xxxxxxxxxx      x  xxxxxxxxxxx      x  x
+x          x x     xx          x x     x
+x x    x   x       xx x    x   x       x
+x   x      x   x   xx   x      x   x   x
+x   xxxxxxxx       xx   xxxxxxxx       x
+x   x        x     xx   x        x     x
+x           x   x  xx           x   x  x
+x   x      x            x      x       x
+xxxxxxxxxxxxxxxxxx    xxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxx    xxxxxxxxxxxxxxxxxx
+x                                      x
+x x  xxxx xxxx  x  xx x  xxxx xxxx  x  x
+x    x       x     xx    x       x     x
+x    x       x     xx    x       x     x
+x  x     x         xx  x     x         x
+x    x       x  x  xx    x       x  x  x
+x    x       x     xx    x       x     x
+x    xxxx xxxx     xx    xxxx xxxx     x
+x    x        x    xx    x        x    x
+x              x   xx              x   x
+xxxxxxxxxx      x  xxxxxxxxxxx      x  x
+x          x x     xx          x x     x
+x x    x   x       xx x    x   x       x
+x   x      x   x   xx   x      x   x   x
+x   xxxxxxxx       xx   xxxxxxxx       x
+x   x        x     xx   x        x     x
+x           x   x  xx           x   x  x
+x   x      x       xx   x      x       x
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 """
 
 TILE_EMPTY = 0
@@ -51,8 +71,8 @@ class ReturnEnv(Environment[ReturnState]):
     def __init__(self) -> None:
         super().__init__()
 
-        self.unpadded_width = 20
-        self.unpadded_height = 20
+        self.unpadded_width = 40
+        self.unpadded_height = 40
 
         self.view_width = 5
         self.view_height = 5
@@ -171,7 +191,7 @@ class ReturnClient:
     def render(self, state: ReturnState):
         self.surface.fill((0, 0, 0, 0))
 
-        tile_size = 40
+        tile_size = 20
 
         tiles = state.tiles.tolist()
         colors = ["grey", "brown", "blue"]
