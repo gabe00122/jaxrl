@@ -1,16 +1,29 @@
 import json
 from pathlib import Path
 import random
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
+
+class NBackConfig(BaseModel):
+    env_type: Literal["nback"] = "nback"
+
+    max_n: int = 12
+    max_value: int = 2
+
+class ReturnConfig(BaseModel):
+    env_type: Literal["return"] = "return"
+
+
+class GridCnnObsEncoderConfig(BaseModel):
+    obs_type: Literal["grid_cnn"] = "grid_cnn"
 
 class LinearObsEncoderConfig(BaseModel):
     obs_type: Literal["linear"] = "linear"
 
 
 class TransformerBlockConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")    
+    model_config = ConfigDict(extra="forbid")
     num_heads: int
     ffn_size: int
     rope_max_wavelength: float = 10_000
@@ -23,9 +36,9 @@ class TransformerBlockConfig(BaseModel):
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    obs_encoder: LinearObsEncoderConfig = Field(discriminator="obs_type")
+    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig = Field(discriminator="obs_type")
     hidden_features: int
-    
+
     transformer_block: TransformerBlockConfig
     num_layers: int
 
@@ -103,7 +116,7 @@ class BasicActorCriticConfig(BaseModel):
 class PPOConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    learner_type: Literal["ppo"]
+    trainer_type: Literal["ppo"]
 
     minibatch_count: int = 1
     vf_coef: float = 1.0
@@ -129,6 +142,7 @@ class EnvironmentConfig(BaseModel):
     num_envs: int
     max_steps: int
 
+type EnvironmentConfig = NBackConfig | ReturnConfig
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -140,7 +154,7 @@ class Config(BaseModel):
     update_steps: int
 
     learner: LearnerConfig
-    # environment: NBackMemory
+    environment: EnvironmentConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
 
 

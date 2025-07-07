@@ -1,5 +1,7 @@
 from functools import cached_property
 import jax
+from einops import rearrange
+
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import ActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -24,24 +26,23 @@ class VmapWrapper[EnvState](Environment[EnvState]):
     @cached_property
     def observation_spec(self) -> ObservationSpec:
         return self.base_env.observation_spec
-    
+
     @cached_property
     def action_spec(self) -> ActionSpec:
         return self.base_env.action_spec
-    
+
     @property
     def is_jittable(self) -> bool:
         return self.base_env.is_jittable
-    
+
     @property
     def num_agents(self) -> int:
         return self._vec_count * self.base_env.num_agents
 
     def _flatten_timestep(self, timestep: TimeStep) -> TimeStep:
         return TimeStep(
-            step_type=timestep.step_type.reshape(self.num_agents),
-            action_mask=timestep.action_mask.reshape(self.num_agents, -1) if timestep.action_mask is not None else None,
-            obs=timestep.obs.reshape(self.num_agents, -1),
+            action_mask=rearrange(timestep.action_mask, 'b a ... -> (b a) ...') if timestep.action_mask is not None else None,
+            obs=rearrange(timestep.obs, 'b a ... -> (b a) ...'),
             time=timestep.time.reshape(self.num_agents),
             last_action=timestep.last_action.reshape(self.num_agents),
             last_reward=timestep.last_reward.reshape(self.num_agents),

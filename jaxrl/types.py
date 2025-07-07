@@ -21,5 +21,5 @@ class TimeStep(NamedTuple):
     time: jax.Array
     last_action: jax.Array
     last_reward: jax.Array
-    step_type: jax.Array
+    # step_type: jax.Array
     action_mask: jax.Array | None  # (num_agents, num_actions)

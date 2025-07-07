@@ -1,3 +1,4 @@
+from einops import rearrange
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
@@ -7,8 +8,9 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 from pydantic import BaseModel, ConfigDict, Field
 
-from jaxrl.config import LinearObsEncoderConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.distributions import IdentityTransformation
+from jaxrl.envs.specs import ObservationSpec
 from jaxrl.networks import parse_activation_fn
 from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
@@ -17,14 +19,59 @@ from jaxrl.transformer.gate import GatingMechanism
 
 
 class LinearObsEncoder(nnx.Module):
-    def __init__(self, config: LinearObsEncoderConfig, obs_dim: int, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
-        self.linear = nnx.Linear(obs_dim, output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
+    def __init__(self, config: LinearObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
+        self.linear = nnx.Linear(obs_spec.shape[0], output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
 
     def __call__(self, x) -> Any:
         return self.linear(x)
 
-def create_obs_encoder(config: LinearObsEncoderConfig, obs_dim: int, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs):
-    return LinearObsEncoder(config, obs_dim, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
+class GridCnnObsEncoder(nnx.Module):
+    def __init__(self, config: GridCnnObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
+        # self.linear = nnx.Linear(obs_dim, output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
+        assert obs_spec.max_value is not None, "max_value must be specified in the observation spec"
+
+        self.dtype = dtype
+        self.num_classes = obs_spec.max_value
+        self.conv1 = nnx.Conv(
+            in_features=self.num_classes,
+            out_features=64,
+            kernel_size=(3, 3),
+            padding="valid",
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs
+        )
+        self.conv2 = nnx.Conv(
+            in_features=64,
+            out_features=output_size,
+            kernel_size=(3, 3),
+            padding="valid",
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs
+        )
+
+    def __call__(self, x) -> Any:
+        print(x.shape)
+
+        x = jax.nn.one_hot(x, self.num_classes, dtype=self.dtype)
+
+        x = self.conv1(x)
+        x = jax.nn.gelu(x)
+        x = self.conv2(x)
+
+        print(x.shape)
+        x = rearrange(x, '... w h c -> ... (w h c)')
+
+        return x
+
+
+def create_obs_encoder(config: LinearObsEncoderConfig | GridCnnObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs):
+    match config.obs_type:
+        case "linear":
+            return LinearObsEncoder(config, obs_spec, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
+        case "grid_cnn":
+            return GridCnnObsEncoder(config, obs_spec, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
 
 
 def get_kernel_init(init_name: str) -> nnx.Initializer:
@@ -186,7 +233,7 @@ class TransformerActorCritic(nnx.Module):
     def __init__(
         self,
         config: TransformerActorCriticConfig,
-        obs_dim: int,
+        obs_spec: ObservationSpec,
         action_dim: int,
         max_seq_length: int,
         *,
@@ -207,7 +254,7 @@ class TransformerActorCritic(nnx.Module):
 
         self.reward_encoder = nnx.Linear(1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.action_encoder = Embedder(action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_dim=obs_dim, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
+        self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_spec=obs_spec, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
 
         layers = []
         for _ in range(num_layers):
