@@ -1,6 +1,6 @@
 {
   "seed": "random",
-  "num_envs": 128,
+  "num_envs": 4092,
   "max_env_steps": 128,
   "update_steps": 1000,
   "environment": {
