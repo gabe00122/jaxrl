@@ -14,7 +14,7 @@ from rich.progress import track
 from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
-from jaxrl.envs.memory.return_2d import ReturnEnv
+from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -195,20 +195,19 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def enjoy():
-    experiment: Experiment = Experiment.load("test")
+    experiment: Experiment = Experiment.load("lazy-dog-sjtd98")
     max_steps = 128 #experiment.config.max_env_steps
     num_envs = 1
 
-    env = NBackMemory(n=12, max_value=2, length=max_steps)
-    env = VmapWrapper(env, num_envs)
+    env = create_env(experiment.config.environment, max_steps)
 
     obs_spec = env.observation_spec
     action_spec = env.action_spec
-    rngs = nnx.Rngs(default=experiment.default_seed)
+    rngs = nnx.Rngs(default=42)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
-        obs_spec.shape[0],
+        obs_spec,
         action_spec.num_actions,
         max_seq_length=max_steps,
         rngs=rngs
@@ -221,31 +220,21 @@ def enjoy():
     model = optimizer.model
 
     kv_cache = model.create_kv_cache(num_envs, max_steps, dtype=jnp.float32)
+    client = ReturnClient(env)
 
-    guess = []
-    correct = []
-    reward = []
+    for _ in range(5):
+        env_state, timestep = env.reset(rngs.env())
+        for _ in range(max_steps):
+            action_key = rngs.action()
+            env_key = rngs.env()
+            value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+            action = policy.sample(seed=action_key)
+            action = action.squeeze(axis=-1)
 
-    env_state, timestep = env.reset(rngs.env())
-    for i in range(max_steps):
-        action_key = rngs.action()
-        env_key = rngs.env()
-        value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
-        action = policy.sample(seed=action_key)
-        action = action.squeeze(axis=-1)
+            env_state, timestep = env.step(env_state, action, env_key)
 
-        env_state, timestep = env.step(env_state, action, env_key)
-        print(f"t: {timestep.obs}, action: {action.item()}, reward: {timestep.last_reward.item()}, value: {value.item()}")
+            client.render(env_state)
 
-        guess.append(action.item())
-        correct.append(int(env_state.labels[..., i-1].item()))
-        reward.append(timestep.last_reward.item())
-
-    print("data: ", env_state.data[0])
-    print("guess: ", jnp.array(guess))
-    print("label: ", env_state.labels.astype(jnp.int32)[0])
-    print("reward: ", jnp.array(reward, dtype=jnp.int32))
-    print(sum(reward) / max_steps)
 
 
 def train_run(

@@ -16,23 +16,23 @@ NUM_CLASSES = 3
 map_template = """
 xxxxxxxxxxxxxxxxxxxx
 x                  x
-x    xxxxxxxxx     x
+x x  xxxx xxxx  x  x
 x    x       x     x
 x    x       x     x
-x    x       xx xx x
-x    x           x x
-x    x           x x
-x    xxxxxxxxx   x x
-x            x   x x
-x            x   x x
-xxxxxxxxxx   x   x x
-x          x x   x x
-x          x x   x x
-x          x x   x x
-x   xxxxxxxx x   x x
-x   x        x   x x
-x   x        x   x x
-x   x        x   x x
+x  x     x         x
+x    x       x  x  x
+x    x       x     x
+x    xxxx xxxx     x
+x    x        x    x
+x              x   x
+xxxxxxxxxx      x  x
+x          x x     x
+x x    x   x       x
+x   x      x   x   x
+x   xxxxxxxx       x
+x   x        x     x
+x           x   x  x
+x   x      x       x
 xxxxxxxxxxxxxxxxxxxx
 """
 
@@ -163,10 +163,14 @@ class ReturnClient:
         self._init_pygame()
 
     def _init_pygame(self):
+        flags = pygame.SRCALPHA
         self.screen = pygame.display.set_mode((800, 800))
+        self.surface = pygame.Surface((800, 800), flags=flags)
         self.clock = pygame.time.Clock()
 
     def render(self, state: ReturnState):
+        self.surface.fill((0, 0, 0))
+
         tile_size = 40
 
         tiles = state.tiles.tolist()
@@ -183,15 +187,21 @@ class ReturnClient:
         agent_x = state.pos[0].item() - self.env.pad_width
         agent_y = (self.env.height - state.pos[1].item() + 1) - self.env.pad_height
 
+        self.surface.fill(
+            pygame.color.Color(40, 40, 40, 20),
+            (agent_x * tile_size - (tile_size * 2),
+            agent_y * tile_size - (tile_size * 2), tile_size * 5, tile_size * 5)
+        )
         self.screen.fill("yellow", (agent_x * tile_size, agent_y * tile_size, tile_size, tile_size))
 
         self.clock.tick(10)
+        self.screen.blit(self.surface, (0,0))
         pygame.display.flip()
 
 def demo():
     env = ReturnEnv()
 
-    rng_key = jax.random.PRNGKey(10)
+    rng_key = jax.random.PRNGKey(11)
     state, timestep = env.reset(rng_key)
 
     client = ReturnClient(env)

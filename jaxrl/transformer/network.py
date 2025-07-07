@@ -34,7 +34,7 @@ class GridCnnObsEncoder(nnx.Module):
         self.num_classes = obs_spec.max_value
         self.conv1 = nnx.Conv(
             in_features=self.num_classes,
-            out_features=64,
+            out_features=16,
             kernel_size=(3, 3),
             padding="valid",
             dtype=dtype,
@@ -42,7 +42,7 @@ class GridCnnObsEncoder(nnx.Module):
             rngs=rngs
         )
         self.conv2 = nnx.Conv(
-            in_features=64,
+            in_features=16,
             out_features=output_size,
             kernel_size=(3, 3),
             padding="valid",
@@ -52,15 +52,12 @@ class GridCnnObsEncoder(nnx.Module):
         )
 
     def __call__(self, x) -> Any:
-        print(x.shape)
-
         x = jax.nn.one_hot(x, self.num_classes, dtype=self.dtype)
 
         x = self.conv1(x)
         x = jax.nn.gelu(x)
         x = self.conv2(x)
 
-        print(x.shape)
         x = rearrange(x, '... w h c -> ... (w h c)')
 
         return x
