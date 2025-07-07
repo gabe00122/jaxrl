@@ -5,6 +5,7 @@ from jax.typing import DTypeLike
 class ObservationSpec(NamedTuple):
     dtype: DTypeLike
     shape: tuple[int, ...]
+    max_value: int | None = None
 
 
 class ContinuousActionSpec(NamedTuple):

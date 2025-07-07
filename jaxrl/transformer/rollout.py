@@ -60,7 +60,7 @@ class Rollout:
     def store(self, state: RolloutState, step: jax.Array, timestep: TimeStep, next_timestep: TimeStep, log_prob: jax.Array, value: jax.Array) -> RolloutState:
         return state._replace(
             obs = state.obs.at[:, step].set(timestep.obs),
-            action_mask = state.action_mask.at[:, step].set(timestep.action_mask),
+            action_mask = state.action_mask.at[:, step].set(timestep.action_mask) if timestep.action_mask is not None else state.action_mask,
             actions = state.actions.at[:, step].set(next_timestep.last_action),
             log_prob = state.log_prob.at[:, step].set(log_prob),
             values = state.values.at[:, step].set(value),

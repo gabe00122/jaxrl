@@ -17,8 +17,8 @@ class NBackMemoryState(NamedTuple):
 
 
 class NBackMemory(Environment[NBackMemoryState]):
-    def __init__(self, n: int, max_value: int, length: int) -> None:
-        self.n = n
+    def __init__(self, max_n: int, max_value: int, length: int) -> None:
+        self.max_n = max_n
         self.max_value = max_value
         self.length = length
 
@@ -41,7 +41,7 @@ class NBackMemory(Environment[NBackMemoryState]):
     def reset(self, rng_key: jax.Array) -> tuple[NBackMemoryState, TimeStep]:
         rng_key, n_key = jax.random.split(rng_key, 2)
 
-        n = jax.random.randint(n_key, (), 0, self.n, dtype=jnp.int32)
+        n = jax.random.randint(n_key, (), 0, self.max_n, dtype=jnp.int32)
 
         data = jax.random.randint(rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32)
         match = jnp.equal(jnp.roll(data, n), data)
@@ -92,7 +92,6 @@ class NBackMemory(Environment[NBackMemoryState]):
         action_mask = jnp.ones((2,), dtype=jnp.bool)
 
         return TimeStep(
-            step_type=step_type[None, ...],
             action_mask=action_mask[None, ...],
             obs=obs[None, ...],
             time=state.position[None, ...], # This is the current step number / position

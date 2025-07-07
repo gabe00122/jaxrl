@@ -14,6 +14,7 @@ from rich.progress import track
 from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
+from jaxrl.envs.memory.return_2d import ReturnEnv
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -21,6 +22,16 @@ from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
+
+
+def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
+    match env_config.env_type:
+        case 'nback':
+            return NBackMemory(env_config.max_n, env_config.max_value, length)
+        case 'return':
+            return ReturnEnv()
+        case _:
+            raise ValueError(f'Unknown environment type: {env_config.type}')
 
 
 class TrainingLogs(NamedTuple):
@@ -49,7 +60,6 @@ def add_seq_dim(ts: TimeStep):
         time=rearrange(ts.time, 'b ... -> b 1 ...'),
         last_action=rearrange(ts.last_action, 'b ... -> b 1 ...'),
         last_reward=rearrange(ts.last_reward, 'b ... -> b 1 ...'),
-        step_type=rearrange(ts.step_type, 'b ... -> b 1 ...'),
         action_mask=rearrange(ts.action_mask, 'b ... -> b 1 ...') if ts.action_mask is not None else None,
     )
 
@@ -120,7 +130,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
         time=positions,
         last_action=batch_last_actions,
         last_reward=batch_last_rewards,
-        step_type=jnp.zeros_like(batch_target, dtype=jnp.int32),
         action_mask=None
     ))
     log_probs = policy.log_prob(batch_actions)
@@ -249,20 +258,17 @@ def train_run(
     checkpointer = Checkpointer(experiment.checkpoints_dir)
     checkpoint_interval = 200
 
-    env = NBackMemory(n=12, max_value=2, length=max_steps)
+    env = create_env(experiment.config.environment, max_steps) #NBackMemory(n=12, max_value=2, length=max_steps)
     env = VmapWrapper(env, experiment.config.num_envs)
     batch_size = env.num_agents
 
-    obs_spec = env.observation_spec
-    action_spec = env.action_spec
-
     rngs = nnx.Rngs(default=experiment.default_seed)
-    rollout = Rollout(batch_size, max_steps, obs_spec, action_spec)
+    rollout = Rollout(batch_size, max_steps, env.observation_spec, env.action_spec)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
-        obs_spec.shape[0],
-        action_spec.num_actions,
+        env.observation_spec,
+        env.action_spec.num_actions,
         max_seq_length=max_steps,
         rngs=rngs
     )
@@ -332,7 +338,7 @@ def objective(trial: optuna.Trial):
                 max_norm=trial.suggest_float("max_norm", 0.1, 1.0),
             ),
             trainer=PPOConfig(
-                learner_type="ppo",
+                trainer_type="ppo",
                 minibatch_count=100,
                 vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
                 entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
@@ -390,49 +396,9 @@ def sweep():
 
 @app.command("train")
 def train_cmd():
-    config=Config(
-        seed="random",
-        num_envs=64,
-        max_env_steps=128,
-        update_steps=1000,
-        learner=LearnerConfig(
-            model=TransformerActorCriticConfig(
-                obs_encoder=LinearObsEncoderConfig(),
-                hidden_features=128,
-                num_layers=3,
-                activation="gelu",
-                norm="layer_norm",
-                transformer_block=TransformerBlockConfig(
-                    num_heads=4,
-                    ffn_size=256,
-                    glu=False,
-                    gtrxl_gate=False,
-                )
-            ),
-            optimizer=OptimizerConfig(
-                type="adamw",
-                learning_rate=0.0003,
-                weight_decay=0.0,
-                eps=1e-8,
-                beta1=0.9,
-                beta2=0.999,
-                max_norm=0.5,
-            ),
-            trainer=PPOConfig(
-                learner_type="ppo",
-                minibatch_count=100,
-                vf_coef=0.4,
-                entropy_coef=0.001,
-                vf_clip=1.0,
-                discount=0.0,
-                gae_lambda=1.0,
-            ),
-        ),
-        logger=LoggerConfig(),
-    )
-    # config = Config.model_validate_json(Path("./results/trial_183/config.json").read_text()
+    experiment = Experiment.from_config_file(Path("./config/return.json"))
 
-    train_run(Experiment.from_config("test_0", config))
+    train_run(experiment)
 
 if __name__ == '__main__':
     app()
