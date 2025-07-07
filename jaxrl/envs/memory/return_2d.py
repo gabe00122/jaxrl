@@ -169,12 +169,12 @@ class ReturnClient:
         self.clock = pygame.time.Clock()
 
     def render(self, state: ReturnState):
-        self.surface.fill((0, 0, 0))
+        self.surface.fill((0, 0, 0, 0))
 
         tile_size = 40
 
         tiles = state.tiles.tolist()
-        colors = ["red", "green", "blue"]
+        colors = ["grey", "brown", "blue"]
 
         for x in range(self.env.unpadded_width):
             for y in range(self.env.unpadded_height):
@@ -188,7 +188,7 @@ class ReturnClient:
         agent_y = (self.env.height - state.pos[1].item() + 1) - self.env.pad_height
 
         self.surface.fill(
-            pygame.color.Color(40, 40, 40, 20),
+            pygame.color.Color(40, 40, 40, 100),
             (agent_x * tile_size - (tile_size * 2),
             agent_y * tile_size - (tile_size * 2), tile_size * 5, tile_size * 5)
         )

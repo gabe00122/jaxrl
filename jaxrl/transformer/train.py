@@ -195,7 +195,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def enjoy():
-    experiment: Experiment = Experiment.load("lazy-dog-sjtd98")
+    experiment: Experiment = Experiment.load("hungry-dog-ve6mg1")
     max_steps = 128 #experiment.config.max_env_steps
     num_envs = 1
 
