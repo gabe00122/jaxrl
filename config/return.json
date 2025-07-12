@@ -2,7 +2,8 @@
   "seed": "random",
   "num_envs": 128,
   "max_env_steps": 128,
-  "update_steps": 200,
+  "update_steps": 20000,
+  "updates_per_jit": 100,
   "environment": {
     "env_type": "return"
   },
@@ -39,7 +40,7 @@
     },
     "trainer": {
       "trainer_type": "ppo",
-      "minibatch_count": 100,
+      "minibatch_count": 1,
       "vf_coef": 0.5,
       "entropy_coef": 0.001,
       "vf_clip": 0.11657459349860262,

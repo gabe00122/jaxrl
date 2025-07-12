@@ -39,7 +39,6 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
 
 
 class TrainingLogs(NamedTuple):
-    n: jax.Array
     rewards: jax.Array
     value_loss: jax.Array
     actor_loss: jax.Array
@@ -49,7 +48,6 @@ class TrainingLogs(NamedTuple):
 
 def create_training_logs() -> TrainingLogs:
     return TrainingLogs(
-        n=jnp.array(0.0),
         rewards=jnp.array(0.0),
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
@@ -119,6 +117,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_actions = jax.lax.stop_gradient(rollout.actions)
     batch_advantage = jax.lax.stop_gradient(rollout.advantages)
     batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
+    batch_rewards = jax.lax.stop_gradient(rollout.rewards)
 
     batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
     batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards)
@@ -158,59 +157,56 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
 
     # jax.debug.breakpoint()
-    # logs = logs._replace(
-    #     n=logs.n + 1,
-    #     rewards=logs.rewards + batch_rewards.mean(),
-    #     value_loss=logs.value_loss + value_loss,
-    #     actor_loss=logs.actor_loss + actor_loss,
-    #     entropy_loss=logs.entropy_loss + entropy_loss,
-    #     total_loss=logs.total_loss + total_loss
-    # )
+    logs = TrainingLogs(
+        rewards=batch_rewards.sum() / batch_obs.shape[0],
+        value_loss=value_loss,
+        actor_loss=actor_loss,
+        entropy_loss=entropy_loss,
+        total_loss=total_loss
+    )
 
-    return total_loss #, logs
+    return total_loss, logs
 
 
-def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Environment, hypers: PPOConfig):
+def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Environment, config: Config):
+    hypers = config.learner.trainer
+
     def _local_loss(model, rngs):
         rollout_state, rngs = evaluate(model, rollout, rngs, env, hypers)
-        loss = ppo_loss(model, rollout_state, hypers)
-        return loss, rngs
+        loss, logs = ppo_loss(model, rollout_state, hypers)
+        return loss, logs, rngs
 
     def _global_loss(model, rngs):
-        losses, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0))(model, rngs)
-        return jnp.mean(losses), rngs
+        losses, logs, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0, 0))(model, rngs)
+
+        logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), logs)
+
+        return jnp.mean(losses), (logs, rngs)
 
     def _global_step(i, x):
-        optimizer, rngs, logs = x
+        optimizer, logs, rngs = x
 
         # todo, handle logs
-        grad, _ = nnx.grad(_global_loss, has_aux=True)(optimizer.model, rngs)
-
-        # jax.debug.visualize_array_sharding(grads['action_encoder']['embedding_table'].value)
-
-        # grads = jax.tree_util.tree_map(lambda xs: jnp.mean(xs, axis=0), grads)
-        # d: jax.Array = grads['action_encoder']['embedding_table'].value
-
-        # print(rngs)
-        # grads = jnp.mean()
-        # grads = jax.lax.pmean(grads, axis_name='batch')
-        # grads = jax.tree_util.tree_map(lambda xs: jnp.mean(xs, axis=0), grads)
-
+        grad, (step_logs, rngs) = nnx.grad(_global_loss, has_aux=True)(optimizer.model, rngs)
         optimizer.update(grad)
 
-        return optimizer, rngs, logs
+        logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
+
+        return optimizer, logs, rngs
 
     logs = create_training_logs()
-    optimizer, rngs, logs = nnx.fori_loop(0, hypers.minibatch_count, _global_step, init_val=(optimizer, rngs, logs))
 
-    logs = TrainingLogs(
-        n=jnp.array(1.0),
-        rewards=logs.rewards / logs.n,
-        value_loss=logs.value_loss / logs.n,
-        actor_loss=logs.actor_loss / logs.n,
-        entropy_loss=logs.entropy_loss / logs.n,
-        total_loss=logs.total_loss / logs.n
-    )
+    # todo this is not actually a minibatch step, find a new name
+    optimizer, logs, rngs = nnx.fori_loop(0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, rngs))
+
+    logs = jax.tree_util.tree_map(lambda x: x / config.updates_per_jit, logs)
+    # logs = TrainingLogs(
+    #     rewards=logs.rewards / hypers.minibatch_count,
+    #     value_loss=logs.value_loss / hypers.minibatch_count,
+    #     actor_loss=logs.actor_loss / hypers.minibatch_count,
+    #     entropy_loss=logs.entropy_loss / hypers.minibatch_count,
+    #     total_loss=logs.total_loss / hypers.minibatch_count
+    # )
 
     return optimizer, rngs, logs
 
@@ -303,37 +299,26 @@ def train_run(
     device_rngs = jax.device_put(device_rngs, batch_sharding)
     rngs = nnx.Rngs(default=device_rngs)
 
-    trainer_hypers = experiment.config.learner.trainer
-    jitted_train = nnx.jit(
-        train,
-        # in_shardings=(
-        #     replicate_sharding, # optimizer (replicated)
-        #     batch_sharding,       # rngs (sharded)
-        # ),
-        # out_shardings=(
-        #     replicate_sharding, # optimizer (replicated)
-        #     batch_sharding,       # rngs (sharded)
-        #     replicate_sharding    # logs (replicated)
-        # ),
-        static_argnums=(2, 3, 4)
-    )
+    jitted_train = nnx.jit(train, static_argnums=(2, 3, 4))
 
-    env_steps_per_update = batch_size * max_steps * len(device_rngs)
+    env_steps_per_update = batch_size * max_steps * device_rngs.shape[0] * experiment.config.updates_per_jit
+    outer_updates = experiment.config.update_steps // experiment.config.updates_per_jit
 
     logs = None
-    for i in track(range(experiment.config.update_steps), description="Training", disable=False):
+    for i in track(range(outer_updates), description="Training", disable=False):
         start_time = time.time()
 
         with mesh:
-            optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, trainer_hypers)
+            optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs._asdict(), i)
 
         stop_time = time.time()
 
-        sps = env_steps_per_update / (stop_time - start_time)
-        print(int(sps * experiment.config.learner.trainer.minibatch_count))
+        delta_time = (stop_time - start_time)
+        print(int(env_steps_per_update / delta_time))
+        print(experiment.config.updates_per_jit / delta_time)
 
         if trial:
             trial.report(logs.rewards.item(), i)
