@@ -6,24 +6,28 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class NBackConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["nback"] = "nback"
 
     max_n: int = 12
     max_value: int = 2
 
 class ReturnConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["return"] = "return"
 
 
 class GridCnnObsEncoderConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
 
 class LinearObsEncoderConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["linear"] = "linear"
 
 
 class TransformerBlockConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
     num_heads: int
     ffn_size: int
     rope_max_wavelength: float = 10_000
@@ -34,7 +38,7 @@ class TransformerBlockConfig(BaseModel):
 
 
 class TransformerActorCriticConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig = Field(discriminator="obs_type")
     hidden_features: int
@@ -134,14 +138,6 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-class EnvironmentConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    backend: str
-    name: str
-    num_envs: int
-    max_steps: int
-
 type EnvironmentConfig = NBackConfig | ReturnConfig
 
 class Config(BaseModel):
@@ -151,6 +147,7 @@ class Config(BaseModel):
     num_envs: int
     max_env_steps: int
 
+    updates_per_jit: int = 1
     update_steps: int
 
     learner: LearnerConfig
