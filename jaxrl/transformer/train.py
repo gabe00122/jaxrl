@@ -11,6 +11,8 @@ import typer
 from rich.console import Console
 from rich.progress import track
 
+# from rlax import vmpo_loss, LagrangePenalty
+
 import numpy as np
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
@@ -173,21 +175,22 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
 
     def _local_loss(model, rngs):
         rollout_state, rngs = evaluate(model, rollout, rngs, env, hypers)
-        loss, logs = ppo_loss(model, rollout_state, hypers)
-        return loss, logs, rngs
+        grad, logs = nnx.grad(ppo_loss, has_aux=True)(model, rollout_state, hypers)
+        return grad, logs, rngs
 
     def _global_loss(model, rngs):
-        losses, logs, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0, 0))(model, rngs)
+        grads, logs, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0, 0))(model, rngs)
 
         logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), logs)
+        grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
 
-        return jnp.mean(losses), (logs, rngs)
+        return grad, (logs, rngs)
 
     def _global_step(i, x):
         optimizer, logs, rngs = x
 
         # todo, handle logs
-        grad, (step_logs, rngs) = nnx.grad(_global_loss, has_aux=True)(optimizer.model, rngs)
+        grad, (step_logs, rngs) = _global_loss(optimizer.model, rngs)
         optimizer.update(grad)
 
         logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
