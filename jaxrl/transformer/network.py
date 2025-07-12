@@ -249,6 +249,8 @@ class TransformerActorCritic(nnx.Module):
         param_dtype = get_dtype(config.param_dtype)
         norm = get_norm(config.norm)
 
+        self.dtype = config.dtype
+
         self.reward_encoder = nnx.Linear(1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.action_encoder = Embedder(action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
         self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_spec=obs_spec, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
@@ -280,9 +282,9 @@ class TransformerActorCritic(nnx.Module):
         )
 
     def create_kv_cache(
-        self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
+        self, batch_size: int, context_size: int
     ) -> tuple[KVCache, ...]:
-        return tuple(layer.create_kv_cache(batch_size, context_size, dtype=dtype) for layer in self.layers)
+        return tuple(layer.create_kv_cache(batch_size, context_size, dtype=self.dtype) for layer in self.layers)
 
     def __call__(self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)

@@ -11,6 +11,10 @@ import typer
 from rich.console import Console
 from rich.progress import track
 
+import numpy as np
+from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
+
+
 from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
@@ -68,7 +72,7 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
     env_state, timestep = env.reset(reset_key)
 
     rollout_state = rollout.create_state()
-    kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length, dtype=jnp.float32)
+    kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length)
 
     def _step(i, x):
         rollout_state, rngs, env_state, timestep, kv_cache = x
@@ -108,14 +112,13 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
 
     return rollout_state, rngs
 
-def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig, logs: TrainingLogs):
+def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
     batch_obs = jax.lax.stop_gradient(rollout.obs)
     batch_target = jax.lax.stop_gradient(rollout.targets)
     batch_log_prob = jax.lax.stop_gradient(rollout.log_prob)
     batch_actions = jax.lax.stop_gradient(rollout.actions)
     batch_advantage = jax.lax.stop_gradient(rollout.advantages)
     batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
-    batch_rewards = jax.lax.stop_gradient(rollout.rewards)
 
     batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
     batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards)
@@ -155,30 +158,50 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
 
     # jax.debug.breakpoint()
-    logs = logs._replace(
-        n=logs.n + 1,
-        rewards=logs.rewards + batch_rewards.mean(),
-        value_loss=logs.value_loss + value_loss,
-        actor_loss=logs.actor_loss + actor_loss,
-        entropy_loss=logs.entropy_loss + entropy_loss,
-        total_loss=logs.total_loss + total_loss
-    )
+    # logs = logs._replace(
+    #     n=logs.n + 1,
+    #     rewards=logs.rewards + batch_rewards.mean(),
+    #     value_loss=logs.value_loss + value_loss,
+    #     actor_loss=logs.actor_loss + actor_loss,
+    #     entropy_loss=logs.entropy_loss + entropy_loss,
+    #     total_loss=logs.total_loss + total_loss
+    # )
 
-    return total_loss, logs
+    return total_loss #, logs
 
 
-def train(optimizer: nnx.Optimizer, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
-    def _step(i, x):
+def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Environment, hypers: PPOConfig):
+    def _local_loss(model, rngs):
+        rollout_state, rngs = evaluate(model, rollout, rngs, env, hypers)
+        loss = ppo_loss(model, rollout_state, hypers)
+        return loss, rngs
+
+    def _global_loss(model, rngs):
+        losses, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0))(model, rngs)
+        return jnp.mean(losses), rngs
+
+    def _global_step(i, x):
         optimizer, rngs, logs = x
 
-        rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
+        # todo, handle logs
+        grad, _ = nnx.grad(_global_loss, has_aux=True)(optimizer.model, rngs)
 
-        grads, logs = nnx.grad(ppo_loss, has_aux=True)(optimizer.model, rollout_state, hypers, logs)
-        optimizer.update(grads)
+        # jax.debug.visualize_array_sharding(grads['action_encoder']['embedding_table'].value)
+
+        # grads = jax.tree_util.tree_map(lambda xs: jnp.mean(xs, axis=0), grads)
+        # d: jax.Array = grads['action_encoder']['embedding_table'].value
+
+        # print(rngs)
+        # grads = jnp.mean()
+        # grads = jax.lax.pmean(grads, axis_name='batch')
+        # grads = jax.tree_util.tree_map(lambda xs: jnp.mean(xs, axis=0), grads)
+
+        optimizer.update(grad)
+
         return optimizer, rngs, logs
 
     logs = create_training_logs()
-    optimizer, rngs, logs = nnx.fori_loop(0, hypers.minibatch_count, _step, init_val=(optimizer, rngs, logs))
+    optimizer, rngs, logs = nnx.fori_loop(0, hypers.minibatch_count, _global_step, init_val=(optimizer, rngs, logs))
 
     logs = TrainingLogs(
         n=jnp.array(1.0),
@@ -235,17 +258,26 @@ def enjoy():
 
             client.render(env_state)
 
+def replicate_model(optimizer, sharding):
+    state = nnx.state(optimizer)
+    state = jax.device_put(state, sharding)
+    nnx.update(optimizer, state)
 
 
 def train_run(
     experiment: Experiment,
     trial: optuna.Trial | None = None,
 ):
+
+    mesh = Mesh(devices=jax.devices(), axis_names=('batch',))
+    replicate_sharding = NamedSharding(mesh, P())
+    batch_sharding = NamedSharding(mesh, P('batch'))
+
     max_steps = experiment.config.max_env_steps
 
     logger = experiment.create_logger()
-    checkpointer = Checkpointer(experiment.checkpoints_dir)
-    checkpoint_interval = 200
+    # checkpointer = Checkpointer(experiment.checkpoints_dir)
+    # checkpoint_interval = 200
 
     env = create_env(experiment.config.environment, max_steps) #NBackMemory(n=12, max_value=2, length=max_steps)
     env = VmapWrapper(env, experiment.config.num_envs)
@@ -263,15 +295,37 @@ def train_run(
     )
 
     optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps * experiment.config.learner.trainer.minibatch_count))
+
+    replicate_model(optimizer, replicate_sharding)
+
+    rng = jax.random.PRNGKey(experiment.default_seed)
+    device_rngs = jax.random.split(rng, len(jax.devices()))
+    device_rngs = jax.device_put(device_rngs, batch_sharding)
+    rngs = nnx.Rngs(default=device_rngs)
+
     trainer_hypers = experiment.config.learner.trainer
-    jitted_train = nnx.jit(train, static_argnums=(1, 3, 4))
+    jitted_train = nnx.jit(
+        train,
+        # in_shardings=(
+        #     replicate_sharding, # optimizer (replicated)
+        #     batch_sharding,       # rngs (sharded)
+        # ),
+        # out_shardings=(
+        #     replicate_sharding, # optimizer (replicated)
+        #     batch_sharding,       # rngs (sharded)
+        #     replicate_sharding    # logs (replicated)
+        # ),
+        static_argnums=(2, 3, 4)
+    )
 
     env_steps_per_update = batch_size * max_steps
 
     logs = None
     for i in track(range(experiment.config.update_steps), description="Training", disable=False):
         start_time = time.time()
-        optimizer, rngs, logs = jitted_train(optimizer, rollout, rngs, env, trainer_hypers)
+
+        with mesh:
+            optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, trainer_hypers)
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs._asdict(), i)
@@ -286,11 +340,11 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        if i % checkpoint_interval == checkpoint_interval - 1:
-            checkpointer.save(optimizer, i)
+        # if i % checkpoint_interval == checkpoint_interval - 1:
+        #     checkpointer.save(optimizer, i)
 
     logger.close()
-    checkpointer.close()
+    # checkpointer.close()
 
     if logs:
         return logs.rewards.item()
@@ -384,7 +438,9 @@ def sweep():
 
 
 @app.command("train")
-def train_cmd():
+def train_cmd(distributed: bool = False):
+    if distributed:
+        jax.distributed.initialize()
     experiment = Experiment.from_config_file(Path("./config/return.json"))
 
     train_run(experiment)
