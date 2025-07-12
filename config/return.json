@@ -1,7 +1,7 @@
 {
   "seed": "random",
-  "num_envs": 4092,
-  "max_env_steps": 512,
+  "num_envs": 128,
+  "max_env_steps": 128,
   "update_steps": 200,
   "environment": {
     "env_type": "return"
@@ -34,7 +34,7 @@
       "activation": "gelu",
       "norm": "layer_norm",
       "kernel_init": "glorot_uniform",
-      "dtype": "float32",
+      "dtype": "bfloat16",
       "param_dtype": "float32"
     },
     "trainer": {
@@ -52,6 +52,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": true
+    "use_wandb": false
   }
 }
