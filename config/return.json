@@ -27,8 +27,8 @@
         "ffn_size": 128,
         "rope_max_wavelength": 10000.0,
         "glu": false,
-        "gtrxl_gate": false,
-        "gtrxl_bias": 0.0,
+        "gtrxl_gate": true,
+        "gtrxl_bias": 1.0,
         "attention_softcap": null
       },
       "num_layers": 3,
