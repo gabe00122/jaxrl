@@ -318,7 +318,7 @@ def train_run(
         static_argnums=(2, 3, 4)
     )
 
-    env_steps_per_update = batch_size * max_steps
+    env_steps_per_update = batch_size * max_steps * len(device_rngs)
 
     logs = None
     for i in track(range(experiment.config.update_steps), description="Training", disable=False):
