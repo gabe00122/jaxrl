@@ -1,5 +1,5 @@
 
-from functools import cached_property
+from functools import cached_property, partial
 from typing import NamedTuple
 
 import jax
@@ -7,11 +7,12 @@ import numpy as np
 from jax import numpy as jnp
 import pygame
 
+from jaxrl.config import ReturnConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 
-NUM_CLASSES = 3
+NUM_CLASSES = 4
 
 map_template = """
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -59,17 +60,20 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TILE_EMPTY = 0
 TILE_WALL = 1
 TILE_TREASURE = 2
+TILE_AGENT = 3
 
 
 class ReturnState(NamedTuple):
-    pos: jax.Array
-    tiles: jax.Array
+    agents_pos: jax.Array
+    treasure_pos: jax.Array
     time: jax.Array
 
 
 class ReturnEnv(Environment[ReturnState]):
-    def __init__(self) -> None:
+    def __init__(self, config: ReturnConfig) -> None:
         super().__init__()
+
+        self._num_agents = config.num_agents
 
         self.unpadded_width = 40
         self.unpadded_height = 40
@@ -113,13 +117,16 @@ class ReturnEnv(Environment[ReturnState]):
         return jnp.asarray(tiles), jnp.asarray(empty_positions)
 
     def reset(self, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
-        actor_pos, treasure_pos = jax.random.choice(rng_key, self.empty_positions, (2,), replace=False)
+        positions = jax.random.choice(rng_key, self.empty_positions, (1 + self.num_agents,), replace=False)
+        treasure_pos = positions[0]
+        agents_pos = positions[1:]
 
-        tiles = self.tiles.at[treasure_pos[0], treasure_pos[1]].set(TILE_TREASURE)
+        state = ReturnState(treasure_pos=treasure_pos, agents_pos=agents_pos, time=jnp.int32(0))
 
-        state = ReturnState(pos=actor_pos, tiles=tiles, time=jnp.int32(0))
+        actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
+        rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
 
-        return state, self.encode_observation(state, jnp.int32(0), jnp.float32(0))
+        return state, self.encode_observations(state, actions, rewards)
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
@@ -135,41 +142,53 @@ class ReturnEnv(Environment[ReturnState]):
 
     @property
     def num_agents(self) -> int:
-        return 1
+        return self.num_agents
 
     def step(self, state: ReturnState, action: jax.Array, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
-        action = action.squeeze(axis=0)
+        @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
+        def _step_agent(local_position, local_action):
+            directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
+            new_pos = local_position + directions[local_action]
 
-        directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
-        new_pos = state.pos + directions[action.squeeze()]
+            new_tile = self.tiles[new_pos[0], new_pos[1]]
 
-        is_wall = state.tiles[new_pos[0], new_pos[1]] == TILE_WALL
+            # don't move if we are moving into a wall
+            new_pos = jax.lax.cond(new_tile == TILE_WALL, lambda: local_position, lambda: new_pos)
 
-        pos = jax.lax.cond(is_wall, lambda: state.pos, lambda: new_pos)
+            found_treasure = jnp.all(new_pos == state.treasure_pos) #new_tile == TILE_TREASURE
+            reward = found_treasure.astype(jnp.float32)
 
-        is_treasure = state.tiles[pos[0], pos[1]] == TILE_TREASURE
-        reward = is_treasure.astype(jnp.float32)
+            # randomize position if the agent finds the reward
+            new_pos = jax.lax.cond(found_treasure, lambda: jax.random.choice(rng_key, self.empty_positions, ()), lambda: new_pos)
 
-        # randomize location after getting a reward
-        pos = jax.lax.cond(is_treasure, lambda: jax.random.choice(rng_key, self.empty_positions, ()), lambda: pos)
+            return new_pos, reward
 
-        state = state._replace(pos=pos, time=state.time + 1)
+        new_position, rewards = _step_agent(state.agents_pos, action)
 
-        return state, self.encode_observation(state, action, reward)
+        state = state._replace(agents_pos=new_position, time=state.time + 1)
 
-    def encode_observation(self, state: ReturnState, last_action: jax.Array, last_reward: jax.Array) -> TimeStep:
-        view = jax.lax.dynamic_slice(
-            state.tiles,
-            state.pos - jnp.array([self.view_width // 2, self.view_height // 2]),
-            (self.view_width, self.view_height)
-        )
-        print(view.shape)
+        return state, self.encode_observations(state, action, rewards)
+
+    def encode_observations(self, state: ReturnState, actions, rewards) -> TimeStep:
+        @partial(jax.vmap, in_axes=(None, 0))
+        def _encode_view(tiles, positions):
+            return jax.lax.dynamic_slice(
+                tiles,
+                positions - jnp.array([self.view_width // 2, self.view_height // 2]),
+                (self.view_width, self.view_height)
+            )
+
+        tiles = self.tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(TILE_AGENT)
+        tiles = tiles.at[state.treasure_pos[0], state.treasure_pos[1]].set(TILE_TREASURE)
+        view = _encode_view(tiles, state.agents_pos)
+
+        time = jnp.repeat(state.time[None], self.num_agents, axis=0)
 
         return TimeStep(
-            obs=view[None, ...],
-            time=state.time[None, ...],
-            last_action=last_action[None, ...],
-            last_reward=last_reward[None, ...],
+            obs=view,
+            time=time,
+            last_action=actions,
+            last_reward=rewards,
             action_mask=None,
         )
 
@@ -177,23 +196,17 @@ class ReturnClient:
     def __init__(self, env: ReturnEnv):
         self.env = env
 
-        self.screen = None
-        self.clock = None
-
-        self._init_pygame()
-
-    def _init_pygame(self):
         flags = pygame.SRCALPHA
         self.screen = pygame.display.set_mode((800, 800))
         self.surface = pygame.Surface((800, 800), flags=flags)
         self.clock = pygame.time.Clock()
 
     def render(self, state: ReturnState):
-        self.surface.fill((0, 0, 0, 0))
+        self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
         tile_size = 20
 
-        tiles = state.tiles.tolist()
+        tiles = self.env.tiles.tolist()
         colors = ["grey", "brown", "blue"]
 
         for x in range(self.env.unpadded_width):
@@ -204,15 +217,26 @@ class ReturnClient:
                 tile_type = tiles[tx][self.env.height - ty + 1]
                 self.screen.fill(colors[tile_type], (x * tile_size, y * tile_size, tile_size, tile_size))
 
-        agent_x = state.pos[0].item() - self.env.pad_width
-        agent_y = (self.env.height - state.pos[1].item() + 1) - self.env.pad_height
+        agents = state.agents_pos.tolist()
 
+        for x, y in agents:
+            agent_x = x - self.env.pad_width
+            agent_y = (self.env.height - y + 1) - self.env.pad_height
+
+            self.surface.fill(
+                (0, 0, 0, 0),
+                (agent_x * tile_size - (tile_size * 2),
+                agent_y * tile_size - (tile_size * 2), tile_size * 5, tile_size * 5)
+            )
+            self.screen.fill("yellow", (agent_x * tile_size, agent_y * tile_size, tile_size, tile_size))
+
+        treasure_x = state.treasure_pos[0] - self.env.pad_width
+        treasure_y = (self.env.height - state.treasure_pos[1] + 1) - self.env.pad_height
         self.surface.fill(
-            pygame.color.Color(40, 40, 40, 100),
-            (agent_x * tile_size - (tile_size * 2),
-            agent_y * tile_size - (tile_size * 2), tile_size * 5, tile_size * 5)
+            "blue",
+            (treasure_x * tile_size,
+            treasure_y * tile_size, tile_size, tile_size)
         )
-        self.screen.fill("yellow", (agent_x * tile_size, agent_y * tile_size, tile_size, tile_size))
 
         self.clock.tick(10)
         self.screen.blit(self.surface, (0,0))
@@ -237,14 +261,24 @@ def demo():
                 running = False
 
         keys = pygame.key.get_pressed()
+        action = None
+
         if keys[pygame.K_w]:
-            state, ts = env.step(state, jnp.array([0]), rng_key)
+            action = 0
+            # state, ts = env.step(state, jnp.array([0]), rng_key)
         elif keys[pygame.K_s]:
-            state, ts = env.step(state, jnp.array([2]), rng_key)
+            action = 2
+            # state, ts = env.step(state, jnp.array([2]), rng_key)
         elif keys[pygame.K_a]:
-            state, ts = env.step(state, jnp.array([3]), rng_key)
+            action = 3
+            # state, ts = env.step(state, jnp.array([3]), rng_key)
         elif keys[pygame.K_d]:
-            state, ts = env.step(state, jnp.array([1]), rng_key)
+            action = 1
+            # state, ts = env.step(state, jnp.array([1]), rng_key)
+
+        if action is not None:
+            action = jnp.full((env.num_agents, 1), action)
+            state, ts = env.step(state, action, rng_key)
 
         # print(ts)
         client.render(state)

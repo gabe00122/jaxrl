@@ -16,6 +16,8 @@ class ReturnConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["return"] = "return"
 
+    num_agents: int = 1
+
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

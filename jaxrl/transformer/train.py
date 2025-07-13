@@ -17,7 +17,7 @@ import numpy as np
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 
-from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
@@ -35,7 +35,7 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
         case 'nback':
             return NBackMemory(env_config.max_n, env_config.max_value, length)
         case 'return':
-            return ReturnEnv()
+            return ReturnEnv(env_config)
         case _:
             raise ValueError(f'Unknown environment type: {env_config.type}')
 
@@ -217,9 +217,8 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def enjoy():
-    experiment: Experiment = Experiment.load("hungry-dog-ve6mg1")
-    max_steps = 128 #experiment.config.max_env_steps
-    num_envs = 1
+    experiment: Experiment = Experiment.load("sleepy-mouse-8zgh9h")
+    max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps)
 
@@ -241,7 +240,7 @@ def enjoy():
 
     model = optimizer.model
 
-    kv_cache = model.create_kv_cache(num_envs, max_steps, dtype=jnp.float32)
+    kv_cache = model.create_kv_cache(env.num_agents, max_steps)
     client = ReturnClient(env)
 
     for _ in range(5):
@@ -249,7 +248,7 @@ def enjoy():
         for _ in range(max_steps):
             action_key = rngs.action()
             env_key = rngs.env()
-            value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+            _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
             action = policy.sample(seed=action_key)
             action = action.squeeze(axis=-1)
 
@@ -267,7 +266,6 @@ def train_run(
     experiment: Experiment,
     trial: optuna.Trial | None = None,
 ):
-
     mesh = Mesh(devices=jax.devices(), axis_names=('batch',))
     replicate_sharding = NamedSharding(mesh, P())
     batch_sharding = NamedSharding(mesh, P('batch'))
@@ -275,8 +273,8 @@ def train_run(
     max_steps = experiment.config.max_env_steps
 
     logger = experiment.create_logger()
-    # checkpointer = Checkpointer(experiment.checkpoints_dir)
-    # checkpoint_interval = 200
+    checkpointer = Checkpointer(experiment.checkpoints_dir)
+    checkpoint_interval = 200
 
     env = create_env(experiment.config.environment, max_steps) #NBackMemory(n=12, max_value=2, length=max_steps)
     env = VmapWrapper(env, experiment.config.num_envs)
@@ -331,8 +329,10 @@ def train_run(
         # if i % checkpoint_interval == checkpoint_interval - 1:
         #     checkpointer.save(optimizer, i)
 
+    checkpointer.save(optimizer, experiment.config.update_steps)
+
     logger.close()
-    # checkpointer.close()
+    checkpointer.close()
 
     if logs:
         return logs.rewards.item()
@@ -341,10 +341,14 @@ def train_run(
 
 def objective(trial: optuna.Trial):
     config=Config(
-        seed="random",
-        num_envs=64,
-        max_env_steps=128,
-        update_steps=1000,
+        seed=0,
+        num_envs=16,
+        max_env_steps=256,
+        update_steps=20000,
+        updates_per_jit=100,
+        environment=ReturnConfig(
+            num_agents=16
+        ),
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
@@ -354,7 +358,7 @@ def objective(trial: optuna.Trial):
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
-                    ffn_size=128,
+                    ffn_size=256,
                     glu=False,
                     gtrxl_gate=False,
                 )
@@ -362,7 +366,7 @@ def objective(trial: optuna.Trial):
             optimizer=OptimizerConfig(
                 type="adamw",
                 learning_rate=trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True),
-                weight_decay=0.0,
+                weight_decay=trial.suggest_float("weight_decay", 1e-5, 1e-3, log=True),
                 eps=1e-8,
                 beta1=0.9,
                 beta2=0.999,
@@ -370,7 +374,7 @@ def objective(trial: optuna.Trial):
             ),
             trainer=PPOConfig(
                 trainer_type="ppo",
-                minibatch_count=100,
+                minibatch_count=1,
                 vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
                 entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
                 vf_clip=trial.suggest_float("vf_clip", 0.1, 0.3),
