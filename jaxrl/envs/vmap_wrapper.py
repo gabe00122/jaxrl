@@ -19,7 +19,7 @@ class VmapWrapper[EnvState](Environment[EnvState]):
     def step(self, state: EnvState, action: jax.Array, rng_key: jax.Array) -> tuple[EnvState, TimeStep]:
         rng_keys = jax.random.split(rng_key, self._vec_count)
 
-        action = action.reshape(self._vec_count, self.base_env.num_agents, -1)
+        action = action.reshape(self._vec_count, self.base_env.num_agents)
         state, timestep = jax.vmap(self.base_env.step, in_axes=(0, 0, 0), out_axes=(0, 0))(state, action, rng_keys)
         return state, self._flatten_timestep(timestep)
 

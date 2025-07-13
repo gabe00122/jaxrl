@@ -142,7 +142,7 @@ class ReturnEnv(Environment[ReturnState]):
 
     @property
     def num_agents(self) -> int:
-        return self.num_agents
+        return self._num_agents
 
     def step(self, state: ReturnState, action: jax.Array, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
         @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
