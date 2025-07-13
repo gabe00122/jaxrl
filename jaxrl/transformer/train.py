@@ -18,7 +18,7 @@ import numpy as np
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 
-from jaxrl.config import Config, EnvironmentConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.config import Config, EnvironmentConfig, GridCnnObsEncoderConfig, LearnerConfig, LinearObsEncoderConfig, LoggerConfig, ModelConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
@@ -357,11 +357,13 @@ def objective(trial: optuna.Trial):
         ),
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
-                obs_encoder=LinearObsEncoderConfig(),
+                obs_encoder=GridCnnObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=8,
+                num_layers=3,
                 activation="gelu",
                 norm="layer_norm",
+                dtype="bfloat16",
+                param_dtype="float32",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
                     ffn_size=512,
@@ -388,7 +390,9 @@ def objective(trial: optuna.Trial):
                 gae_lambda=trial.suggest_float("gae_lambda", 0.9, 0.99),
             ),
         ),
-        logger=LoggerConfig(),
+        logger=LoggerConfig(
+            use_wandb=True
+        ),
     )
 
     return train_run(
