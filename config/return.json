@@ -1,11 +1,12 @@
 {
   "seed": "random",
-  "num_envs": 128,
-  "max_env_steps": 128,
-  "update_steps": 20000,
+  "num_envs": 32,
+  "max_env_steps": 256,
+  "update_steps": 60000,
   "updates_per_jit": 100,
   "environment": {
-    "env_type": "return"
+    "env_type": "return",
+    "num_agents": 16
   },
   "learner": {
     "optimizer": {
@@ -24,14 +25,14 @@
       "hidden_features": 128,
       "transformer_block": {
         "num_heads": 4,
-        "ffn_size": 128,
+        "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
         "glu": false,
-        "gtrxl_gate": true,
+        "gtrxl_gate": false,
         "gtrxl_bias": 1.0,
         "attention_softcap": null
       },
-      "num_layers": 3,
+      "num_layers": 8,
       "activation": "gelu",
       "norm": "layer_norm",
       "kernel_init": "glorot_uniform",
@@ -53,6 +54,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": false
+    "use_wandb": true
   }
 }

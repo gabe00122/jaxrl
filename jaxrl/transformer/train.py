@@ -1,3 +1,4 @@
+from functools import partial
 from pathlib import Path
 import time
 from typing import NamedTuple
@@ -217,7 +218,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def enjoy():
-    experiment: Experiment = Experiment.load("sleepy-mouse-8zgh9h")
+    experiment: Experiment = Experiment.load("lazy-dog-3hd4fm")
     max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps)
@@ -243,17 +244,22 @@ def enjoy():
     kv_cache = model.create_kv_cache(env.num_agents, max_steps)
     client = ReturnClient(env)
 
+    @nnx.jit
+    def step(timestep, kv_cache, env_state, rngs):
+        action_key = rngs.action()
+        env_key = rngs.env()
+        _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        actions = policy.sample(seed=action_key)
+        actions = jnp.squeeze(actions, axis=-1)
+
+        env_state, timestep = env.step(env_state, actions, env_key)
+
+        return env_state, timestep, kv_cache, rngs
+
     for _ in range(5):
         env_state, timestep = env.reset(rngs.env())
         for _ in range(max_steps):
-            action_key = rngs.action()
-            env_key = rngs.env()
-            _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
-            action = policy.sample(seed=action_key)
-            action = action.squeeze(axis=-1)
-
-            env_state, timestep = env.step(env_state, action, env_key)
-
+            env_state, timestep, kv_cache, rngs = step(timestep, kv_cache, env_state, rngs)
             client.render(env_state)
 
 def replicate_model(optimizer, sharding):
@@ -342,7 +348,7 @@ def train_run(
 def objective(trial: optuna.Trial):
     config=Config(
         seed=0,
-        num_envs=16,
+        num_envs=32,
         max_env_steps=256,
         update_steps=20000,
         updates_per_jit=100,
@@ -353,12 +359,12 @@ def objective(trial: optuna.Trial):
             model=TransformerActorCriticConfig(
                 obs_encoder=LinearObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=3,
+                num_layers=8,
                 activation="gelu",
                 norm="layer_norm",
                 transformer_block=TransformerBlockConfig(
                     num_heads=4,
-                    ffn_size=256,
+                    ffn_size=512,
                     glu=False,
                     gtrxl_gate=False,
                 )
