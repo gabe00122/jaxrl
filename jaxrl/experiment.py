@@ -1,9 +1,9 @@
 import datetime
-from pathlib import Path
 from pydantic import BaseModel
 import random
 import string
 import subprocess
+import fsspec
 
 from jaxrl.config import Config, load_config
 from jaxrl.logger import JaxLogger
@@ -15,15 +15,15 @@ class ExperimentMeta(BaseModel):
 
 
 class Experiment:
-    def __init__(self, unique_token: str, config: Config, meta: ExperimentMeta) -> None:
+    def __init__(self, unique_token: str, config: Config, meta: ExperimentMeta, base_dir: str) -> None:
         self.unique_token = unique_token
         self.config = config
         self.meta = meta
+        self.base_dir = base_dir
 
-        base_dir = Path("./results")
-        self.experiment_dir = base_dir / self.unique_token
-        self.config_path = self.experiment_dir / "config.json"
-        self.meta_path = self.experiment_dir / "meta.json"
+        self.experiment_dir = f"{base_dir}/{self.unique_token}"
+        self.config_path = f"{self.experiment_dir}/{config.json}"
+        self.meta_path = f"{self.experiment_dir}/{meta.json}"
 
         random.seed(self.config.seed)
         self.environments_seed = random.getrandbits(31)
@@ -33,50 +33,42 @@ class Experiment:
         self.actions_seed = random.getrandbits(31)
 
     def setup_experiment(self) -> None:
-        self.experiment_dir.mkdir(parents=True, exist_ok=True)
-        self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        fs, path = fsspec.core.url_to_fs(self.experiment_dir)
+        fs.mkdir(self.experiment_dir, exist_ok=True)
+        fs.mkdir(self.checkpoints_dir, exist_ok=True)
 
         config_str = self.config.model_dump_json(indent=2)
-        self.config_path.write_text(config_str)
+        with fsspec.open(self.config_path, "w") as f:
+            f.write(config_str)
 
         meta_str = self.meta.model_dump_json()
-        self.meta_path.write_text(meta_str)
+        with fsspec.open(self.meta_path, "w") as f:
+            f.write(meta_str)
 
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
     @property
-    def checkpoints_dir(self) -> Path:
-        return self.experiment_dir / "checkpoints"
+    def checkpoints_dir(self) -> str:
+        return f"{self.experiment_dir}/checkpoints"
 
     @classmethod
-    def load(cls, unique_token: str) -> "Experiment":
-        base_dir = Path("./results")
-        experiment_dir = base_dir / unique_token
-        config_path = experiment_dir / "config.json"
-        meta_path = experiment_dir / "meta.json"
-
-        config = load_config(config_path)
-        meta = ExperimentMeta.model_validate_json(meta_path.read_text())
-
-        return cls(unique_token, config, meta)
-
-    @classmethod
-    def from_config(cls, unique_token: str, config: Config) -> "Experiment":
+    # Add base_dir here as well
+    def from_config(cls, unique_token: str, config: Config, base_dir: str) -> "Experiment":
         experiment = cls(
             unique_token,
             config,
             ExperimentMeta(start_time=datetime.datetime.now(), git_hash=get_git_hash()),
+            base_dir, # Pass base_dir to the constructor
         )
         experiment.setup_experiment()
-
         return experiment
 
     @classmethod
-    def from_config_file(cls, config_file: Path) -> "Experiment":
+    # The entry point now also needs the base_dir
+    def from_config_file(cls, config_file: str, base_dir: str) -> "Experiment":
         config = load_config(config_file)
-        return cls.from_config(generate_unique_token(), config)
-
+        return cls.from_config(generate_unique_token(), config, base_dir)
 
 def generate_unique_token() -> str:
     adjectives = ["quick", "lazy", "sleepy", "noisy", "hungry"]
