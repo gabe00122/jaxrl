@@ -48,9 +48,23 @@ class Experiment:
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
+
     @property
     def checkpoints_dir(self) -> str:
         return f"{self.experiment_dir}/checkpoints"
+
+    @classmethod
+    def load(cls, unique_token: str, base_dir = "./results") -> "Experiment":
+        experiment_dir = f"{base_dir}/{unique_token}"
+        config_path = f"{experiment_dir}/config.json"
+        meta_path = f"{experiment_dir}/meta.json"
+
+        config = load_config(config_path)
+        with fsspec.open(meta_path, "r") as f:
+            meta_str = f.read()
+        meta = ExperimentMeta.model_validate_json(meta_str)
+
+        return cls(unique_token, config, meta, base_dir)
 
     @classmethod
     # Add base_dir here as well
