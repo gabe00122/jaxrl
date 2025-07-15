@@ -21,20 +21,27 @@ def grayscale_to_rgb(image: np.ndarray) -> np.ndarray:
 
 def save_video(frames: np.ndarray, filename, fps=60):
     print("Saving video...")
-    frames = grayscale_to_rgb(frames)
+    # frames = grayscale_to_rgb(frames)
 
     h, w = frames[0].shape[:2]
     ffmpeg = (
         FFmpeg()
         .option("y")
-        .input("pipe:0", {"f": "rawvideo", "pix_fmt": "rgb24", "s": f"{w}x{h}"})
-        .output(
+        .input(
+            "pipe:0",
+            {
+                "f": "rawvideo",
+                "pix_fmt": "rgb24",
+                "s": f"{w}x{h}",
+                "framerate": fps,
+            }
+        ).output(
             filename,
             {
                 "vf": "scale=iw*4:ih*4:flags=neighbor",
                 "pix_fmt": "yuv420p",
                 "codec:v": "libx264",
-                "framerate": fps,
+                "movflags": "faststart"
             },
         )
     )

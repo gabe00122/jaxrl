@@ -32,7 +32,7 @@
         "gtrxl_bias": 1.0,
         "attention_softcap": null
       },
-      "num_layers": 8,
+      "num_layers": 3,
       "activation": "gelu",
       "norm": "layer_norm",
       "kernel_init": "glorot_uniform",

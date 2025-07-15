@@ -11,6 +11,7 @@ from jaxrl.config import ReturnConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
+from jaxrl.utils.video_writter import save_video
 
 NUM_CLASSES = 4
 
@@ -201,6 +202,8 @@ class ReturnClient:
         self.surface = pygame.Surface((800, 800), flags=flags)
         self.clock = pygame.time.Clock()
 
+        self.frames = []
+
     def render(self, state: ReturnState):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
@@ -241,6 +244,17 @@ class ReturnClient:
         self.clock.tick(10)
         self.screen.blit(self.surface, (0,0))
         pygame.display.flip()
+
+        self.record_frame()
+
+    def record_frame(self):
+        img_data = pygame.surfarray.array3d(pygame.display.get_surface())
+        self.frames.append(img_data)
+
+    def save_video(self):
+        frames = np.array(self.frames)
+        save_video(frames, "test.mp4", 10)
+
 
 def demo():
     env = ReturnEnv()
