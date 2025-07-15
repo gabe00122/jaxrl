@@ -218,14 +218,14 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def enjoy():
-    experiment: Experiment = Experiment.load("lazy-dog-3hd4fm")
+    experiment: Experiment = Experiment.load("trial_61")
     max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps)
 
     obs_spec = env.observation_spec
     action_spec = env.action_spec
-    rngs = nnx.Rngs(default=42)
+    rngs = nnx.Rngs(default=0)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
@@ -261,6 +261,8 @@ def enjoy():
         for _ in range(max_steps):
             env_state, timestep, kv_cache, rngs = step(timestep, kv_cache, env_state, rngs)
             client.render(env_state)
+
+    client.save_video()
 
 def replicate_model(optimizer, sharding):
     state = nnx.state(optimizer)
