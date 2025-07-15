@@ -54,6 +54,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": true
+    "use_wandb": false
   }
 }

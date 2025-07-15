@@ -9,7 +9,9 @@ dependencies = [
     "distrax>=0.1.5",
     "einops>=0.8.1",
     "flax>=0.10.6",
-    "jax[cuda12]>=0.6.0",
+    "fsspec[gcs]>=2025.5.1",
+    "gcsfs>=2025.5.1",
+    "jax>=0.6.0",
     "jumanji>=0.3.1",
     "optax>=0.2.4",
     "optuna>=4.3.0",
@@ -23,6 +25,14 @@ dependencies = [
     "tensorboardx>=2.6.2.2",
     "typer>=0.15.3",
     "wandb>=0.19.10",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "jax[cuda12]",
+]
+tpu = [
+    "jax[tpu]",
 ]
 
 [build-system]

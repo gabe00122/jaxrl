@@ -60,13 +60,14 @@ def create_training_logs() -> TrainingLogs:
 
 
 def add_seq_dim(ts: TimeStep):
-    return TimeStep(
-        obs=rearrange(ts.obs, 'b ... -> b 1 ...'),
-        time=rearrange(ts.time, 'b ... -> b 1 ...'),
-        last_action=rearrange(ts.last_action, 'b ... -> b 1 ...'),
-        last_reward=rearrange(ts.last_reward, 'b ... -> b 1 ...'),
-        action_mask=rearrange(ts.action_mask, 'b ... -> b 1 ...') if ts.action_mask is not None else None,
-    )
+    return jax.tree_util.tree_map(lambda x: rearrange(x, 'b ... -> b 1 ...'), ts)
+    # return TimeStep(
+    #     obs=rearrange(ts.obs, 'b ... -> b 1 ...'),
+    #     time=rearrange(ts.time, 'b ... -> b 1 ...'),
+    #     last_action=rearrange(ts.last_action, 'b ... -> b 1 ...'),
+    #     last_reward=rearrange(ts.last_reward, 'b ... -> b 1 ...'),
+    #     action_mask=rearrange(ts.action_mask, 'b ... -> b 1 ...') if ts.action_mask is not None else None,
+    # )
 
 def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
     reset_key = rngs.env()
@@ -153,13 +154,10 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     actor_loss = -jnp.minimum(pg_loss1, pg_loss2).mean()
 
     # Entropy regularization
-    entropy = policy.entropy()
-    entropy_loss = -entropy.mean()
+    entropy_loss = -policy.entropy().mean()
 
     total_loss = hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
 
-
-    # jax.debug.breakpoint()
     logs = TrainingLogs(
         rewards=batch_rewards.sum() / batch_obs.shape[0],
         value_loss=value_loss,
@@ -174,13 +172,13 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Environment, config: Config):
     hypers = config.learner.trainer
 
-    def _local_loss(model, rngs):
+    def _local_grad(model, rngs):
         rollout_state, rngs = evaluate(model, rollout, rngs, env, hypers)
         grad, logs = nnx.grad(ppo_loss, has_aux=True)(model, rollout_state, hypers)
         return grad, logs, rngs
 
-    def _global_loss(model, rngs):
-        grads, logs, rngs = nnx.vmap(_local_loss, in_axes=(None, 0), out_axes=(0, 0, 0))(model, rngs)
+    def _global_grad(model, rngs):
+        grads, logs, rngs = nnx.vmap(_local_grad, in_axes=(None, 0), out_axes=(0, 0, 0))(model, rngs)
 
         logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), logs)
         grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
@@ -190,8 +188,7 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
     def _global_step(i, x):
         optimizer, logs, rngs = x
 
-        # todo, handle logs
-        grad, (step_logs, rngs) = _global_loss(optimizer.model, rngs)
+        grad, (step_logs, rngs) = _global_grad(optimizer.model, rngs)
         optimizer.update(grad)
 
         logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
@@ -200,17 +197,9 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
 
     logs = create_training_logs()
 
-    # todo this is not actually a minibatch step, find a new name
     optimizer, logs, rngs = nnx.fori_loop(0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, rngs))
 
     logs = jax.tree_util.tree_map(lambda x: x / config.updates_per_jit, logs)
-    # logs = TrainingLogs(
-    #     rewards=logs.rewards / hypers.minibatch_count,
-    #     value_loss=logs.value_loss / hypers.minibatch_count,
-    #     actor_loss=logs.actor_loss / hypers.minibatch_count,
-    #     entropy_loss=logs.entropy_loss / hypers.minibatch_count,
-    #     total_loss=logs.total_loss / hypers.minibatch_count
-    # )
 
     return optimizer, rngs, logs
 
