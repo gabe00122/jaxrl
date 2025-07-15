@@ -3,6 +3,7 @@ from pathlib import Path
 import random
 from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
+import fsspec
 
 
 class NBackConfig(BaseModel):
@@ -157,8 +158,8 @@ class Config(BaseModel):
     logger: LoggerConfig = LoggerConfig()
 
 
-def load_config(file: Path) -> Config:
-    with open(file) as f:
+def load_config(file_path: str) -> Config:
+    with fsspec.open(file_path) as f:
         json_config = json.load(f)
 
     config = Config.model_validate(json_config, strict=True)
