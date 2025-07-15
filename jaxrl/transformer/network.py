@@ -11,12 +11,26 @@ from pydantic import BaseModel, ConfigDict, Field
 from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig, TransformerActorCriticConfig, TransformerBlockConfig
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
-from jaxrl.networks import parse_activation_fn
 from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.transformer.gate import GatingMechanism
 
+
+def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
+    match activation_name:
+        case "relu":
+            return jax.nn.relu
+        case "mish":
+            return jax.nn.mish
+        case "gelu":
+            return jax.nn.gelu
+        case "silu":
+            return jax.nn.silu
+        case "tanh":
+            return jax.nn.tanh
+        case _:
+            raise ValueError(f"Activation function {activation_name} not recognized")
 
 class LinearObsEncoder(nnx.Module):
     def __init__(self, config: LinearObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:

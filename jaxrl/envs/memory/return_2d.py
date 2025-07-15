@@ -146,25 +146,26 @@ class ReturnEnv(Environment[ReturnState]):
         return self._num_agents
 
     def step(self, state: ReturnState, action: jax.Array, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
-        @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
-        def _step_agent(local_position, local_action):
+        @partial(jax.vmap, in_axes=(0, 0, 0), out_axes=(0, 0))
+        def _step_agent(local_position, local_action, random_position):
             directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
             new_pos = local_position + directions[local_action]
 
             new_tile = self.tiles[new_pos[0], new_pos[1]]
 
             # don't move if we are moving into a wall
-            new_pos = jax.lax.cond(new_tile == TILE_WALL, lambda: local_position, lambda: new_pos)
+            new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
 
             found_treasure = jnp.all(new_pos == state.treasure_pos) #new_tile == TILE_TREASURE
             reward = found_treasure.astype(jnp.float32)
 
             # randomize position if the agent finds the reward
-            new_pos = jax.lax.cond(found_treasure, lambda: jax.random.choice(rng_key, self.empty_positions, ()), lambda: new_pos)
+            new_pos = jnp.where(found_treasure, random_position, new_pos)
 
             return new_pos, reward
 
-        new_position, rewards = _step_agent(state.agents_pos, action)
+        random_positions = jax.random.choice(rng_key, self.empty_positions, (self._num_agents,))
+        new_position, rewards = _step_agent(state.agents_pos, action, random_positions)
 
         state = state._replace(agents_pos=new_position, time=state.time + 1)
 
