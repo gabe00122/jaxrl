@@ -206,8 +206,8 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
-def enjoy():
-    experiment: Experiment = Experiment.load("lazy-bear-a9bmts")
+def enjoy(name: str, base_dir: str = "./results"):
+    experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps)
@@ -431,10 +431,10 @@ def sweep():
 
 
 @app.command("train")
-def train_cmd(distributed: bool = False):
+def train_cmd(distributed: bool = False, base_dir: str = "./results"):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(Path("./config/return.json"))
+    experiment = Experiment.from_config_file("./config/return.json", base_dir)
 
     train_run(experiment)
 
