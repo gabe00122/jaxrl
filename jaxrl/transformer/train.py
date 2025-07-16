@@ -323,8 +323,8 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        # if i % checkpoint_interval == checkpoint_interval - 1:
-        #     checkpointer.save(optimizer, i)
+        if i % (outer_updates // 5) == (outer_updates // 5) - 1:
+            checkpointer.save(optimizer, i * experiment.config.updates_per_jit)
 
     checkpointer.save(optimizer, experiment.config.update_steps)
 
@@ -398,15 +398,15 @@ def sweep():
     storage_name = "sqlite:///jaxrl_study.db"
     study_name = "jaxrl_study"
 
-    import optunahub
-    module = optunahub.load_module(package="samplers/auto_sampler")
+    # import optunahub
+    # module = optunahub.load_module(package="samplers/auto_sampler")
 
     study = optuna.create_study(
         study_name=study_name,
         storage=storage_name,
         direction='maximize',
         load_if_exists=True,
-        sampler=module.AutoSampler(), #optuna.samplers.TPESampler(n_startup_trials=10),
+        sampler=optuna.samplers.TPESampler(n_startup_trials=10),
         # pruner=optuna.pruners.HyperbandPruner()
     )
     study.optimize(objective, n_trials=300)
