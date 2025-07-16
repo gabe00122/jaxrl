@@ -1,9 +1,9 @@
 {
   "seed": "random",
-  "num_envs": 8,
+  "num_envs": 32,
   "max_env_steps": 256,
-  "update_steps": 280000,
-  "updates_per_jit": 5,
+  "update_steps": 1000,
+  "updates_per_jit": 1,
   "environment": {
     "env_type": "return",
     "num_agents": 16
