@@ -1,93 +1,100 @@
-import datetime
-from pydantic import BaseModel
+import datetime as dt
 import random
 import string
 import subprocess
 import fsspec
+from pydantic import BaseModel
 
 from jaxrl.config import Config, load_config
 from jaxrl.logger import JaxLogger
 
 
 class ExperimentMeta(BaseModel):
-    start_time: datetime.datetime
+    start_time: dt.datetime
     git_hash: str
 
 
 class Experiment:
-    def __init__(self, unique_token: str, config: Config, meta: ExperimentMeta, base_dir: str) -> None:
+    def __init__(self,
+                 unique_token: str,
+                 config: Config,
+                 meta: ExperimentMeta,
+                 base_dir: str = "./results") -> None:
+
         self.unique_token = unique_token
         self.config = config
         self.meta = meta
-        self.base_dir = base_dir
 
-        self.experiment_dir = f"{base_dir}/{self.unique_token}"
-        self.config_path = f"{self.experiment_dir}/{config.json}"
-        self.meta_path = f"{self.experiment_dir}/{meta.json}"
+        # build the URL once
+        self.experiment_url = f"{base_dir.rstrip('/')}/{self.unique_token}"
 
+        # filesystem handle reused everywhere
+        self.fs, self.root = fsspec.core.url_to_fs(self.experiment_url)
+
+        # derived paths that *fs* understands
+        self.config_path = f"{self.root}/config.json"
+        self.meta_path = f"{self.root}/meta.json"
+        self.ckpt_dir = f"{self.root}/checkpoints"
+
+        # seeds
         random.seed(self.config.seed)
         self.environments_seed = random.getrandbits(31)
-
         self.default_seed = random.getrandbits(31)
         self.params_seed = random.getrandbits(31)
         self.actions_seed = random.getrandbits(31)
 
     def setup_experiment(self) -> None:
-        fs, path = fsspec.core.url_to_fs(self.experiment_dir)
-        fs.mkdir(self.experiment_dir, exist_ok=True)
-        fs.mkdir(self.checkpoints_dir, exist_ok=True)
+        """Create the directory tree and write config & metadata."""
+        self.fs.makedirs(self.ckpt_dir, exist_ok=True)
 
-        config_str = self.config.model_dump_json(indent=2)
-        with fsspec.open(self.config_path, "w") as f:
-            f.write(config_str)
+        with self.fs.open(self.config_path, "w") as f:
+            f.write(self.config.model_dump_json(indent=2))
 
-        meta_str = self.meta.model_dump_json()
-        with fsspec.open(self.meta_path, "w") as f:
-            f.write(meta_str)
+        with self.fs.open(self.meta_path, "w") as f:
+            f.write(self.meta.model_dump_json(indent=2))
 
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
-    @property
-    def checkpoints_dir(self) -> str:
-        return f"{self.experiment_dir}/checkpoints"
-
     @classmethod
-    def load(cls, unique_token: str, base_dir = "./results") -> "Experiment":
-        experiment_dir = f"{base_dir}/{unique_token}"
-        config_path = f"{experiment_dir}/config.json"
-        meta_path = f"{experiment_dir}/meta.json"
+    def load(cls, unique_token: str, base_dir: str = "./results") -> "Experiment":
+        experiment_url = f"{base_dir.rstrip('/')}/{unique_token}"
+        fs, root = fsspec.core.url_to_fs(experiment_url)
 
-        config = load_config(config_path)
-        with fsspec.open(meta_path, "r") as f:
-            meta_str = f.read()
-        meta = ExperimentMeta.model_validate_json(meta_str)
+        with fs.open(f"{root}/config.json", "r") as f:
+            config = load_config(f)
+
+        with fs.open(f"{root}/meta.json", "r") as f:
+            meta = ExperimentMeta.model_validate_json(f.read())
 
         return cls(unique_token, config, meta, base_dir)
 
     @classmethod
-    def from_config(cls, unique_token: str, config: Config, base_dir: str = "./results") -> "Experiment":
-        experiment = cls(
-            unique_token,
-            config,
-            ExperimentMeta(start_time=datetime.datetime.now(), git_hash=get_git_hash()),
-            base_dir, # Pass base_dir to the constructor
+    def from_config(cls,
+                    unique_token: str,
+                    config: Config,
+                    base_dir: str = "./results") -> "Experiment":
+
+        meta = ExperimentMeta(
+            start_time=dt.datetime.now(tz=dt.timezone.utc),
+            git_hash=get_git_hash(),
         )
-        experiment.setup_experiment()
-        return experiment
+        exp = cls(unique_token, config, meta, base_dir)
+        exp.setup_experiment()
+        return exp
 
     @classmethod
-    def from_config_file(cls, config_file: str, base_dir: str = "./results") -> "Experiment":
+    def from_config_file(cls,
+                         config_file: str,
+                         base_dir: str = "./results") -> "Experiment":
         config = load_config(config_file)
         return cls.from_config(generate_unique_token(), config, base_dir)
 
 def generate_unique_token() -> str:
     adjectives = ["quick", "lazy", "sleepy", "noisy", "hungry"]
     nouns = ["fox", "dog", "cat", "mouse", "bear"]
-    adjective = random.choice(adjectives)
-    noun = random.choice(nouns)
-    unique_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    return f"{adjective}-{noun}-{unique_id}"
+    return f"{random.choice(adjectives)}-{random.choice(nouns)}-" \
+           f"{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
 
 
 def get_git_hash() -> str:
