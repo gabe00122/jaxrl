@@ -6,8 +6,8 @@ import jax
 
 class Checkpointer:
     def __init__(self, directory: str | Path):
-        directory = Path(directory)
-        directory = directory.absolute()
+        # directory = Path(directory)
+        # directory = directory.absolute()
         self.mngr = ocp.CheckpointManager(directory)
 
     def save(self, model: object, global_step: int):
