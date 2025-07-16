@@ -56,6 +56,10 @@ class Experiment:
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
+    @property
+    def checkpoints_dir(self) -> str:
+        return f"{self.experiment_url}/checkpoints"
+
     @classmethod
     def load(cls, unique_token: str, base_dir: str = "./results") -> "Experiment":
         experiment_url = f"{base_dir.rstrip('/')}/{unique_token}"
