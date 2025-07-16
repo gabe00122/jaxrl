@@ -48,7 +48,6 @@ class Experiment:
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
-
     @property
     def checkpoints_dir(self) -> str:
         return f"{self.experiment_dir}/checkpoints"
@@ -67,8 +66,7 @@ class Experiment:
         return cls(unique_token, config, meta, base_dir)
 
     @classmethod
-    # Add base_dir here as well
-    def from_config(cls, unique_token: str, config: Config, base_dir: str) -> "Experiment":
+    def from_config(cls, unique_token: str, config: Config, base_dir: str = "./results") -> "Experiment":
         experiment = cls(
             unique_token,
             config,
@@ -79,8 +77,7 @@ class Experiment:
         return experiment
 
     @classmethod
-    # The entry point now also needs the base_dir
-    def from_config_file(cls, config_file: str, base_dir: str) -> "Experiment":
+    def from_config_file(cls, config_file: str, base_dir: str = "./results") -> "Experiment":
         config = load_config(config_file)
         return cls.from_config(generate_unique_token(), config, base_dir)
 
