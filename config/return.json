@@ -2,7 +2,7 @@
   "seed": "random",
   "num_envs": 32,
   "max_env_steps": 256,
-  "update_steps": 60000,
+  "update_steps": 280000,
   "updates_per_jit": 100,
   "environment": {
     "env_type": "return",
@@ -11,12 +11,12 @@
   "learner": {
     "optimizer": {
       "type": "adamw",
-      "learning_rate": 0.001,
-      "weight_decay": 0.0,
+      "learning_rate": 0.0009442327101842291,
+      "weight_decay": 0.0001215732069346454,
       "eps": 1e-8,
       "beta1": 0.9,
       "beta2": 0.999,
-      "max_norm": 0.1
+      "max_norm": 0.2483780769403615
     },
     "model": {
       "obs_encoder": {
@@ -42,11 +42,11 @@
     "trainer": {
       "trainer_type": "ppo",
       "minibatch_count": 1,
-      "vf_coef": 0.5,
-      "entropy_coef": 0.001,
-      "vf_clip": 0.11657459349860262,
-      "discount": 0.9271513652161643,
-      "gae_lambda": 0.9
+      "vf_coef": 1.401531000697826,
+      "entropy_coef": 0.0007561531481145621,
+      "vf_clip": 0.2717602880463028,
+      "discount": 0.9623508086831543,
+      "gae_lambda": 0.9700622054336805
     }
   },
   "logger": {
