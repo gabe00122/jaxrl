@@ -1,9 +1,9 @@
 {
   "seed": "random",
-  "num_envs": 32,
+  "num_envs": 8,
   "max_env_steps": 256,
   "update_steps": 280000,
-  "updates_per_jit": 100,
+  "updates_per_jit": 5,
   "environment": {
     "env_type": "return",
     "num_agents": 16
@@ -28,7 +28,7 @@
         "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
         "glu": false,
-        "gtrxl_gate": false,
+        "gtrxl_gate": true,
         "gtrxl_bias": 1.0,
         "attention_softcap": null
       },
@@ -54,6 +54,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": false
+    "use_wandb": true
   }
 }
