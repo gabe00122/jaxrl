@@ -205,10 +205,12 @@ class ReturnClient:
 
         self.frames = []
 
+        self._tile_size = 20
+
+        self.agent_history = np.zeros((env.num_agents, 256, 2), dtype=int)
+
     def render(self, state: ReturnState):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
-
-        tile_size = 20
 
         tiles = self.env.tiles.tolist()
         colors = ["grey", "brown", "blue"]
@@ -218,35 +220,39 @@ class ReturnClient:
                 tx = self.env.pad_width + x
                 ty = self.env.pad_height + y
 
-                tile_type = tiles[tx][self.env.height - ty + 1]
-                self.screen.fill(colors[tile_type], (x * tile_size, y * tile_size, tile_size, tile_size))
+                tile_type = tiles[tx][ty]
+                self._draw_tile(self.screen, colors[tile_type], tx, ty)
 
+        self.agent_history[:, state.time-1, :] = state.agents_pos
         agents = state.agents_pos.tolist()
 
         for x, y in agents:
-            agent_x = x - self.env.pad_width
-            agent_y = (self.env.height - y + 1) - self.env.pad_height
+            self._draw_tile(self.screen, "yellow", x, y)
+            self._draw_tile(self.surface, (0, 0, 0, 0), x, y, 5, 5)
 
-            self.surface.fill(
-                (0, 0, 0, 0),
-                (agent_x * tile_size - (tile_size * 2),
-                agent_y * tile_size - (tile_size * 2), tile_size * 5, tile_size * 5)
-            )
-            self.screen.fill("yellow", (agent_x * tile_size, agent_y * tile_size, tile_size, tile_size))
-
-        treasure_x = state.treasure_pos[0] - self.env.pad_width
-        treasure_y = (self.env.height - state.treasure_pos[1] + 1) - self.env.pad_height
-        self.surface.fill(
-            "blue",
-            (treasure_x * tile_size,
-            treasure_y * tile_size, tile_size, tile_size)
-        )
+        self._draw_tile(self.screen, "blue", state.treasure_pos[0].item(), state.treasure_pos[1].item())
 
         self.clock.tick(10)
         self.screen.blit(self.surface, (0,0))
         pygame.display.flip()
 
         self.record_frame()
+
+    def _tile_to_screen(self, x: int, y: int):
+        return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height
+
+    def _draw_tile(self, surface, color, x, y, width: int = 1, height: int = 1):
+        x, y = self._tile_to_screen(x, y)
+
+        half_width = width // 2
+        half_height = height // 2
+
+        surface.fill(color, (
+            (x - half_width) * self._tile_size,
+            (y - half_height) * self._tile_size,
+            width * self._tile_size,
+            height * self._tile_size,
+        ))
 
     def record_frame(self):
         img_data = pygame.surfarray.array3d(pygame.display.get_surface())

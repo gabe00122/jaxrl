@@ -61,13 +61,6 @@ def create_training_logs() -> TrainingLogs:
 
 def add_seq_dim(ts: TimeStep):
     return jax.tree_util.tree_map(lambda x: rearrange(x, 'b ... -> b 1 ...'), ts)
-    # return TimeStep(
-    #     obs=rearrange(ts.obs, 'b ... -> b 1 ...'),
-    #     time=rearrange(ts.time, 'b ... -> b 1 ...'),
-    #     last_action=rearrange(ts.last_action, 'b ... -> b 1 ...'),
-    #     last_reward=rearrange(ts.last_reward, 'b ... -> b 1 ...'),
-    #     action_mask=rearrange(ts.action_mask, 'b ... -> b 1 ...') if ts.action_mask is not None else None,
-    # )
 
 def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, env: Environment, hypers: PPOConfig):
     reset_key = rngs.env()
@@ -206,7 +199,7 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
-def enjoy(name: str, base_dir: str = "./results"):
+def enjoy(name: str, base_dir: str = "results"):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -225,7 +218,7 @@ def enjoy(name: str, base_dir: str = "./results"):
     )
     optimizer = nnx.Optimizer(model=model, tx=create_optimizer(experiment.config.learner.optimizer, experiment.config.update_steps))
 
-    with Checkpointer(experiment.checkpoints_dir) as checkpointer:
+    with Checkpointer(experiment.checkpoints_url) as checkpointer:
         optimizer = checkpointer.restore_latest(optimizer)
 
     model = optimizer.model
@@ -247,6 +240,7 @@ def enjoy(name: str, base_dir: str = "./results"):
 
     for _ in range(5):
         env_state, timestep = env.reset(rngs.env())
+        client.render(env_state)
         for _ in range(max_steps):
             env_state, timestep, kv_cache, rngs = step(timestep, kv_cache, env_state, rngs)
             client.render(env_state)
@@ -270,7 +264,7 @@ def train_run(
     max_steps = experiment.config.max_env_steps
 
     logger = experiment.create_logger()
-    checkpointer = Checkpointer(experiment.checkpoints_dir)
+    checkpointer = Checkpointer(experiment.checkpoints_url)
     checkpoint_interval = 200
 
     env = create_env(experiment.config.environment, max_steps) #NBackMemory(n=12, max_value=2, length=max_steps)
