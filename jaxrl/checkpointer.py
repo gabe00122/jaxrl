@@ -1,3 +1,4 @@
+import fsspec
 import orbax.checkpoint as ocp
 from flax import nnx
 from pathlib import Path
@@ -5,9 +6,9 @@ import jax
 
 
 class Checkpointer:
-    def __init__(self, directory: str | Path):
-        # directory = Path(directory)
-        # directory = directory.absolute()
+    def __init__(self, directory: str):
+        if not directory.startswith("gs://"):
+            directory = Path(directory).absolute().as_posix()
         self.mngr = ocp.CheckpointManager(directory)
 
     def save(self, model: object, global_step: int):
