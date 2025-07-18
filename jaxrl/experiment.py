@@ -19,7 +19,7 @@ class Experiment:
                  unique_token: str,
                  config: Config,
                  meta: ExperimentMeta,
-                 base_dir: str = "./results") -> None:
+                 base_dir: str = "results") -> None:
 
         self.unique_token = unique_token
         self.config = config
@@ -27,6 +27,7 @@ class Experiment:
 
         # build the URL once
         self.experiment_url = f"{base_dir.rstrip('/')}/{self.unique_token}"
+        self.checkpoints_url = f"{base_dir.rstrip('/')}/{self.unique_token}/checkpoints"
 
         # filesystem handle reused everywhere
         self.fs, self.root = fsspec.core.url_to_fs(self.experiment_url)
@@ -53,20 +54,18 @@ class Experiment:
         with self.fs.open(self.meta_path, "w") as f:
             f.write(self.meta.model_dump_json(indent=2))
 
+
+
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
-    @property
-    def checkpoints_dir(self) -> str:
-        return f"{self.experiment_url}/checkpoints"
-
     @classmethod
-    def load(cls, unique_token: str, base_dir: str = "./results") -> "Experiment":
+    def load(cls, unique_token: str, base_dir: str = "results") -> "Experiment":
         experiment_url = f"{base_dir.rstrip('/')}/{unique_token}"
         fs, root = fsspec.core.url_to_fs(experiment_url)
 
         with fs.open(f"{root}/config.json", "r") as f:
-            config = load_config(f)
+            config = load_config(f.read())
 
         with fs.open(f"{root}/meta.json", "r") as f:
             meta = ExperimentMeta.model_validate_json(f.read())
@@ -77,7 +76,7 @@ class Experiment:
     def from_config(cls,
                     unique_token: str,
                     config: Config,
-                    base_dir: str = "./results") -> "Experiment":
+                    base_dir: str = "results") -> "Experiment":
 
         meta = ExperimentMeta(
             start_time=dt.datetime.now(tz=dt.timezone.utc),
@@ -90,8 +89,10 @@ class Experiment:
     @classmethod
     def from_config_file(cls,
                          config_file: str,
-                         base_dir: str = "./results") -> "Experiment":
-        config = load_config(config_file)
+                         base_dir: str = "results") -> "Experiment":
+
+        with fsspec.open(config_file, "r") as f:
+            config = load_config(f.read())
         return cls.from_config(generate_unique_token(), config, base_dir)
 
 def generate_unique_token() -> str:
