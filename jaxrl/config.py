@@ -158,11 +158,8 @@ class Config(BaseModel):
     logger: LoggerConfig = LoggerConfig()
 
 
-def load_config(file_path: str) -> Config:
-    with fsspec.open(file_path) as f:
-        json_config = json.load(f)
-
-    config = Config.model_validate(json_config, strict=True)
+def load_config(json_config: str) -> Config:
+    config = Config.model_validate(json.loads(json_config), strict=True)
     if config.seed == "random":
         config = config.model_copy(update={"seed": random.getrandbits(31)})
 
