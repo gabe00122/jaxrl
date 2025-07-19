@@ -81,11 +81,11 @@ class ReturnEnv(Environment[ReturnState]):
 
         self._num_agents = config.num_agents
 
-        self.unpadded_width = 40
-        self.unpadded_height = 40
+        self.unpadded_width = config.width
+        self.unpadded_height = config.height
 
-        self.view_width = 5
-        self.view_height = 5
+        self.view_width = config.view_width
+        self.view_height = config.view_height
         self.pad_width = self.view_width // 2
         self.pad_height = self.view_height // 2
 
