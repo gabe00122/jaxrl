@@ -425,7 +425,7 @@ def sweep():
 
 
 @app.command("train")
-def train_cmd(distributed: bool = False, base_dir: str = "./results"):
+def train_cmd(config: str = "./config/return.json", distributed: bool = False, base_dir: str = "./results"):
     if distributed:
         jax.distributed.initialize()
     experiment = Experiment.from_config_file("./config/return.json", base_dir)

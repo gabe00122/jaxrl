@@ -51,17 +51,17 @@ export WANDB_API_KEY="{wandb_key}"
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 
-cat << EOF >> config/config.json
-{config_text}
-EOF
-
 git clone https://github.com/gabe00122/jaxrl.git
 cd jaxrl
 git switch {git_hash} --detach
 uv sync --extra tpu
 
+cat << EOF >> config/config.json
+{config_text}
+EOF
+
 echo "Starting JAX training job... 🚀"
-uv run ./jaxrl/transformer/train.py train --distributed --base-dir "gs://training_results_gabe00122/results"
+uv run ./jaxrl/transformer/train.py train --config ./config/config.json --distributed --base-dir "gs://training_results_gabe00122/results"
 
 echo "JAX training complete. Initiating TPU shutdown."
 
