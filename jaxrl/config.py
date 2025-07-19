@@ -19,10 +19,10 @@ class ReturnConfig(BaseModel):
 
     num_agents: int = 1
 
-    width = 40
-    height = 40
-    view_width = 5
-    view_height = 5
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
 
 
 class GridCnnObsEncoderConfig(BaseModel):
