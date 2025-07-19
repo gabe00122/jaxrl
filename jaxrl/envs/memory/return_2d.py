@@ -7,6 +7,7 @@ import numpy as np
 from jax import numpy as jnp
 import pygame
 
+from jaxrl.envs.map_generator import generate_perlin_noise_2d
 from jaxrl.config import ReturnConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
@@ -69,6 +70,10 @@ class ReturnState(NamedTuple):
     treasure_pos: jax.Array
     time: jax.Array
 
+    map: jax.Array
+    spawn_pos: jax.Array
+    spawn_count: jax.Array
+
 
 class ReturnEnv(Environment[ReturnState]):
     def __init__(self, config: ReturnConfig) -> None:
@@ -87,7 +92,7 @@ class ReturnEnv(Environment[ReturnState]):
         self.width = self.unpadded_width + self.pad_width
         self.height = self.unpadded_height + self.pad_height
 
-        self.tiles, self.empty_positions = self._load_template(map_template)
+        # self.tiles, self.empty_positions = self._load_template(map_template)
 
     def _load_template(self, text: str):
         tiles = np.zeros((self.unpadded_width, self.unpadded_height), dtype=np.int8)
@@ -117,12 +122,40 @@ class ReturnEnv(Environment[ReturnState]):
 
         return jnp.asarray(tiles), jnp.asarray(empty_positions)
 
-    def reset(self, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
-        positions = jax.random.choice(rng_key, self.empty_positions, (1 + self.num_agents,), replace=False)
-        treasure_pos = positions[0]
-        agents_pos = positions[1:]
+    def _generate_map(self, rng_key):
+        noise = generate_perlin_noise_2d((self.unpadded_width, self.unpadded_height), (4, 4), rng_key=rng_key)
+        tiles = jnp.where(noise > 0.3, TILE_WALL, TILE_EMPTY)
 
-        state = ReturnState(treasure_pos=treasure_pos, agents_pos=agents_pos, time=jnp.int32(0))
+        # get the empty tiles for spawning
+        x_spawns, y_spawns = jnp.where(tiles == TILE_EMPTY, size=self.unpadded_width * self.unpadded_height, fill_value=-1)
+        spawn_count = jnp.sum(tiles == TILE_EMPTY)
+
+        # pad the tiles
+        tiles = jnp.pad(
+            tiles,
+            pad_width=((self.pad_width, self.pad_width), (self.pad_height, self.pad_height)),
+            mode="constant",
+            constant_values=TILE_WALL
+        )
+
+        # pad the empty tiles
+        y_spawns = y_spawns + self.pad_height
+        x_spawns = x_spawns + self.pad_width
+        spawn_pos = jnp.stack((x_spawns, y_spawns), axis=1)
+
+        return tiles, spawn_pos, spawn_count
+
+
+    def reset(self, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
+        map_key, pos_key = jax.random.split(rng_key)
+
+        map, spawn_pos, spawn_count = self._generate_map(map_key)
+
+        positions = jax.random.randint(pos_key, (1 + self.num_agents,), minval=0, maxval=spawn_count)
+        treasure_pos = spawn_pos[positions[0]]
+        agents_pos = spawn_pos[positions[1:]]
+
+        state = ReturnState(map=map, spawn_pos=spawn_pos, spawn_count=spawn_count, treasure_pos=treasure_pos, agents_pos=agents_pos, time=jnp.int32(0))
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
         rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
@@ -151,7 +184,7 @@ class ReturnEnv(Environment[ReturnState]):
             directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
             new_pos = local_position + directions[local_action]
 
-            new_tile = self.tiles[new_pos[0], new_pos[1]]
+            new_tile = state.map[new_pos[0], new_pos[1]]
 
             # don't move if we are moving into a wall
             new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
@@ -164,7 +197,7 @@ class ReturnEnv(Environment[ReturnState]):
 
             return new_pos, reward
 
-        random_positions = jax.random.choice(rng_key, self.empty_positions, (self._num_agents,))
+        random_positions = state.spawn_pos[jax.random.randint(rng_key, (self._num_agents,), minval=0, maxval=state.spawn_count)]
         new_position, rewards = _step_agent(state.agents_pos, action, random_positions)
 
         state = state._replace(agents_pos=new_position, time=state.time + 1)
@@ -174,13 +207,15 @@ class ReturnEnv(Environment[ReturnState]):
     def encode_observations(self, state: ReturnState, actions, rewards) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
+            print(tiles.shape)
+            print(positions.shape)
             return jax.lax.dynamic_slice(
                 tiles,
                 positions - jnp.array([self.view_width // 2, self.view_height // 2]),
                 (self.view_width, self.view_height)
             )
 
-        tiles = self.tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(TILE_AGENT)
+        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(TILE_AGENT)
         tiles = tiles.at[state.treasure_pos[0], state.treasure_pos[1]].set(TILE_TREASURE)
         view = _encode_view(tiles, state.agents_pos)
 
@@ -212,7 +247,7 @@ class ReturnClient:
     def render(self, state: ReturnState):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
-        tiles = self.env.tiles.tolist()
+        tiles = state.map.tolist()
         colors = ["grey", "brown", "blue"]
 
         for x in range(self.env.unpadded_width):
@@ -264,7 +299,7 @@ class ReturnClient:
 
 
 def demo():
-    env = ReturnEnv()
+    env = ReturnEnv(ReturnConfig())
 
     rng_key = jax.random.PRNGKey(11)
     state, timestep = env.reset(rng_key)
