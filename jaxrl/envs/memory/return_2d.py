@@ -207,8 +207,6 @@ class ReturnEnv(Environment[ReturnState]):
     def encode_observations(self, state: ReturnState, actions, rewards) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
-            print(tiles.shape)
-            print(positions.shape)
             return jax.lax.dynamic_slice(
                 tiles,
                 positions - jnp.array([self.view_width // 2, self.view_height // 2]),
@@ -233,16 +231,17 @@ class ReturnClient:
     def __init__(self, env: ReturnEnv):
         self.env = env
 
+        self.screen_width = 800
+        self.screen_height = 800
+
         flags = pygame.SRCALPHA
-        self.screen = pygame.display.set_mode((800, 800))
-        self.surface = pygame.Surface((800, 800), flags=flags)
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        self.surface = pygame.Surface((self.screen_width, self.screen_height), flags=flags)
         self.clock = pygame.time.Clock()
 
         self.frames = []
 
-        self._tile_size = 20
-
-        self.agent_history = np.zeros((env.num_agents, 256, 2), dtype=int)
+        self._tile_size = self.screen_width // self.env.unpadded_width
 
     def render(self, state: ReturnState):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
@@ -258,7 +257,6 @@ class ReturnClient:
                 tile_type = tiles[tx][ty]
                 self._draw_tile(self.screen, colors[tile_type], tx, ty)
 
-        self.agent_history[:, state.time-1, :] = state.agents_pos
         agents = state.agents_pos.tolist()
 
         for x, y in agents:
