@@ -1,0 +1,114 @@
+from typing import Literal, NamedTuple
+from tensorflow_probability.python.internal.backend.numpy import string
+import typer
+import os
+
+from jaxrl.experiment import get_git_hash
+
+app = typer.Typer()
+
+class TPUSettings(NamedTuple):
+    zone: str
+    accelerator_type: str
+    version: str
+
+@app.command()
+def queue_job(tpu: str, config_file: str, queue: bool = False, preemptive: bool = False):
+    wandb_key = os.environ["WANDB_API_KEY"]
+    git_hash = get_git_hash()
+
+    with open(config_file, "r") as f:
+        config_text = f.read()
+
+    node_name = "node-1"
+    service_account = "tpu-account@gen-lang-client-0325319159.iam.gserviceaccount.com"
+
+    match tpu:
+        case "v2-8":
+            zone = "us-central1-f"
+            accelerator_type = "v2-8"
+            version = "tpu-ubuntu2204-base"
+            preemptive = True
+        case "v3-8":
+            zone = "europe-west4-a"
+            accelerator_type = "v3-8"
+            version = "tpu-ubuntu2204-base"
+            preemptive = True
+        case "v4-8":
+            zone = "us-central2-b"
+            accelerator_type = "v4-8"
+            version = "tpu-ubuntu2204-base"
+        case _:
+            raise ValueError(f"Invalid TPU type: {tpu}")
+
+    startup_text = f"""
+#!/bin/bash
+
+echo "Setting up environment..."
+
+export WANDB_API_KEY="{wandb_key}"
+
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+cat << EOF >> config/config.json
+{config_text}
+EOF
+
+git clone https://github.com/gabe00122/jaxrl.git
+cd jaxrl
+git switch {git_hash} --detach
+uv sync --extra tpu
+
+echo "Starting JAX training job... 🚀"
+uv run ./jaxrl/transformer/train.py train --distributed --base-dir "gs://training_results_gabe00122/results"
+
+echo "JAX training complete. Initiating TPU shutdown."
+
+gcloud compute tpus tpu-vm delete {node_name} --zone={zone} --quiet
+"""
+
+    with open("scripts/startup.sh", "w") as f:
+        f.write(startup_text)
+
+    create_text = f"""
+#!/bin/bash
+
+gcloud compute tpus tpu-vm create {node_name} \
+--zone={zone} \
+--accelerator-type={accelerator_type} \
+--version={version} \
+--service-account={service_account} \
+--metadata-from-file startup-script=./scripts/startup.sh
+"""
+
+    with open("scripts/create.sh", "w") as f:
+        f.write(create_text)
+
+    queue_text = f"""
+#!/bin/bash
+
+gcloud alpha compute tpus queued-resources create my-queued-tpu-request \
+--node-id={node_name} \
+--zone={zone} \
+--accelerator-type={accelerator_type} \
+--runtime-version={version} \
+--service-account={service_account} \
+--metadata-from-file startup-script=./scripts/startup.sh
+"""
+
+    with open("scripts/queue.sh", "w") as f:
+        f.write(queue_text)
+
+    connect_text = f"""
+#!/bin/bash
+
+gcloud compute tpus tpu-vm ssh {node_name} --zone={zone}
+"""
+
+    with open("scripts/connect.sh", "w") as f:
+        f.write(connect_text)
+
+
+if __name__ == '__main__':
+    app()
