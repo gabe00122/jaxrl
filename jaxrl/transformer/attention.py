@@ -75,9 +75,27 @@ class AttentionBlock(nnx.Module):
 
         self.head_dim = self.d_model // self.num_heads
 
-        self.in_proj = nnx.LinearGeneral(
+        self.key_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(self.num_heads, self.head_dim * 3),
+            out_features=(self.num_heads, self.head_dim),
+            dtype=self.dtype,
+            param_dtype=self.param_dtype,
+            kernel_init=kernel_init,
+            rngs=rngs,
+        )
+
+        self.value_proj = nnx.LinearGeneral(
+            in_features=self.d_model,
+            out_features=(self.num_heads, self.head_dim),
+            dtype=self.dtype,
+            param_dtype=self.param_dtype,
+            kernel_init=kernel_init,
+            rngs=rngs,
+        )
+
+        self.query_proj = nnx.LinearGeneral(
+            in_features=self.d_model,
+            out_features=(1, self.head_dim),
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
@@ -93,6 +111,9 @@ class AttentionBlock(nnx.Module):
             kernel_init=kernel_init,
             rngs=rngs,
         )
+
+        self._query_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
+        self._key_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
 
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
@@ -116,9 +137,13 @@ class AttentionBlock(nnx.Module):
         return KVCache(key, value)
 
     def __call__(self, inputs, seq_pos, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
-        in_proj = self.in_proj(inputs)
+        # in_proj = self.in_proj(inputs)
+        query = self.query_proj(inputs)
+        key = self.key_proj(inputs)
+        value = self.value_proj(inputs)
 
-        query, key, value = jnp.split(in_proj, 3, -1)
+        query = self._query_norm(query)
+        key = self._key_norm(key)
 
         query = positional_embeddings.apply_rope(query, seq_pos, self.head_dim, self.rope_max_wavelength)
         key = positional_embeddings.apply_rope(key, seq_pos, self.head_dim, self.rope_max_wavelength)
