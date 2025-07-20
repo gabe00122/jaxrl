@@ -199,7 +199,7 @@ def train(optimizer: nnx.Optimizer, rngs: nnx.Rngs, rollout: Rollout, env: Envir
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
-def enjoy(name: str, base_dir: str = "results"):
+def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -207,7 +207,7 @@ def enjoy(name: str, base_dir: str = "results"):
 
     obs_spec = env.observation_spec
     action_spec = env.action_spec
-    rngs = nnx.Rngs(default=0)
+    rngs = nnx.Rngs(default=seed)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
@@ -238,7 +238,7 @@ def enjoy(name: str, base_dir: str = "results"):
 
         return env_state, timestep, kv_cache, rngs
 
-    for _ in range(5):
+    for _ in range(10):
         env_state, timestep = env.reset(rngs.env())
         client.render(env_state)
         for _ in range(max_steps):
