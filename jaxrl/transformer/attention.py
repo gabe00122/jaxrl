@@ -34,7 +34,7 @@ def einsum_attention(
     if attention_softcap is not None:
         attn_weights = softcap(attn_weights, attention_softcap)
 
-    attn_weights = jax.nn.softmax(attn_weights)
+    attn_weights = jax.nn.softmax(attn_weights, axis=-1).astype(key.dtype)
 
     x = jnp.einsum("...hqk,...khd->...qhd", attn_weights, value)
     return x
@@ -77,7 +77,7 @@ class AttentionBlock(nnx.Module):
 
         self.key_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(self.num_heads, self.head_dim),
+            out_features=(1, self.head_dim),
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
@@ -86,7 +86,7 @@ class AttentionBlock(nnx.Module):
 
         self.value_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(self.num_heads, self.head_dim),
+            out_features=(1, self.head_dim),
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
@@ -95,7 +95,7 @@ class AttentionBlock(nnx.Module):
 
         self.query_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(1, self.head_dim),
+            out_features=(self.num_heads, self.head_dim),
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
@@ -142,8 +142,8 @@ class AttentionBlock(nnx.Module):
         key = self.key_proj(inputs)
         value = self.value_proj(inputs)
 
-        query = self._query_norm(query)
-        key = self._key_norm(key)
+        # query = self._query_norm(query)
+        # key = self._key_norm(key)
 
         query = positional_embeddings.apply_rope(query, seq_pos, self.head_dim, self.rope_max_wavelength)
         key = positional_embeddings.apply_rope(key, seq_pos, self.head_dim, self.rope_max_wavelength)
@@ -163,6 +163,7 @@ class AttentionBlock(nnx.Module):
             mask,
             attention_softcap=self.attention_softcap,
         )
+
         out = self.out(x)
 
         return out, kv_cache
