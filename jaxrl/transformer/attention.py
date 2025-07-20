@@ -60,6 +60,7 @@ class AttentionBlock(nnx.Module):
         rngs: nnx.Rngs,
     ):
         self.num_heads = num_heads
+        self.num_kv_heads = 1
         self.d_model = d_model
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
@@ -75,18 +76,9 @@ class AttentionBlock(nnx.Module):
 
         self.head_dim = self.d_model // self.num_heads
 
-        self.key_proj = nnx.LinearGeneral(
+        self.kv_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(1, self.head_dim),
-            dtype=self.dtype,
-            param_dtype=self.param_dtype,
-            kernel_init=kernel_init,
-            rngs=rngs,
-        )
-
-        self.value_proj = nnx.LinearGeneral(
-            in_features=self.d_model,
-            out_features=(1, self.head_dim),
+            out_features=(self.num_kv_heads, self.head_dim * 2),
             dtype=self.dtype,
             param_dtype=self.param_dtype,
             kernel_init=kernel_init,
@@ -118,7 +110,7 @@ class AttentionBlock(nnx.Module):
     def create_kv_cache(
         self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
     ) -> KVCache:
-        shape = (batch_size, context_size, self.num_heads, self.head_dim)
+        shape = (batch_size, context_size, self.num_kv_heads, self.head_dim)
         key = jnp.zeros(shape, dtype=dtype)
         value = jnp.zeros(shape, dtype=dtype)
         return KVCache(key, value)
@@ -137,10 +129,9 @@ class AttentionBlock(nnx.Module):
         return KVCache(key, value)
 
     def __call__(self, inputs, seq_pos, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
-        # in_proj = self.in_proj(inputs)
+        kv_proj = self.kv_proj(inputs)
+        key, value = jnp.split(kv_proj, 2, -1)
         query = self.query_proj(inputs)
-        key = self.key_proj(inputs)
-        value = self.value_proj(inputs)
 
         # query = self._query_norm(query)
         # key = self._key_norm(key)
