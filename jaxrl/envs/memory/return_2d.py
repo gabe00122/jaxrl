@@ -67,6 +67,8 @@ TILE_AGENT = 3
 
 class ReturnState(NamedTuple):
     agents_pos: jax.Array
+    found_reward: jax.Array
+
     treasure_pos: jax.Array
     time: jax.Array
 
@@ -123,7 +125,9 @@ class ReturnEnv(Environment[ReturnState]):
         return jnp.asarray(tiles), jnp.asarray(empty_positions)
 
     def _generate_map(self, rng_key):
-        noise = generate_perlin_noise_2d((self.unpadded_width, self.unpadded_height), (4, 4), rng_key=rng_key)
+        noise = generate_perlin_noise_2d((self.unpadded_width, self.unpadded_height), (5, 5), rng_key=rng_key)
+        noise = noise + generate_perlin_noise_2d((self.unpadded_width, self.unpadded_height), (10, 10), rng_key=rng_key)
+
         tiles = jnp.where(noise > 0.3, TILE_WALL, TILE_EMPTY)
 
         # get the empty tiles for spawning
@@ -155,7 +159,15 @@ class ReturnEnv(Environment[ReturnState]):
         treasure_pos = spawn_pos[positions[0]]
         agents_pos = spawn_pos[positions[1:]]
 
-        state = ReturnState(map=map, spawn_pos=spawn_pos, spawn_count=spawn_count, treasure_pos=treasure_pos, agents_pos=agents_pos, time=jnp.int32(0))
+        state = ReturnState(
+            map=map,
+            spawn_pos=spawn_pos,
+            spawn_count=spawn_count,
+            treasure_pos=treasure_pos,
+            agents_pos=agents_pos,
+            found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
+            time=jnp.int32(0)
+        )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
         rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
@@ -200,7 +212,11 @@ class ReturnEnv(Environment[ReturnState]):
         random_positions = state.spawn_pos[jax.random.randint(rng_key, (self._num_agents,), minval=0, maxval=state.spawn_count)]
         new_position, rewards = _step_agent(state.agents_pos, action, random_positions)
 
-        state = state._replace(agents_pos=new_position, time=state.time + 1)
+        state = state._replace(
+            agents_pos=new_position,
+            found_reward=jnp.logical_or(state.found_reward, rewards),
+            time=state.time + 1
+        )
 
         return state, self.encode_observations(state, action, rewards)
 
@@ -258,9 +274,10 @@ class ReturnClient:
                 self._draw_tile(self.screen, colors[tile_type], tx, ty)
 
         agents = state.agents_pos.tolist()
+        found_reward = state.found_reward.tolist()
 
-        for x, y in agents:
-            self._draw_tile(self.screen, "yellow", x, y)
+        for (x, y), r in zip(agents, found_reward):
+            self._draw_tile(self.screen, "yellow" if not r else "purple", x, y)
             self._draw_tile(self.surface, (0, 0, 0, 0), x, y, 5, 5)
 
         self._draw_tile(self.screen, "blue", state.treasure_pos[0].item(), state.treasure_pos[1].item())
