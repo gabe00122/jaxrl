@@ -36,11 +36,19 @@ class LinearObsEncoderConfig(BaseModel):
 
 class TransformerBlockConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    num_heads: int
     ffn_size: int
-    rope_max_wavelength: float = 10_000
     glu: bool = True
-    gtrxl_gate: bool = True
+
+    num_heads: int
+    num_kv_heads: int
+    head_dim: int
+
+    rope_max_wavelength: float = 10_000
+    use_post_attn_norm: bool = True
+    use_post_ffw_norm: bool = True
+    use_qk_norm: bool = True
+
+    gtrxl_gate: bool = False
     gtrxl_bias: float = 0.0
     attention_softcap: Optional[float] = None
 

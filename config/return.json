@@ -25,6 +25,8 @@
       "hidden_features": 128,
       "transformer_block": {
         "num_heads": 4,
+        "num_kv_heads": 4,
+        "head_dim": 32,
         "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
         "glu": false,
@@ -54,6 +56,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": true
+    "use_wandb": false
   }
 }
