@@ -286,7 +286,7 @@ class ReturnClient:
         self.screen.blit(self.surface, (0,0))
         pygame.display.flip()
 
-        self.record_frame()
+        # self.record_frame()
 
     def _tile_to_screen(self, x: int, y: int):
         return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height
