@@ -1,7 +1,12 @@
-from safetensors import safe_open
+from pathlib import Path
+from jaxrl.gemma.params import load_and_format_params
+from jaxrl.gemma.transformer import Transformer
 
-tensors = {}
-with safe_open("../foundation/model.safetensors", framework="flax", device="cpu") as f:
-    for i in range(26):
-        key = f"model.layers.{i}.self_attn.v_proj.weight"
-        print(f.get_tensor(key))
+cp_path = Path("./foundation/gemma-3-flax-gemma3-1b-it-v1/gemma3-1b-it")
+cp_path = cp_path.absolute().as_posix()
+
+params = load_and_format_params(cp_path)
+
+
+t = Transformer.from_params(params)
+print(t)

@@ -12,6 +12,7 @@ dependencies = [
     "fsspec[gcs]>=2025.5.1",
     "gcsfs>=2025.5.1",
     "jax>=0.6.0",
+    "jaxtyping>=0.3.2",
     "jumanji>=0.3.1",
     "optax>=0.2.4",
     "optuna>=4.3.0",
