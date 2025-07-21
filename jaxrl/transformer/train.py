@@ -67,7 +67,7 @@ def evaluate(model: TransformerActorCritic, rollout: Rollout, rngs: nnx.Rngs, en
     env_state, timestep = env.reset(reset_key)
 
     rollout_state = rollout.create_state()
-    kv_cache = model.create_kv_cache(rollout.batch_size, rollout.trajectory_length)
+    kv_cache = model.create_kv_cache(rollout.batch_size)
 
     def _step(i, x):
         rollout_state, rngs, env_state, timestep, kv_cache = x

@@ -138,7 +138,10 @@ class TransformerBlock(nnx.Module):
         activation = activation
         hidden_features = hidden_features
 
+        head_dim = config.head_dim
         num_heads = config.num_heads
+        num_kv_heads = config.num_kv_heads
+
         ffn_size = config.ffn_size
         glu = config.glu
         gtrxl_gate = config.gtrxl_gate
@@ -155,8 +158,10 @@ class TransformerBlock(nnx.Module):
             rngs=rngs,
         )
         self.attention = AttentionBlock(
-            num_heads,
             hidden_features,
+            head_dim,
+            num_heads,
+            num_kv_heads,
             max_seq_length=max_seq_length,
             rope_max_wavelength=rope_max_wavelength,
             attention_softcap=attention_softcap,
@@ -191,9 +196,9 @@ class TransformerBlock(nnx.Module):
             )
 
     def create_kv_cache(
-        self, batch_size: int, context_size: int, *, dtype: DTypeLike | None = None
+        self, batch_size: int
     ) -> KVCache:
-        return self.attention.create_kv_cache(batch_size, context_size, dtype=dtype)
+        return self.attention.create_kv_cache(batch_size)
 
     def __call__(self, x, time_steps, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
         attention_input = self.attention_norm(x)
@@ -296,9 +301,9 @@ class TransformerActorCritic(nnx.Module):
         )
 
     def create_kv_cache(
-        self, batch_size: int, context_size: int
+        self, batch_size: int
     ) -> tuple[KVCache, ...]:
-        return tuple(layer.create_kv_cache(batch_size, context_size, dtype=self.dtype) for layer in self.layers)
+        return tuple(layer.create_kv_cache(batch_size) for layer in self.layers)
 
     def __call__(self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
