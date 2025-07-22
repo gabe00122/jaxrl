@@ -1,4 +1,6 @@
+import optuna
 
+from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, ReturnConfig, TransformerActorCriticConfig
 
 
 def objective(trial: optuna.Trial):

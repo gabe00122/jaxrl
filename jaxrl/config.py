@@ -2,7 +2,6 @@ import json
 import random
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
-import fsspec
 
 
 class NBackConfig(BaseModel):
@@ -148,6 +147,7 @@ class PPOConfig(BaseModel):
     vf_clip: float = 0.2
     discount: float = 0.95
     gae_lambda: float = 0.95
+    normalize_advantage: bool = False
 
 
 class LearnerConfig(BaseModel):
