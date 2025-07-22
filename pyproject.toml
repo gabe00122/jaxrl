@@ -10,12 +10,8 @@ dependencies = [
     "einops>=0.8.1",
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
-    "gcsfs>=2025.5.1",
     "jax>=0.6.0",
     "jaxtyping>=0.3.2",
-    "jumanji>=0.3.1",
-    "kauldron>=0.1.0",
-    "ml-dtypes>=0.5.1",
     "optax>=0.2.4",
     "optuna>=4.3.0",
     "optuna-dashboard>=0.18.0",
@@ -25,7 +21,6 @@ dependencies = [
     "python-ffmpeg>=2.0.12",
     "rich>=14.0.0",
     "rlax>=0.1.7",
-    "safetensors>=0.5.3",
     "sentencepiece>=0.2.0",
     "tensorboardx>=2.6.2.2",
     "typer>=0.15.3",
@@ -33,12 +28,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = [
-    "jax[cuda12]",
-]
-tpu = [
-    "jax[tpu]",
-]
+cuda = ["jax[cuda12]"]
+tpu = ["jax[tpu]"]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -51,3 +42,7 @@ where = ["."]
 include = ["jaxrl*"]
 # ignore non-python top-level folders that confused the auto-discovery
 exclude = ["config*", "videos*"]
+
+
+[project.scripts]
+pmarl = "jaxrl.cli:app"

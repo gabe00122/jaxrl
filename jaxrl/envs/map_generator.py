@@ -1,7 +1,4 @@
-import jax
 from jax import numpy as jnp, random
-import numpy as np
-from matplotlib import pyplot as plt
 
 
 def interpolant(t):
@@ -57,28 +54,3 @@ def generate_perlin_noise_2d(
     n0 = n00 * (1 - t[:, :, 0]) + t[:, :, 0] * n10
     n1 = n01 * (1 - t[:, :, 0]) + t[:, :, 0] * n11
     return jnp.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
-
-
-def main():
-    key = random.PRNGKey(0)
-    noise = jax.jit(generate_perlin_noise_2d, static_argnums=(0, 1))(
-        (40, 40), (4, 4), rng_key=key
-    )
-    noise = noise > 0.3
-
-    np_noise = np.asarray(noise)
-
-    # --- Matplotlib plotting code ---
-    plt.figure(figsize=(8, 8))
-    plt.imshow(np_noise, cmap="gray", interpolation="lanczos")
-    plt.colorbar()
-    plt.title("2D Perlin Noise")
-    plt.axis("off")  # Hide the axes for a cleaner look
-    plt.savefig("perlin_noise.png")
-
-    # It's also good practice to close the figure to free up memory
-    plt.close()
-
-
-if __name__ == "__main__":
-    main()

@@ -1,5 +1,4 @@
-from typing import Literal, NamedTuple
-from tensorflow_probability.python.internal.backend.numpy import string
+from typing import NamedTuple
 import typer
 import os
 
@@ -32,12 +31,10 @@ def queue_job(
             zone = "us-central1-f"
             accelerator_type = "v2-8"
             version = "tpu-ubuntu2204-base"
-            preemptive = True
         case "v3-8":
             zone = "europe-west4-a"
             accelerator_type = "v3-8"
             version = "tpu-ubuntu2204-base"
-            preemptive = True
         case "v4-8":
             zone = "us-central2-b"
             accelerator_type = "v4-8"

@@ -1,20 +1,14 @@
-from functools import partial
-from pathlib import Path
 import time
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
-import optax
 import optuna
-import typer
-from rich.console import Console
 from rich.progress import track
 
 # from rlax import vmpo_loss, LagrangePenalty
 
-import numpy as np
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 
@@ -32,9 +26,8 @@ from jaxrl.config import (
     TransformerActorCriticConfig,
     TransformerBlockConfig,
 )
+from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
-from jaxrl.envs.memory.n_back import NBackMemory
-from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -42,16 +35,6 @@ from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
-
-
-def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
-    match env_config.env_type:
-        case "nback":
-            return NBackMemory(env_config.max_n, env_config.max_value, length)
-        case "return":
-            return ReturnEnv(env_config)
-        case _:
-            raise ValueError(f"Unknown environment type: {env_config.type}")
 
 
 class TrainingLogs(NamedTuple):
@@ -238,66 +221,6 @@ def train(
     return optimizer, rngs, logs
 
 
-app = typer.Typer(pretty_exceptions_show_locals=False)
-
-
-@app.command()
-def enjoy(name: str, base_dir: str = "results", seed: int = 0):
-    experiment: Experiment = Experiment.load(name, base_dir)
-    max_steps = experiment.config.max_env_steps
-
-    env = create_env(experiment.config.environment, max_steps)
-
-    obs_spec = env.observation_spec
-    action_spec = env.action_spec
-    rngs = nnx.Rngs(default=seed)
-
-    model = TransformerActorCritic(
-        experiment.config.learner.model,
-        obs_spec,
-        action_spec.num_actions,
-        max_seq_length=max_steps,
-        rngs=rngs,
-    )
-    optimizer = nnx.Optimizer(
-        model=model,
-        tx=create_optimizer(
-            experiment.config.learner.optimizer, experiment.config.update_steps
-        ),
-    )
-
-    with Checkpointer(experiment.checkpoints_url) as checkpointer:
-        optimizer = checkpointer.restore_latest(optimizer)
-
-    model = optimizer.model
-
-    kv_cache = model.create_kv_cache(env.num_agents, max_steps)
-    client = ReturnClient(env)
-
-    @nnx.jit
-    def step(timestep, kv_cache, env_state, rngs):
-        action_key = rngs.action()
-        env_key = rngs.env()
-        _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
-        actions = policy.sample(seed=action_key)
-        actions = jnp.squeeze(actions, axis=-1)
-
-        env_state, timestep = env.step(env_state, actions, env_key)
-
-        return env_state, timestep, kv_cache, rngs
-
-    for _ in range(10):
-        env_state, timestep = env.reset(rngs.env())
-        client.render(env_state)
-        for _ in range(max_steps):
-            env_state, timestep, kv_cache, rngs = step(
-                timestep, kv_cache, env_state, rngs
-            )
-            client.render(env_state)
-
-    client.save_video()
-
-
 def replicate_model(optimizer, sharding):
     state = nnx.state(optimizer)
     state = jax.device_put(state, sharding)
@@ -316,11 +239,10 @@ def train_run(
 
     logger = experiment.create_logger()
     checkpointer = Checkpointer(experiment.checkpoints_url)
-    checkpoint_interval = 200
 
     env = create_env(
         experiment.config.environment, max_steps
-    )  # NBackMemory(n=12, max_value=2, length=max_steps)
+    )
     env = VmapWrapper(env, experiment.config.num_envs)
     batch_size = env.num_agents
 
@@ -395,118 +317,3 @@ def train_run(
     if logs:
         return logs.rewards.item()
     return -1.0
-
-
-def objective(trial: optuna.Trial):
-    config = Config(
-        seed=0,
-        num_envs=32,
-        max_env_steps=256,
-        update_steps=20000,
-        updates_per_jit=100,
-        environment=ReturnConfig(num_agents=16),
-        learner=LearnerConfig(
-            model=TransformerActorCriticConfig(
-                obs_encoder=GridCnnObsEncoderConfig(),
-                hidden_features=128,
-                num_layers=3,
-                activation="gelu",
-                norm="layer_norm",
-                dtype="bfloat16",
-                param_dtype="float32",
-                transformer_block=TransformerBlockConfig(
-                    num_heads=4,
-                    ffn_size=512,
-                    glu=False,
-                    gtrxl_gate=False,
-                ),
-            ),
-            optimizer=OptimizerConfig(
-                type="adamw",
-                learning_rate=trial.suggest_float(
-                    "learning_rate", 1e-5, 1e-3, log=True
-                ),
-                weight_decay=trial.suggest_float("weight_decay", 1e-5, 1e-3, log=True),
-                eps=1e-8,
-                beta1=0.9,
-                beta2=0.999,
-                max_norm=trial.suggest_float("max_norm", 0.1, 1.0),
-            ),
-            trainer=PPOConfig(
-                trainer_type="ppo",
-                minibatch_count=1,
-                vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
-                entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
-                vf_clip=trial.suggest_float("vf_clip", 0.1, 0.3),
-                discount=trial.suggest_float("discount", 0.9, 0.99),
-                gae_lambda=trial.suggest_float("gae_lambda", 0.9, 0.99),
-            ),
-        ),
-        logger=LoggerConfig(use_wandb=True),
-    )
-
-    return train_run(
-        experiment=Experiment.from_config(
-            config=config, unique_token=f"trial_{trial.number}"
-        ),
-        trial=trial,
-    )
-
-
-@app.command()
-def sweep():
-    """Runs an Optuna sweep."""
-    storage_name = "sqlite:///jaxrl_study.db"
-    study_name = "jaxrl_study"
-
-    # import optunahub
-    # module = optunahub.load_module(package="samplers/auto_sampler")
-
-    study = optuna.create_study(
-        study_name=study_name,
-        storage=storage_name,
-        direction="maximize",
-        load_if_exists=True,
-        sampler=optuna.samplers.TPESampler(n_startup_trials=10),
-        # pruner=optuna.pruners.HyperbandPruner()
-    )
-    study.optimize(objective, n_trials=300)
-
-    pruned_trials = study.get_trials(
-        deepcopy=False, states=[optuna.trial.TrialState.PRUNED]
-    )
-    complete_trials = study.get_trials(
-        deepcopy=False, states=[optuna.trial.TrialState.COMPLETE]
-    )
-
-    console = Console()
-    console.print("Study statistics: ")
-    console.print(f"  Number of finished trials: {len(study.trials)}")
-    console.print(f"  Number of pruned trials: {len(pruned_trials)}")
-    console.print(f"  Number of complete trials: {len(complete_trials)}")
-
-    console.print("Best trial:")
-    trial = study.best_trial
-
-    console.print(f"  Value: {trial.value}")
-
-    console.print("  Params: ")
-    for key, value in trial.params.items():
-        console.print(f"    {key}: {value}")
-
-
-@app.command("train")
-def train_cmd(
-    config: str = "./config/return.json",
-    distributed: bool = False,
-    base_dir: str = "./results",
-):
-    if distributed:
-        jax.distributed.initialize()
-    experiment = Experiment.from_config_file("./config/return.json", base_dir)
-
-    train_run(experiment)
-
-
-if __name__ == "__main__":
-    app()

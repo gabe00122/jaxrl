@@ -26,6 +26,7 @@ results/
 .neptune/
 .repoproject/
 
+foundation/
 wandb/
 
 jaxrl.egg-info

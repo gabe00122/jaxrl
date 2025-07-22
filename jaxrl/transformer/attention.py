@@ -5,7 +5,6 @@ from jax.typing import DTypeLike
 from flax import nnx
 
 from jaxrl.transformer import positional_embeddings
-from jaxrl.constants import index_type
 
 
 class KVCache(NamedTuple):

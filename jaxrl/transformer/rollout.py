@@ -1,11 +1,7 @@
-import time
 from typing import NamedTuple
 
 import jax
 from jax import numpy as jnp
-from jax.typing import DTypeLike
-from jax import random
-from flax import nnx
 
 from jaxrl.constants import index_type
 from jaxrl.envs.specs import ActionSpec, ObservationSpec
