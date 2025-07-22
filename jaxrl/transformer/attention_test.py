@@ -36,7 +36,6 @@ def train_output(layer: AttentionBlock, xs: jax.Array):
 def test_impl():
     rngs = nnx.Rngs(random.PRNGKey(0))
 
-    threshold = 0.0001
     batch = 2
     seq_length = 16
     d_model = 32

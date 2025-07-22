@@ -351,7 +351,7 @@ class ReturnClient:
 
     def save_video(self):
         frames = np.array(self.frames)
-        save_video(frames, "test.mp4", 10)
+        save_video(frames, "videos/test.mp4", 10)
 
 
 def demo():

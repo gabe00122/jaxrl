@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import NamedTuple
 from jax.typing import DTypeLike
 

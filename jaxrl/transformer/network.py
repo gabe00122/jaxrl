@@ -2,11 +2,10 @@ from einops import rearrange
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
-from typing import Callable, Literal, Optional, Any
+from typing import Callable, Any
 
 from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
-from pydantic import BaseModel, ConfigDict, Field
 
 from jaxrl.config import (
     GridCnnObsEncoderConfig,
