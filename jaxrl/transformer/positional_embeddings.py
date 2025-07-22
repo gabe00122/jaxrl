@@ -4,7 +4,12 @@ from jax import numpy as jnp
 _MAX_WAVELENGTH = 10_000
 
 
-def apply_rope(inputs: jax.Array, positions: jax.Array, head_dim: int, max_wavelength: float = _MAX_WAVELENGTH) -> jax.Array:
+def apply_rope(
+    inputs: jax.Array,
+    positions: jax.Array,
+    head_dim: int,
+    max_wavelength: float = _MAX_WAVELENGTH,
+) -> jax.Array:
     """Applies RoPE."""
     fraction = 2 * jnp.arange(0, head_dim // 2) / head_dim
     timescale = max_wavelength**fraction

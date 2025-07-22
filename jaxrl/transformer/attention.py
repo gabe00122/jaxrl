@@ -79,9 +79,7 @@ class AttentionBlock(nnx.Module):
             self._query_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
             self._key_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
 
-    def create_kv_cache(
-        self, batch_size: int
-    ) -> KVCache:
+    def create_kv_cache(self, batch_size: int) -> KVCache:
         shape = (batch_size, self.max_seq_length, self.num_kv_heads, self.head_dim)
         key = jnp.zeros(shape, dtype=self.dtype)
         value = jnp.zeros(shape, dtype=self.dtype)
@@ -95,7 +93,9 @@ class AttentionBlock(nnx.Module):
 
         return KVCache(key, value)
 
-    def __call__(self, inputs: jax.Array, seq_pos: jax.Array, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
+    def __call__(
+        self, inputs: jax.Array, seq_pos: jax.Array, kv_cache: KVCache | None = None
+    ) -> tuple[jax.Array, KVCache | None]:
         kv_proj = self.kv_proj(inputs)
         key, value = jnp.split(kv_proj, 2, -1)
         query = self.query_proj(inputs)
@@ -104,8 +104,12 @@ class AttentionBlock(nnx.Module):
             query = self._query_norm(query)
             key = self._key_norm(key)
 
-        query = positional_embeddings.apply_rope(query, seq_pos, self.head_dim, self.rope_max_wavelength)
-        key = positional_embeddings.apply_rope(key, seq_pos, self.head_dim, self.rope_max_wavelength)
+        query = positional_embeddings.apply_rope(
+            query, seq_pos, self.head_dim, self.rope_max_wavelength
+        )
+        key = positional_embeddings.apply_rope(
+            key, seq_pos, self.head_dim, self.rope_max_wavelength
+        )
 
         if kv_cache is not None:
             kv_cache = self.update_kv_cache(kv_cache, seq_pos, key, value)
@@ -113,10 +117,18 @@ class AttentionBlock(nnx.Module):
             value = kv_cache.value
 
             batch, _, _ = inputs.shape
-            kv_length = jnp.full((batch,), seq_pos[0, 0]+1)
-            x = jax.nn.dot_product_attention(query, key, value, key_value_seq_lengths=kv_length, implementation=self.attention_impl)
+            kv_length = jnp.full((batch,), seq_pos[0, 0] + 1)
+            x = jax.nn.dot_product_attention(
+                query,
+                key,
+                value,
+                key_value_seq_lengths=kv_length,
+                implementation=self.attention_impl,
+            )
         else:
-            x = jax.nn.dot_product_attention(query, key, value, is_causal=True, implementation=self.attention_impl)
+            x = jax.nn.dot_product_attention(
+                query, key, value, is_causal=True, implementation=self.attention_impl
+            )
 
         out = self.out(x)
 

@@ -7,13 +7,17 @@ from jaxrl.experiment import get_git_hash
 
 app = typer.Typer()
 
+
 class TPUSettings(NamedTuple):
     zone: str
     accelerator_type: str
     version: str
 
+
 @app.command()
-def queue_job(tpu: str, config_file: str, queue: bool = False, preemptive: bool = False):
+def queue_job(
+    tpu: str, config_file: str, queue: bool = False, preemptive: bool = False
+):
     wandb_key = os.environ["WANDB_API_KEY"]
     git_hash = get_git_hash()
 
@@ -110,5 +114,5 @@ gcloud compute tpus tpu-vm ssh {node_name} --zone={zone}
         f.write(connect_text)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app()

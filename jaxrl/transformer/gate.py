@@ -2,6 +2,7 @@ from flax import nnx
 from jax import numpy as jnp, nn
 from jax.typing import DTypeLike
 
+
 class GatingMechanism(nnx.Module):
     def __init__(
         self,

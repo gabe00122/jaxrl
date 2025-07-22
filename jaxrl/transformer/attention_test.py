@@ -48,7 +48,7 @@ def test_impl():
         num_kv_heads=1,
         max_seq_length=seq_length,
         dtype=jnp.bfloat16,
-        rngs=rngs
+        rngs=rngs,
     )
 
     data_key = rngs.data()
@@ -79,5 +79,5 @@ def test_impl():
     # print(f"test passes: {test_pass.item()}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_impl()

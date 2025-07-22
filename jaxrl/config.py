@@ -13,6 +13,7 @@ class NBackConfig(BaseModel):
     max_n: int = 12
     max_value: int = 2
 
+
 class ReturnConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["return"] = "return"
@@ -28,6 +29,7 @@ class ReturnConfig(BaseModel):
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
+
 
 class LinearObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -55,15 +57,19 @@ class TransformerBlockConfig(BaseModel):
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig = Field(discriminator="obs_type")
+    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig = Field(
+        discriminator="obs_type"
+    )
     hidden_features: int
 
     transformer_block: TransformerBlockConfig
     num_layers: int
 
-    activation: Literal["relu","gelu", "silu", "mish"]
+    activation: Literal["relu", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
-    kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = "glorot_uniform"
+    kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = (
+        "glorot_uniform"
+    )
     dtype: Literal["float32", "bfloat16", "float16"] = "float32"
     param_dtype: Literal["float32", "bfloat16"] = "float32"
 
@@ -154,6 +160,7 @@ class LearnerConfig(BaseModel):
 
 
 type EnvironmentConfig = NBackConfig | ReturnConfig
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

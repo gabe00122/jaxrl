@@ -8,7 +8,12 @@ from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 from pydantic import BaseModel, ConfigDict, Field
 
-from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.config import (
+    GridCnnObsEncoderConfig,
+    LinearObsEncoderConfig,
+    TransformerActorCriticConfig,
+    TransformerBlockConfig,
+)
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
 from jaxrl.types import TimeStep
@@ -32,17 +37,45 @@ def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array
         case _:
             raise ValueError(f"Activation function {activation_name} not recognized")
 
+
 class LinearObsEncoder(nnx.Module):
-    def __init__(self, config: LinearObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
-        self.linear = nnx.Linear(obs_spec.shape[0], output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
+    def __init__(
+        self,
+        config: LinearObsEncoderConfig,
+        obs_spec: ObservationSpec,
+        output_size: int,
+        *,
+        dtype,
+        params_dtype,
+        rngs: nnx.Rngs,
+    ) -> None:
+        self.linear = nnx.Linear(
+            obs_spec.shape[0],
+            output_size,
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs,
+        )
 
     def __call__(self, x) -> Any:
         return self.linear(x)
 
+
 class GridCnnObsEncoder(nnx.Module):
-    def __init__(self, config: GridCnnObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self,
+        config: GridCnnObsEncoderConfig,
+        obs_spec: ObservationSpec,
+        output_size: int,
+        *,
+        dtype,
+        params_dtype,
+        rngs: nnx.Rngs,
+    ) -> None:
         # self.linear = nnx.Linear(obs_dim, output_size, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
-        assert obs_spec.max_value is not None, "max_value must be specified in the observation spec"
+        assert (
+            obs_spec.max_value is not None
+        ), "max_value must be specified in the observation spec"
 
         self.dtype = dtype
         self.num_classes = obs_spec.max_value
@@ -53,7 +86,7 @@ class GridCnnObsEncoder(nnx.Module):
             padding="valid",
             dtype=dtype,
             param_dtype=params_dtype,
-            rngs=rngs
+            rngs=rngs,
         )
         self.conv2 = nnx.Conv(
             in_features=16,
@@ -62,7 +95,7 @@ class GridCnnObsEncoder(nnx.Module):
             padding="valid",
             dtype=dtype,
             param_dtype=params_dtype,
-            rngs=rngs
+            rngs=rngs,
         )
 
     def __call__(self, x) -> Any:
@@ -72,17 +105,39 @@ class GridCnnObsEncoder(nnx.Module):
         x = jax.nn.gelu(x)
         x = self.conv2(x)
 
-        x = rearrange(x, '... w h c -> ... (w h c)')
+        x = rearrange(x, "... w h c -> ... (w h c)")
 
         return x
 
 
-def create_obs_encoder(config: LinearObsEncoderConfig | GridCnnObsEncoderConfig, obs_spec: ObservationSpec, output_size: int, *, dtype, params_dtype, rngs: nnx.Rngs):
+def create_obs_encoder(
+    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig,
+    obs_spec: ObservationSpec,
+    output_size: int,
+    *,
+    dtype,
+    params_dtype,
+    rngs: nnx.Rngs,
+):
     match config.obs_type:
         case "linear":
-            return LinearObsEncoder(config, obs_spec, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
+            return LinearObsEncoder(
+                config,
+                obs_spec,
+                output_size,
+                dtype=dtype,
+                params_dtype=params_dtype,
+                rngs=rngs,
+            )
         case "grid_cnn":
-            return GridCnnObsEncoder(config, obs_spec, output_size, dtype=dtype, params_dtype=params_dtype, rngs=rngs)
+            return GridCnnObsEncoder(
+                config,
+                obs_spec,
+                output_size,
+                dtype=dtype,
+                params_dtype=params_dtype,
+                rngs=rngs,
+            )
 
 
 def get_kernel_init(init_name: str) -> nnx.Initializer:
@@ -109,6 +164,7 @@ def get_dtype(dtype_str: str) -> jnp.dtype:
             return jnp.bfloat16
         case _:
             raise ValueError(f"Unknown dtype: {dtype_str}")
+
 
 def get_norm(norm_type: str):
     match norm_type:
@@ -165,7 +221,7 @@ class TransformerBlock(nnx.Module):
             rope_max_wavelength=rope_max_wavelength,
             dtype=dtype,
             param_dtype=param_dtype,
-            rngs=rngs
+            rngs=rngs,
         )
 
         self.ffn_norm = normalizer(
@@ -187,22 +243,28 @@ class TransformerBlock(nnx.Module):
 
         if gtrxl_gate:
             self.attention_gate = GatingMechanism(
-                hidden_features, gtrxl_bias, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+                hidden_features,
+                gtrxl_bias,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
             )
             self.ffn_gate = GatingMechanism(
-                hidden_features, gtrxl_bias, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+                hidden_features,
+                gtrxl_bias,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
             )
 
-    def create_kv_cache(
-        self, batch_size: int
-    ) -> KVCache:
+    def create_kv_cache(self, batch_size: int) -> KVCache:
         return self.attention.create_kv_cache(batch_size)
 
-    def __call__(self, x, time_steps, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
+    def __call__(
+        self, x, time_steps, kv_cache: KVCache | None = None
+    ) -> tuple[jax.Array, KVCache | None]:
         attention_input = self.attention_norm(x)
-        attention, kv_cache = self.attention(
-            attention_input, time_steps, kv_cache
-        )
+        attention, kv_cache = self.attention(attention_input, time_steps, kv_cache)
         x = self.attention_gate(x, attention) if self.gtrxl_gate else x + attention
 
         feed_forward_input = self.ffn_norm(x)
@@ -220,7 +282,7 @@ class Embedder(nnx.Module):
         *,
         dtype: DTypeLike,
         param_dtype: DTypeLike,
-        rngs: nnx.Rngs
+        rngs: nnx.Rngs,
     ):
         self.dtype = dtype
         self.embedding_features = embedding_features
@@ -268,9 +330,20 @@ class TransformerActorCritic(nnx.Module):
 
         self.dtype = config.dtype
 
-        self.reward_encoder = nnx.Linear(1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.action_encoder = Embedder(action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        self.obs_encoder = create_obs_encoder(config=config.obs_encoder, obs_spec=obs_spec, output_size=hidden_features, dtype=dtype, params_dtype=param_dtype, rngs=rngs)
+        self.reward_encoder = nnx.Linear(
+            1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+        )
+        self.action_encoder = Embedder(
+            action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+        )
+        self.obs_encoder = create_obs_encoder(
+            config=config.obs_encoder,
+            obs_spec=obs_spec,
+            output_size=hidden_features,
+            dtype=dtype,
+            params_dtype=param_dtype,
+            rngs=rngs,
+        )
 
         layers = []
         for _ in range(num_layers):
@@ -288,7 +361,12 @@ class TransformerActorCritic(nnx.Module):
                 )
             )
         self.layers = tuple(layers)
-        self.output_norm = norm(num_features=hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+        self.output_norm = norm(
+            num_features=hidden_features,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            rngs=rngs,
+        )
 
         self.value_head = nnx.Linear(
             hidden_features,
@@ -298,12 +376,12 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-    def create_kv_cache(
-        self, batch_size: int
-    ) -> tuple[KVCache, ...]:
+    def create_kv_cache(self, batch_size: int) -> tuple[KVCache, ...]:
         return tuple(layer.create_kv_cache(batch_size) for layer in self.layers)
 
-    def __call__(self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
+    def __call__(
+        self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None
+    ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_encoder.encode(ts.last_action)
@@ -332,7 +410,9 @@ class TransformerActorCritic(nnx.Module):
         #         jnp.finfo(action_logits.dtype).min,
         #     )
 
-        policy = IdentityTransformation(distribution=tfd.Categorical(logits=action_logits))
+        policy = IdentityTransformation(
+            distribution=tfd.Categorical(logits=action_logits)
+        )
         value = self.value_head(x).squeeze(-1)
 
         value = value.astype(jnp.float32)

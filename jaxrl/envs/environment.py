@@ -19,7 +19,9 @@ class Environment[State](ABC):
     def reset(self, rng_key: Array) -> tuple[State, TimeStep]: ...
 
     @abstractmethod
-    def step(self, state: State, action: Array, rng_key: Array) -> tuple[State, TimeStep]: ...
+    def step(
+        self, state: State, action: Array, rng_key: Array
+    ) -> tuple[State, TimeStep]: ...
 
     @cached_property
     @abstractmethod
@@ -36,4 +38,3 @@ class Environment[State](ABC):
     @property
     @abstractmethod
     def is_jittable(self) -> bool: ...
-
