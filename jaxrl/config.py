@@ -50,7 +50,6 @@ class TransformerBlockConfig(BaseModel):
 
     gtrxl_gate: bool = False
     gtrxl_bias: float = 0.0
-    attention_softcap: Optional[float] = None
 
 
 class TransformerActorCriticConfig(BaseModel):
