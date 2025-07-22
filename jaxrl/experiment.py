@@ -15,11 +15,13 @@ class ExperimentMeta(BaseModel):
 
 
 class Experiment:
-    def __init__(self,
-                 unique_token: str,
-                 config: Config,
-                 meta: ExperimentMeta,
-                 base_dir: str = "results") -> None:
+    def __init__(
+        self,
+        unique_token: str,
+        config: Config,
+        meta: ExperimentMeta,
+        base_dir: str = "results",
+    ) -> None:
 
         self.unique_token = unique_token
         self.config = config
@@ -54,8 +56,6 @@ class Experiment:
         with self.fs.open(self.meta_path, "w") as f:
             f.write(self.meta.model_dump_json(indent=2))
 
-
-
     def create_logger(self) -> JaxLogger:
         return JaxLogger(self.config.logger, self.unique_token)
 
@@ -73,10 +73,9 @@ class Experiment:
         return cls(unique_token, config, meta, base_dir)
 
     @classmethod
-    def from_config(cls,
-                    unique_token: str,
-                    config: Config,
-                    base_dir: str = "results") -> "Experiment":
+    def from_config(
+        cls, unique_token: str, config: Config, base_dir: str = "results"
+    ) -> "Experiment":
 
         meta = ExperimentMeta(
             start_time=dt.datetime.now(tz=dt.timezone.utc),
@@ -87,19 +86,22 @@ class Experiment:
         return exp
 
     @classmethod
-    def from_config_file(cls,
-                         config_file: str,
-                         base_dir: str = "results") -> "Experiment":
+    def from_config_file(
+        cls, config_file: str, base_dir: str = "results"
+    ) -> "Experiment":
 
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
         return cls.from_config(generate_unique_token(), config, base_dir)
 
+
 def generate_unique_token() -> str:
     adjectives = ["quick", "lazy", "sleepy", "noisy", "hungry"]
     nouns = ["fox", "dog", "cat", "mouse", "bear"]
-    return f"{random.choice(adjectives)}-{random.choice(nouns)}-" \
-           f"{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    return (
+        f"{random.choice(adjectives)}-{random.choice(nouns)}-"
+        f"{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    )
 
 
 def get_git_hash() -> str:

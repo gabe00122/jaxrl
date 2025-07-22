@@ -6,6 +6,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import ActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 
+
 class VmapWrapper[EnvState](Environment[EnvState]):
     def __init__(self, env: Environment[EnvState], vec_count: int):
         self.base_env = env
@@ -16,11 +17,15 @@ class VmapWrapper[EnvState](Environment[EnvState]):
         state, timestep = jax.vmap(self.base_env.reset)(rng_keys)
         return state, self._flatten_timestep(timestep)
 
-    def step(self, state: EnvState, action: jax.Array, rng_key: jax.Array) -> tuple[EnvState, TimeStep]:
+    def step(
+        self, state: EnvState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[EnvState, TimeStep]:
         rng_keys = jax.random.split(rng_key, self._vec_count)
 
         action = action.reshape(self._vec_count, self.base_env.num_agents)
-        state, timestep = jax.vmap(self.base_env.step, in_axes=(0, 0, 0), out_axes=(0, 0))(state, action, rng_keys)
+        state, timestep = jax.vmap(
+            self.base_env.step, in_axes=(0, 0, 0), out_axes=(0, 0)
+        )(state, action, rng_keys)
         return state, self._flatten_timestep(timestep)
 
     @cached_property
@@ -41,8 +46,12 @@ class VmapWrapper[EnvState](Environment[EnvState]):
 
     def _flatten_timestep(self, timestep: TimeStep) -> TimeStep:
         return TimeStep(
-            action_mask=rearrange(timestep.action_mask, 'b a ... -> (b a) ...') if timestep.action_mask is not None else None,
-            obs=rearrange(timestep.obs, 'b a ... -> (b a) ...'),
+            action_mask=(
+                rearrange(timestep.action_mask, "b a ... -> (b a) ...")
+                if timestep.action_mask is not None
+                else None
+            ),
+            obs=rearrange(timestep.obs, "b a ... -> (b a) ..."),
             time=timestep.time.reshape(self.num_agents),
             last_action=timestep.last_action.reshape(self.num_agents),
             last_reward=timestep.last_reward.reshape(self.num_agents),

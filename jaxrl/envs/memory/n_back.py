@@ -43,32 +43,36 @@ class NBackMemory(Environment[NBackMemoryState]):
 
         n = jax.random.randint(n_key, (), 0, self.max_n, dtype=jnp.int32)
 
-        data = jax.random.randint(rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32)
+        data = jax.random.randint(
+            rng_key, (self.length,), 0, self.max_value, dtype=jnp.int32
+        )
         match = jnp.equal(jnp.roll(data, n), data)
         mask = jnp.arange(self.length) >= n
         labels = jnp.where(mask, match, False)
 
         position = jnp.array(0, dtype=jnp.int32)
 
-        state = NBackMemoryState(
-            data,
-            labels,
-            position
-        )
+        state = NBackMemoryState(data, labels, position)
 
         initial_timestep = self.encode_observation(
             state,
-            jnp.array(0, dtype=jnp.int32), # Action -1 to indicate no previous action, edit 0 for now
+            jnp.array(
+                0, dtype=jnp.int32
+            ),  # Action -1 to indicate no previous action, edit 0 for now
             jnp.array(0.0, dtype=jnp.float32),
-            jnp.array(StepType.FIRST.value, dtype=jnp.int32) # Pass as JAX array
+            jnp.array(StepType.FIRST.value, dtype=jnp.int32),  # Pass as JAX array
         )
         return state, initial_timestep
 
-    def step(self, state: NBackMemoryState, action: jax.Array, rng_key: jax.Array) -> tuple[NBackMemoryState, TimeStep]:
+    def step(
+        self, state: NBackMemoryState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[NBackMemoryState, TimeStep]:
         # Determine reward - only give reward if there's an n-back value to compare against
         action = action.squeeze(axis=0)
 
-        reward = jnp.where(action == state.labels[state.position].astype(jnp.int32), 1.0, 0.0)
+        reward = jnp.where(
+            action == state.labels[state.position].astype(jnp.int32), 1.0, 0.0
+        )
 
         # Update position
         next_position = state.position + 1
@@ -78,14 +82,22 @@ class NBackMemory(Environment[NBackMemoryState]):
         done = next_position >= self.length
 
         # Ensure current_step_type is a JAX array of int32
-        current_step_type = jnp.where(done,
-                                      jnp.array(StepType.LAST.value, dtype=jnp.int32),
-                                      jnp.array(StepType.MID.value, dtype=jnp.int32))
+        current_step_type = jnp.where(
+            done,
+            jnp.array(StepType.LAST.value, dtype=jnp.int32),
+            jnp.array(StepType.MID.value, dtype=jnp.int32),
+        )
 
         timestep = self.encode_observation(new_state, action, reward, current_step_type)
         return new_state, timestep
 
-    def encode_observation(self, state: NBackMemoryState, last_action: jax.Array, last_reward: jax.Array, step_type: jax.Array) -> TimeStep:
+    def encode_observation(
+        self,
+        state: NBackMemoryState,
+        last_action: jax.Array,
+        last_reward: jax.Array,
+        step_type: jax.Array,
+    ) -> TimeStep:
         current_value = state.data[state.position]
 
         obs = jax.nn.one_hot(current_value, self.max_value, dtype=jnp.float32)
@@ -94,10 +106,13 @@ class NBackMemory(Environment[NBackMemoryState]):
         return TimeStep(
             action_mask=action_mask[None, ...],
             obs=obs[None, ...],
-            time=state.position[None, ...], # This is the current step number / position
+            time=state.position[
+                None, ...
+            ],  # This is the current step number / position
             last_action=last_action[None, ...],
             last_reward=last_reward[None, ...],
         )
+
 
 class NBackMemoryClient:
     def __init__(self, env: NBackMemory) -> None:
@@ -113,12 +128,14 @@ class NBackMemoryClient:
     def _init_pygame(self):
         if self.screen is None:
             pygame.init()
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+            self.screen = pygame.display.set_mode(
+                (self.screen_width, self.screen_height)
+            )
             pygame.display.set_caption(f"{self.env.n}-Back Memory Task")
-        if self.font is None: # Ensure font is also initialized if screen is
-            pygame.font.init() # Ensure pygame.font is initialized
+        if self.font is None:  # Ensure font is also initialized if screen is
+            pygame.font.init()  # Ensure pygame.font is initialized
             self.font = pygame.font.Font(None, self.font_size)
-        if self.clock is None: # Ensure clock is also initialized
+        if self.clock is None:  # Ensure clock is also initialized
             self.clock = pygame.time.Clock()
 
     def render(self, state: NBackMemoryState, ts: TimeStep) -> None:
@@ -142,9 +159,9 @@ class NBackMemoryClient:
         start_y = 40
 
         for i, val in enumerate(state.data):
-            color = (150, 150, 150) # Default history color
+            color = (150, 150, 150)  # Default history color
             if i == position:
-                color = (255, 255, 0) # Yellow for current position
+                color = (255, 255, 0)  # Yellow for current position
 
             val_text = self.font.render(str(val.item()), True, color)
             pos_x = start_x + i * (self.cell_size // 2)
@@ -153,21 +170,31 @@ class NBackMemoryClient:
         # Display current number prominently
         if position < self.env.length:
             current_val = state.data[position].item()
-            current_val_text = self.font.render(f"Current Value: {current_val}", True, (255, 255, 255))
+            current_val_text = self.font.render(
+                f"Current Value: {current_val}", True, (255, 255, 255)
+            )
             self.screen.blit(current_val_text, (10, start_y + 30))
 
             # Display N-back value if applicable
             if position >= self.env.n:
                 n_back_val = state.data[position - self.env.n].item()
-                n_back_text = self.font.render(f"{self.env.n}-Back Value: {n_back_val}", True, (100, 100, 200))
+                n_back_text = self.font.render(
+                    f"{self.env.n}-Back Value: {n_back_val}", True, (100, 100, 200)
+                )
                 self.screen.blit(n_back_text, (10, start_y + 60))
 
                 correct_label = state.labels[position].item()
-                label_text = self.font.render(f"Correct: {'Match' if correct_label else 'No Match'}", True, (0, 255, 0) if correct_label else (255,100,100) )
+                label_text = self.font.render(
+                    f"Correct: {'Match' if correct_label else 'No Match'}",
+                    True,
+                    (0, 255, 0) if correct_label else (255, 100, 100),
+                )
                 self.screen.blit(label_text, (10, start_y + 90))
 
         # Display instructions
-        instruction_text = self.font.render("Is it a match? (Left: No, Right: Yes)", True, (200, 200, 200))
+        instruction_text = self.font.render(
+            "Is it a match? (Left: No, Right: Yes)", True, (200, 200, 200)
+        )
         self.screen.blit(instruction_text, (10, self.screen_height - 90))
 
         action_text_str = "Your Action: "
@@ -184,11 +211,12 @@ class NBackMemoryClient:
         self.screen.blit(reward_text, (10, self.screen_height - 30))
 
     def close(self):
-        if self.screen is not None: # Check if pygame was initialized
+        if self.screen is not None:  # Check if pygame was initialized
             pygame.quit()
             self.screen = None
             self.font = None
             self.clock = None
+
 
 def demo():
     n_env = NBackMemory(n=2, max_value=5, length=20)
@@ -240,5 +268,5 @@ def demo():
     client.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     demo()
