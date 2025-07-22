@@ -1,3 +1,4 @@
+from functools import partial
 import time
 from typing import NamedTuple
 import jax
@@ -12,20 +13,7 @@ from rich.progress import track
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 
-from jaxrl.config import (
-    Config,
-    EnvironmentConfig,
-    GridCnnObsEncoderConfig,
-    LearnerConfig,
-    LinearObsEncoderConfig,
-    LoggerConfig,
-    ModelConfig,
-    OptimizerConfig,
-    PPOConfig,
-    ReturnConfig,
-    TransformerActorCriticConfig,
-    TransformerBlockConfig,
-)
+from jaxrl.config import Config, PPOConfig
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.vmap_wrapper import VmapWrapper
@@ -125,8 +113,8 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
     batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards)
 
-    # TODO: make this conditional
-    # batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
+    if hypers.normalize_advantage:
+        batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
@@ -185,28 +173,38 @@ def train(
 ):
     hypers = config.learner.trainer
 
-    def _local_grad(model, rngs):
-        rollout_state, rngs = evaluate(model, rollout, rngs, env, hypers)
-        grad, logs = nnx.grad(ppo_loss, has_aux=True)(model, rollout_state, hypers)
-        return grad, logs, rngs
+    @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
+    def _vec_rollout(model, rngs) -> tuple[RolloutState, nnx.Rngs]:
+        return evaluate(model, rollout, rngs, env, hypers)
 
-    def _global_grad(model, rngs):
-        grads, logs, rngs = nnx.vmap(
-            _local_grad, in_axes=(None, 0), out_axes=(0, 0, 0)
-        )(model, rngs)
+    @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
+    @partial(nnx.grad, has_aux=True)
+    def _vec_grad(model, rollout_state):
+        return ppo_loss(model, rollout_state, hypers)
 
-        logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), logs)
+    def _minibatch_step(i, x):
+        optimizer, rollout_state, logs = x
+
+        grads, step_logs = _vec_grad(optimizer.model, rollout_state)
+
+        # combine accross devices
+        step_logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), step_logs)
         grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
 
-        return grad, (logs, rngs)
+        optimizer.update(grad)
+        logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
+
+        return optimizer, rollout_state, logs
 
     def _global_step(i, x):
         optimizer, logs, rngs = x
-
-        grad, (step_logs, rngs) = _global_grad(optimizer.model, rngs)
-        optimizer.update(grad)
-
-        logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
+        rollout_state, rngs = _vec_rollout(optimizer.model, rngs)
+        optimizer, rollout_state, logs = nnx.fori_loop(
+            0,
+            hypers.minibatch_count,
+            _minibatch_step,
+            init_val=(optimizer, rollout_state, logs)
+        )
 
         return optimizer, logs, rngs
 
@@ -216,7 +214,7 @@ def train(
         0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, rngs)
     )
 
-    logs = jax.tree_util.tree_map(lambda x: x / config.updates_per_jit, logs)
+    logs = jax.tree_util.tree_map(lambda x: x / (config.updates_per_jit * hypers.minibatch_count), logs)
 
     return optimizer, rngs, logs
 
