@@ -31,8 +31,7 @@
         "rope_max_wavelength": 10000.0,
         "glu": false,
         "gtrxl_gate": false,
-        "gtrxl_bias": 1.0,
-        "attention_softcap": null
+        "gtrxl_bias": 1.0
       },
       "num_layers": 3,
       "activation": "gelu",

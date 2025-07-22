@@ -146,7 +146,6 @@ class TransformerBlock(nnx.Module):
         glu = config.glu
         gtrxl_gate = config.gtrxl_gate
         gtrxl_bias = config.gtrxl_bias
-        attention_softcap = config.attention_softcap
         rope_max_wavelength = config.rope_max_wavelength
 
         self.gtrxl_gate = gtrxl_gate
@@ -164,7 +163,6 @@ class TransformerBlock(nnx.Module):
             num_kv_heads,
             max_seq_length=max_seq_length,
             rope_max_wavelength=rope_max_wavelength,
-            attention_softcap=attention_softcap,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs

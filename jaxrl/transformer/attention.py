@@ -8,31 +8,6 @@ from jaxrl.transformer import positional_embeddings
 from jaxrl.constants import index_type
 
 
-def position_mask(time_steps, max_seq_length: int):
-    seq_range = jnp.arange(max_seq_length, dtype=index_type)
-    mask = seq_range[None, None, :] <= time_steps[:, :, None]
-    return mask[:, None, :, :]
-
-
-def einsum_attention(
-    query, key, value, mask
-):
-    dtype = query.dtype
-
-    depth = query.shape[-1]
-    query = query / jnp.sqrt(depth).astype(dtype)
-
-    attn_weights = jnp.einsum("...qhd,...khd->...hqk", query, key)
-
-    big_neg = jnp.finfo(dtype).min
-    attn_weights = jnp.where(mask, attn_weights, big_neg)
-
-    attn_weights = jax.nn.softmax(attn_weights, axis=-1).astype(key.dtype)
-
-    x = jnp.einsum("...hqk,...khd->...qhd", attn_weights, value)
-    return x
-
-
 class KVCache(NamedTuple):
     key: jax.Array
     value: jax.Array
@@ -46,11 +21,10 @@ class AttentionBlock(nnx.Module):
         num_heads: int,
         num_kv_heads: int,
         *,
-        use_built_in: bool = True,
         max_seq_length: int,
         rope_max_wavelength: float = 10_000,
         use_qk_norm: bool = False,
-        attention_softcap: float | None = None,
+        attention_impl: str | None = None,
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
         kernel_init: nnx.Initializer = nnx.initializers.normal(),
@@ -63,11 +37,9 @@ class AttentionBlock(nnx.Module):
         self.use_qk_norm = use_qk_norm
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
-        self.attention_softcap = attention_softcap
+        self.attention_impl = attention_impl
         self.dtype = dtype
         self.param_dtype = param_dtype
-
-        self.use_built_in = use_built_in
 
         if self.d_model % self.num_heads != 0:
             raise ValueError(
@@ -123,7 +95,7 @@ class AttentionBlock(nnx.Module):
 
         return KVCache(key, value)
 
-    def __call__(self, inputs, seq_pos, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
+    def __call__(self, inputs: jax.Array, seq_pos: jax.Array, kv_cache: KVCache | None = None) -> tuple[jax.Array, KVCache | None]:
         kv_proj = self.kv_proj(inputs)
         key, value = jnp.split(kv_proj, 2, -1)
         query = self.query_proj(inputs)
@@ -140,24 +112,11 @@ class AttentionBlock(nnx.Module):
             key = kv_cache.key
             value = kv_cache.value
 
-        mask = position_mask(seq_pos, self.max_seq_length)
-        # jax.debug.print("- {}", mask)
-
-        if self.use_built_in:
-            batch, seq, _ = inputs.shape
-            training = seq > 1
-            if training:
-                x = jax.nn.dot_product_attention(query, key, value, is_causal=True, implementation='cudnn')
-            else:
-                kv_length = jnp.full((batch,), seq_pos[0, 0]+1)
-                x = jax.nn.dot_product_attention(query, key, value, key_value_seq_lengths=kv_length, implementation='cudnn')
+            batch, _, _ = inputs.shape
+            kv_length = jnp.full((batch,), seq_pos[0, 0]+1)
+            x = jax.nn.dot_product_attention(query, key, value, key_value_seq_lengths=kv_length, implementation=self.attention_impl)
         else:
-            x = einsum_attention(
-                query,
-                key,
-                value,
-                mask,
-            )
+            x = jax.nn.dot_product_attention(query, key, value, is_causal=True, implementation=self.attention_impl)
 
         out = self.out(x)
 
