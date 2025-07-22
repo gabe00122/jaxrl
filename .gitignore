@@ -14,6 +14,7 @@ __pycache__/
 .vscode/
 checkpoints
 
+.ropeproject
 .mypy_cache/
 
 tensorboard/
@@ -25,4 +26,7 @@ results/
 .neptune/
 .repoproject/
 
-.wandb/
+wandb/
+
+jaxrl.egg-info
+jaxrl_study.db
