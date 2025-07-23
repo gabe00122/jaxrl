@@ -44,19 +44,17 @@ class MultiLogger(BaseLogger):
 
 
 class JaxLogger:
-    def __init__(self, logger_cfg: LoggerConfig, unique_token: str):
+    def __init__(self, settings: Config, unique_token: str):
         loggers: list[BaseLogger] = []
 
-        if logger_cfg.use_tb:
+        if settings.logger.use_tb:
             loggers.append(TensorboardLogger(unique_token))
-        if logger_cfg.use_console:
+        if settings.logger.use_console:
             loggers.append(ConsoleLogger(unique_token))
-        # if cfg.logger.use_csv:
-        #     loggers.append(CSVLogger(cfg, unique_token))
         # if cfg.logger.use_neptune:
         #     loggers.append(NeptuneLogger(cfg, unique_token))
-        if logger_cfg.use_wandb:
-            loggers.append(WandbLogger(unique_token))
+        if settings.logger.use_wandb:
+            loggers.append(WandbLogger(unique_token, settings))
 
         self.logger = MultiLogger(loggers)
 
@@ -102,34 +100,6 @@ class ConsoleLogger(BaseLogger):
         log_str = f"step: {step} | {log_str}"
         print(log_str)
 
-
-class CSVLogger(BaseLogger):
-    csv_writer: csv.DictWriter | None = None
-
-    def __init__(self, unique_token: str) -> None:
-        directory = Path("./logs/csv")
-        os.makedirs(directory, exist_ok=True)
-
-        file = directory / (unique_token + ".csv")
-        self.writer = open(file, "w")
-
-    def log_dict(self, data: Metrics, step: int) -> None:
-        data = json_normalize(data)
-
-        if self.csv_writer is None:
-            headers = ["step"] + list(data.keys())
-            self.csv_writer = csv.DictWriter(self.writer, fieldnames=headers)
-            self.csv_writer.writeheader()
-
-        row: dict[str, Any] = {"step": step}
-        row.update(data)
-
-        self.csv_writer.writerow(row)
-
-    def close(self) -> None:
-        self.writer.close()
-
-
 # class NeptuneLogger(BaseLogger):
 #     def __init__(self, unique_token: str):
 #         self.logger = neptune.init_run(
@@ -149,8 +119,8 @@ class CSVLogger(BaseLogger):
 
 
 class WandbLogger(BaseLogger):
-    def __init__(self, unique_token: str):
-        wandb.init(project="jaxrl")
+    def __init__(self, unique_token: str, settings: Config):
+        wandb.init(project="jaxrl", name=unique_token, config=dump_settings(settings))
 
     def log_dict(self, data: Metrics, step: int) -> None:
         normalized_data = json_normalize(data)

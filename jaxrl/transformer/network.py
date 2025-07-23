@@ -189,10 +189,6 @@ class TransformerBlock(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
-        # Extract parameters from config
-        activation = activation
-        hidden_features = hidden_features
-
         head_dim = config.head_dim
         num_heads = config.num_heads
         num_kv_heads = config.num_kv_heads
@@ -203,6 +199,8 @@ class TransformerBlock(nnx.Module):
         gtrxl_bias = config.gtrxl_bias
         rope_max_wavelength = config.rope_max_wavelength
 
+        self.use_post_attn_norm = config.use_post_attn_norm
+        self.use_post_ffw_norm = config.use_post_ffw_norm
         self.gtrxl_gate = gtrxl_gate
 
         self.attention_norm = normalizer(
@@ -220,6 +218,7 @@ class TransformerBlock(nnx.Module):
             rope_max_wavelength=rope_max_wavelength,
             dtype=dtype,
             param_dtype=param_dtype,
+            attention_impl=config.attention_impl,
             rngs=rngs,
         )
 
@@ -239,6 +238,22 @@ class TransformerBlock(nnx.Module):
             param_dtype=param_dtype,
             rngs=rngs,
         )
+
+        if self.use_post_attn_norm:
+            self.post_attn_norm = normalizer(
+                num_features=hidden_features,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
+
+        if self.use_post_ffw_norm:
+            self.post_ffw_norm = normalizer(
+                num_features=hidden_features,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
 
         if gtrxl_gate:
             self.attention_gate = GatingMechanism(
@@ -263,12 +278,16 @@ class TransformerBlock(nnx.Module):
         self, x, time_steps, kv_cache: KVCache | None = None
     ) -> tuple[jax.Array, KVCache | None]:
         attention_input = self.attention_norm(x)
-        attention, kv_cache = self.attention(attention_input, time_steps, kv_cache)
-        x = self.attention_gate(x, attention) if self.gtrxl_gate else x + attention
+        attention_output, kv_cache = self.attention(attention_input, time_steps, kv_cache)
+        if self.use_post_attn_norm:
+            attention_output = self.post_attn_norm(attention_output)
+        x = self.attention_gate(x, attention_output) if self.gtrxl_gate else x + attention_output
 
         feed_forward_input = self.ffn_norm(x)
-        feed_forward = self.ffn(feed_forward_input)
-        x = self.ffn_gate(x, feed_forward) if self.gtrxl_gate else x + feed_forward
+        feed_forward_output = self.ffn(feed_forward_input)
+        if self.use_post_ffw_norm:
+            feed_forward_output = self.post_ffw_norm(feed_forward_output)
+        x = self.ffn_gate(x, feed_forward_output) if self.gtrxl_gate else x + feed_forward_output
 
         return x, kv_cache
 

@@ -43,10 +43,12 @@ class TransformerBlockConfig(BaseModel):
     num_kv_heads: int
     head_dim: int
 
+    attention_impl: str = "xla"
+
     rope_max_wavelength: float = 10_000
-    use_post_attn_norm: bool = True
-    use_post_ffw_norm: bool = True
-    use_qk_norm: bool = True
+    use_post_attn_norm: bool = False
+    use_post_ffw_norm: bool = False
+    use_qk_norm: bool = False
 
     gtrxl_gate: bool = False
     gtrxl_bias: float = 0.0
