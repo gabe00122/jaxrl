@@ -87,19 +87,16 @@ def train_cmd(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file("./config/return.json", base_dir)
+    experiment = Experiment.from_config_file(config, base_dir)
 
     train_run(experiment)
 
 
 @app.command("profile")
-def profile(    config: str = "./config/return.json",
-    distributed: bool = False,
-    base_dir: str = "./results",
-    ):
+def profile(config: str = "./config/return.json", distributed: bool = False, base_dir: str = "./results"):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file("./config/return.json", base_dir, create_directories=False)
+    experiment = Experiment.from_config_file(config, base_dir, create_directories=False)
 
     train_run(experiment, profile=True)
 

@@ -23,6 +23,7 @@ from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
+from jaxrl.util import count_parameters
 
 
 class TrainingLogs(NamedTuple):
@@ -284,6 +285,9 @@ def train_run(
         * experiment.config.updates_per_jit
     )
     outer_updates = experiment.config.update_steps // experiment.config.updates_per_jit
+
+    print(f"Starting Training: {experiment.unique_token}")
+    print(f"Parameter Count: {count_parameters(model)}")
 
     logs = None
     for i in track(range(outer_updates), description="Training", disable=False):
