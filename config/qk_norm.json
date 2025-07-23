@@ -24,12 +24,13 @@
       },
       "hidden_features": 128,
       "transformer_block": {
-        "attention_impl": "xla",
+        "attention_impl": "cudnn",
         "num_heads": 4,
         "num_kv_heads": 4,
         "head_dim": 32,
         "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
+        "use_qk_norm": true,
         "glu": false,
         "gtrxl_gate": false,
         "gtrxl_bias": 1.0

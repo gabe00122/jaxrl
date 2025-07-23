@@ -22,12 +22,12 @@
       "obs_encoder": {
         "obs_type": "grid_cnn"
       },
-      "hidden_features": 128,
+      "hidden_features": 256,
       "transformer_block": {
-        "attention_impl": "xla",
+        "attention_impl": "cudnn",
         "num_heads": 4,
         "num_kv_heads": 4,
-        "head_dim": 32,
+        "head_dim": 64,
         "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
         "glu": false,

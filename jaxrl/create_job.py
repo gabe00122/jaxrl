@@ -15,7 +15,7 @@ class TPUSettings(NamedTuple):
 
 @app.command()
 def queue_job(
-    tpu: str, config_file: str, queue: bool = False, preemptible: bool = False
+    tpu: str, config_file: str, node: str = "node-1", queue: bool = False, preemptible: bool = False
 ):
     wandb_key = os.environ["WANDB_API_KEY"]
     git_hash = get_git_hash()
@@ -23,7 +23,7 @@ def queue_job(
     with open(config_file, "r") as f:
         config_text = f.read()
 
-    node_name = "node-1"
+    node_name = node
     service_account = "tpu-account@gen-lang-client-0325319159.iam.gserviceaccount.com"
 
     match tpu:
