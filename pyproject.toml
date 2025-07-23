@@ -21,7 +21,6 @@ dependencies = [
     "python-ffmpeg>=2.0.12",
     "rich>=14.0.0",
     "rlax>=0.1.7",
-    "sentencepiece>=0.2.0",
     "tensorboardx>=2.6.2.2",
     "typer>=0.15.3",
     "wandb>=0.19.10",
