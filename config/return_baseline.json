@@ -3,7 +3,7 @@
   "num_envs": 32,
   "max_env_steps": 256,
   "update_steps": 20000,
-  "updates_per_jit": 1,
+  "updates_per_jit": 10,
   "environment": {
     "env_type": "return",
     "num_agents": 16
@@ -22,11 +22,12 @@
       "obs_encoder": {
         "obs_type": "grid_cnn"
       },
-      "hidden_features": 256,
+      "hidden_features": 128,
       "transformer_block": {
+        "attention_impl": "cudnn",
         "num_heads": 4,
         "num_kv_heads": 4,
-        "head_dim": 64,
+        "head_dim": 32,
         "ffn_size": 512,
         "rope_max_wavelength": 10000.0,
         "glu": false,

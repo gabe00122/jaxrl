@@ -57,7 +57,7 @@ class Experiment:
             f.write(self.meta.model_dump_json(indent=2))
 
     def create_logger(self) -> JaxLogger:
-        return JaxLogger(self.config.logger, self.unique_token, self.config)
+        return JaxLogger(self.config, self.unique_token)
 
     @classmethod
     def load(cls, unique_token: str, base_dir: str = "results") -> "Experiment":
@@ -98,8 +98,24 @@ class Experiment:
 
 
 def generate_unique_token() -> str:
-    adjectives = ["quick", "lazy", "sleepy", "noisy", "hungry"]
-    nouns = ["fox", "dog", "cat", "mouse", "bear"]
+    adjectives = [
+        "quick", "lazy", "sleepy", "noisy", "hungry", "bright", "brave",
+        "calm", "eager", "jolly", "kind", "lively", "nice", "silly",
+        "proud", "witty", "clever", "gentle", "happy", "cautious",
+        "drowsy", "alert", "agile", "bold", "fierce", "placid", "timid",
+        "zany", "curious", "loyal", "funny", "fancy", "breezy", "cozy",
+        "dainty", "epic", "great", "icy", "lucky", "magic", "noble",
+        "odd", "rosy", "shy", "tiny", "vast", "wild", "young", "old", "wise"
+    ]
+    nouns = [
+        "fox", "dog", "cat", "mouse", "bear", "lion", "tiger", "wolf",
+        "rabbit", "deer", "bird", "fish", "snake", "horse", "cow", "pig",
+        "sheep", "goat", "eagle", "hawk", "owl", "whale", "shark",
+        "dolphin", "frog", "turtle", "lizard", "spider", "badger", "river",
+        "ocean", "mountain", "meadow", "forest", "desert", "golem", "sprite",
+        "wizard", "knight", "dragon", "castle", "planet", "comet", "star",
+        "moon", "sun", "cloud", "storm", "shadow", "spirit"
+    ]
     return (
         f"{random.choice(adjectives)}-{random.choice(nouns)}-"
         f"{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"

@@ -1,3 +1,7 @@
+import jax
+from flax import nnx
+import numpy as np
+
 from datetime import datetime
 from typing import Any
 
@@ -87,3 +91,26 @@ def json_normalize[T: (
         ]  # type: ignore
         return normalised_json_list
     return normalised_json_object
+
+
+def count_parameters(model: nnx.Module) -> str:
+    params = nnx.state(model, nnx.Param)
+    total_params = sum([x.size for x in jax.tree_util.tree_leaves(params)])
+    return format_param_count(total_params)
+
+def format_param_count(n: int | float) -> str:
+    if not isinstance(n, (int, float)):
+        raise TypeError("Input must be a number.")
+
+    if n < 1000:
+        # For numbers less than 1000, return as is.
+        return str(n)
+    elif n < 1_000_000:
+        # Format for thousands (K).
+        return f"{n/1000:.2f}K"
+    elif n < 1_000_000_000:
+        # Format for millions (M).
+        return f"{n/1_000_000:.2f}M"
+    else:
+        # Format for billions (B).
+        return f"{n/1_000_000_000:.2f}B"
