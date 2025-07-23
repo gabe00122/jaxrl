@@ -100,7 +100,6 @@ def evaluate(
 
     return rollout_state, rngs
 
-
 def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
     batch_obs = jax.lax.stop_gradient(rollout.obs)
     batch_target = jax.lax.stop_gradient(rollout.targets)
@@ -163,7 +162,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     return total_loss, logs
 
-
 def train(
     optimizer: nnx.Optimizer,
     rngs: nnx.Rngs,
@@ -174,11 +172,13 @@ def train(
     hypers = config.learner.trainer
 
     @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
+    @jax.named_scope("evaluate")
     def _vec_rollout(model, rngs) -> tuple[RolloutState, nnx.Rngs]:
         return evaluate(model, rollout, rngs, env, hypers)
 
     @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
     @partial(nnx.grad, has_aux=True)
+    @jax.named_scope("gradient")
     def _vec_grad(model, rollout_state):
         return ppo_loss(model, rollout_state, hypers)
 
@@ -224,10 +224,14 @@ def replicate_model(optimizer, sharding):
     state = jax.device_put(state, sharding)
     nnx.update(optimizer, state)
 
+def block_all(xs):
+  jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
+  return xs
 
 def train_run(
     experiment: Experiment,
     trial: optuna.Trial | None = None,
+    profile: bool = False
 ):
     mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
     replicate_sharding = NamedSharding(mesh, P())
@@ -286,9 +290,15 @@ def train_run(
         start_time = time.time()
 
         with mesh:
-            optimizer, rngs, logs = jitted_train(
-                optimizer, rngs, rollout, env, experiment.config
-            )
+            optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+
+            if profile and i >= 4:
+                with jax.profiler.trace("/tmp/jax-trace"):
+                    optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+                    block_all(nnx.state(optimizer))
+
+                break
+
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs._asdict(), i)

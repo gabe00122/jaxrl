@@ -92,6 +92,18 @@ def train_cmd(
     train_run(experiment)
 
 
+@app.command("profile")
+def profile(    config: str = "./config/return.json",
+    distributed: bool = False,
+    base_dir: str = "./results",
+    ):
+    if distributed:
+        jax.distributed.initialize()
+    experiment = Experiment.from_config_file("./config/return.json", base_dir, create_directories=False)
+
+    train_run(experiment, profile=True)
+
+
 @app.command("clean")
 def clean():
     subfolders = [f.path for f in os.scandir("./results") if f.is_dir()]

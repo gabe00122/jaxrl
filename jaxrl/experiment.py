@@ -46,7 +46,7 @@ class Experiment:
         self.params_seed = random.getrandbits(31)
         self.actions_seed = random.getrandbits(31)
 
-    def setup_experiment(self) -> None:
+    def create_directories(self) -> None:
         """Create the directory tree and write config & metadata."""
         self.fs.makedirs(self.ckpt_dir, exist_ok=True)
 
@@ -74,7 +74,7 @@ class Experiment:
 
     @classmethod
     def from_config(
-        cls, unique_token: str, config: Config, base_dir: str = "results"
+        cls, unique_token: str, config: Config, base_dir: str = "results", create_directories: bool = True
     ) -> "Experiment":
 
         meta = ExperimentMeta(
@@ -82,17 +82,19 @@ class Experiment:
             git_hash=get_git_hash(),
         )
         exp = cls(unique_token, config, meta, base_dir)
-        exp.setup_experiment()
+
+        if create_directories:
+            exp.create_directories()
         return exp
 
     @classmethod
     def from_config_file(
-        cls, config_file: str, base_dir: str = "results"
+        cls, config_file: str, base_dir: str = "results", create_directories: bool = True
     ) -> "Experiment":
 
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
-        return cls.from_config(generate_unique_token(), config, base_dir)
+        return cls.from_config(generate_unique_token(), config, base_dir, create_directories=create_directories)
 
 
 def generate_unique_token() -> str:
