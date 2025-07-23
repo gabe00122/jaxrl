@@ -57,7 +57,7 @@ class Experiment:
             f.write(self.meta.model_dump_json(indent=2))
 
     def create_logger(self) -> JaxLogger:
-        return JaxLogger(self.config.logger, self.unique_token)
+        return JaxLogger(self.config.logger, self.unique_token, self.config)
 
     @classmethod
     def load(cls, unique_token: str, base_dir: str = "results") -> "Experiment":
