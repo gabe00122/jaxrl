@@ -24,7 +24,7 @@
       },
       "hidden_features": 128,
       "transformer_block": {
-        "attention_impl": "xla",
+        "attention_impl": "cudnn",
         "num_heads": 4,
         "num_kv_heads": 4,
         "head_dim": 32,
@@ -34,7 +34,7 @@
         "gtrxl_gate": false,
         "gtrxl_bias": 1.0
       },
-      "num_layers": 3,
+      "num_layers": 6,
       "activation": "gelu",
       "norm": "layer_norm",
       "kernel_init": "glorot_uniform",
