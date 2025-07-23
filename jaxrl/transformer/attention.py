@@ -23,7 +23,7 @@ class AttentionBlock(nnx.Module):
         max_seq_length: int,
         rope_max_wavelength: float = 10_000,
         use_qk_norm: bool = False,
-        attention_impl: str | None = None,
+        attention_impl: str | None = "cudnn",
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
         kernel_init: nnx.Initializer = nnx.initializers.normal(),

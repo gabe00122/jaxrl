@@ -15,7 +15,7 @@ class TPUSettings(NamedTuple):
 
 @app.command()
 def queue_job(
-    tpu: str, config_file: str, queue: bool = False, preemptive: bool = False
+    tpu: str, config_file: str, queue: bool = False, preemptible: bool = False
 ):
     wandb_key = os.environ["WANDB_API_KEY"]
     git_hash = get_git_hash()
@@ -31,14 +31,26 @@ def queue_job(
             zone = "us-central1-f"
             accelerator_type = "v2-8"
             version = "tpu-ubuntu2204-base"
+            preemptible = True
         case "v3-8":
             zone = "europe-west4-a"
             accelerator_type = "v3-8"
             version = "tpu-ubuntu2204-base"
+            preemptible = True
         case "v4-8":
             zone = "us-central2-b"
             accelerator_type = "v4-8"
             version = "tpu-ubuntu2204-base"
+        case "v5e-1":
+            zone = "europe-west4-a"
+            accelerator_type = "v5e-1"
+            version = "v2-alpha-tpuv5-lite"
+            preemptible = True
+        case "v6e-1":
+            zone = "us-east1-d"
+            accelerator_type = "v6e-1"
+            version = "v2-alpha-tpuv6e"
+            preemptible = True
         case _:
             raise ValueError(f"Invalid TPU type: {tpu}")
 
@@ -62,7 +74,7 @@ cat << EOF >> config/config.json
 EOF
 
 echo "Starting JAX training job... 🚀"
-uv run ./jaxrl/transformer/train.py train --config ./config/config.json --distributed --base-dir "gs://training_results_gabe00122/results"
+uv run pmarl train --config ./config/config.json --distributed --base-dir "gs://training_results_gabe00122/results"
 
 echo "JAX training complete. Initiating TPU shutdown."
 
@@ -80,6 +92,7 @@ gcloud compute tpus tpu-vm create {node_name} \
 --accelerator-type={accelerator_type} \
 --version={version} \
 --service-account={service_account} \
+{"--preemptible \\" if preemptible else ""}
 --metadata-from-file startup-script=./scripts/startup.sh
 """
 
@@ -95,6 +108,7 @@ gcloud alpha compute tpus queued-resources create my-queued-tpu-request \
 --accelerator-type={accelerator_type} \
 --runtime-version={version} \
 --service-account={service_account} \
+{"--preemptible \\" if preemptible else ""}
 --metadata-from-file startup-script=./scripts/startup.sh
 """
 
