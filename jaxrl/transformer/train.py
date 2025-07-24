@@ -106,6 +106,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_target = jax.lax.stop_gradient(rollout.targets)
     batch_log_prob = jax.lax.stop_gradient(rollout.log_prob)
     batch_actions = jax.lax.stop_gradient(rollout.actions)
+    batch_action_masks = jax.lax.stop_gradient(rollout.action_mask)
     batch_advantage = jax.lax.stop_gradient(rollout.advantages)
     batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
     batch_rewards = jax.lax.stop_gradient(rollout.rewards)
@@ -124,7 +125,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
             time=positions,
             last_action=batch_last_actions,
             last_reward=batch_last_rewards,
-            action_mask=None,
+            action_mask=batch_action_masks,
         )
     )
     log_probs = policy.log_prob(batch_actions)

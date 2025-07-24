@@ -2,6 +2,7 @@ from jaxrl.config import EnvironmentConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnEnv
+from jaxrl.envs.memory.return_2d_colors import ReturnColorEnv
 
 
 def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
@@ -10,5 +11,7 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
             return NBackMemory(env_config.max_n, env_config.max_value, length)
         case "return":
             return ReturnEnv(env_config)
+        case "return_color":
+            return ReturnColorEnv(env_config)
         case _:
             raise ValueError(f"Unknown environment type: {env_config.type}")
