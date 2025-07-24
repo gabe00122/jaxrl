@@ -420,12 +420,12 @@ class TransformerActorCritic(nnx.Module):
         x = self.output_norm(x)
 
         action_logits = self.action_encoder.decode(x)
-        # if ts.action_mask is not None:
-        #     action_logits = jnp.where(
-        #         ts.action_mask,
-        #         action_logits,
-        #         jnp.finfo(action_logits.dtype).min,
-        #     )
+        if ts.action_mask is not None:
+            action_logits = jnp.where(
+                ts.action_mask,
+                action_logits,
+                jnp.finfo(action_logits.dtype).min,
+            )
 
         policy = IdentityTransformation(
             distribution=tfd.Categorical(logits=action_logits)
