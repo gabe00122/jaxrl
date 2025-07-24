@@ -24,6 +24,19 @@ class ReturnConfig(BaseModel):
     view_height: int = 5
 
 
+class ReturnColorConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["return_color"] = "return_color"
+
+    num_agents: int = 1
+    num_colors: int = 4
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
@@ -160,7 +173,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig
 
 
 class Config(BaseModel):

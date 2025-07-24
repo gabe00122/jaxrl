@@ -420,7 +420,6 @@ class TransformerActorCritic(nnx.Module):
         x = self.output_norm(x)
 
         action_logits = self.action_encoder.decode(x)
-        # print(action_logits.shape)
         # if ts.action_mask is not None:
         #     action_logits = jnp.where(
         #         ts.action_mask,

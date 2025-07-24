@@ -8,6 +8,7 @@ from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnClient
+from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
@@ -19,7 +20,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def create_client(env: Environment):
-    return ReturnClient(env)
+    return ReturnColorClient(env)
 
 
 @app.command()

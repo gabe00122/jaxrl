@@ -1,6 +1,7 @@
 from typing import NamedTuple
 import typer
 import os
+import stat
 
 from jaxrl.experiment import get_git_hash
 
@@ -81,8 +82,7 @@ echo "JAX training complete. Initiating TPU shutdown."
 gcloud compute tpus tpu-vm delete {node_name} --zone={zone} --quiet
 """
 
-    with open("scripts/startup.sh", "w") as f:
-        f.write(startup_text)
+    write_script(startup_text, "scripts/startup.sh")
 
     create_text = f"""
 #!/bin/bash
@@ -92,12 +92,10 @@ gcloud compute tpus tpu-vm create {node_name} \
 --accelerator-type={accelerator_type} \
 --version={version} \
 --service-account={service_account} \
-{"--preemptible \\" if preemptible else ""}
---metadata-from-file startup-script=./scripts/startup.sh
+{"--preemptible" if preemptible else ""}
 """
 
-    with open("scripts/create.sh", "w") as f:
-        f.write(create_text)
+    write_script(create_text, "scripts/create.sh")
 
     queue_text = f"""
 #!/bin/bash
@@ -108,12 +106,10 @@ gcloud alpha compute tpus queued-resources create my-queued-tpu-request \
 --accelerator-type={accelerator_type} \
 --runtime-version={version} \
 --service-account={service_account} \
-{"--preemptible \\" if preemptible else ""}
---metadata-from-file startup-script=./scripts/startup.sh
+{"--preemptible" if preemptible else ""}
 """
 
-    with open("scripts/queue.sh", "w") as f:
-        f.write(queue_text)
+    write_script(queue_text, "scripts/queue.sh")
 
     connect_text = f"""
 #!/bin/bash
@@ -121,8 +117,15 @@ gcloud alpha compute tpus queued-resources create my-queued-tpu-request \
 gcloud compute tpus tpu-vm ssh {node_name} --zone={zone}
 """
 
-    with open("scripts/connect.sh", "w") as f:
-        f.write(connect_text)
+    write_script(connect_text, "scripts/connect.sh")
+
+
+def write_script(text: str, path: str):
+    with open(path, "w") as f:
+        f.write(text)
+
+    st = os.stat(path)
+    os.chmod(path, st.st_mode | stat.S_IEXEC)
 
 
 if __name__ == "__main__":
