@@ -39,13 +39,14 @@ def test_impl():
     batch = 2
     seq_length = 16
     d_model = 32
+    sliding_window_size = 8
 
     layer = AttentionBlock(
         d_model=d_model,
         head_dim=8,
         num_heads=4,
-        num_kv_heads=1,
-        max_seq_length=seq_length,
+        num_kv_heads=4,
+        max_seq_length=sliding_window_size,
         dtype=jnp.bfloat16,
         rngs=rngs,
     )
@@ -61,19 +62,8 @@ def test_impl():
 
     # print(infer_ys)
 
-    print(jnp.allclose(infer_ys, train_ys))
+    print(jnp.isclose(infer_ys, train_ys)[0] * 1.0)
 
-    layer.use_built_in = True
-
-    bi_infer_ys = inference_output(layer, xs)
-    bi_train_ys = train_output(layer, xs)
-    print(jnp.allclose(bi_infer_ys, bi_train_ys))
-
-    inference_matches = jnp.allclose(infer_ys, bi_infer_ys)
-    print(f"inference matches: {inference_matches}")
-
-    train_matches = jnp.allclose(train_ys, bi_train_ys)
-    print(f"train matches: {train_matches}")
 
     # print(f"test passes: {test_pass.item()}")
 

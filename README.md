@@ -1,27 +1,22 @@
-## JaxRL
+## partially observable multiagent rl
 
-* A actor critic implementation written with flax/nnx
-* Plans to implement more RL algorithms
 
-Inspired by [mava](https://github.com/instadeepai/Mava)
+This project trains transformers with PPO to solve partially obserbable multi-agent enviroments.
 
-![lunar lander agent demo](/videos/rl-video-episode-5.mp4)
 
-## Installation
+## Setup
 
-Install python 3.12
-Install poetry
-Install a c++ compiler for gymnasium[box2d]
-Install ffmpeg for (this might be installed automatically on first use)
+uv sync --extra cuda
 
-```bash
-poetry install
-```
+## Run training
 
-## Training
+uv run pmarl train --config ./config/return_baseline.json
 
-```bash
-poetry run python -m jaxrl.envs.gym
-```
+## View training run
 
-videos will be rendered to ./videos
+uv run pmarl enjoy "run_name"
+
+## Enviroments
+
+Variable n-back
+Grid Return
