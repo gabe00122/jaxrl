@@ -47,9 +47,9 @@ class Rollout:
                 (self.batch_size, self.trajectory_length, *self.obs_spec.shape),
                 dtype=self.obs_spec.dtype,
             ),
-            action_mask=jnp.zeros(
+            action_mask=jnp.ones(
                 (self.batch_size, self.trajectory_length, self.action_spec.num_actions),
-                dtype=jnp.bool_,
+                dtype=jnp.bool,
             ),
             actions=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=index_type

@@ -75,6 +75,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
             env_state, timestep, kv_cache, rngs = step(
                 timestep, kv_cache, env_state, rngs
             )
+            print(timestep.obs[0])
             client.render(env_state)
 
     client.save_video()

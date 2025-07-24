@@ -85,7 +85,7 @@ class AttentionBlock(nnx.Module):
         return KVCache(key, value)
 
     def update_kv_cache(self, kv_cache: KVCache, seq_pos, key, value) -> KVCache:
-        pos = seq_pos[0, 0]
+        pos = seq_pos[0, 0] % self.max_seq_length
 
         key = jax.lax.dynamic_update_slice(kv_cache.key, key, (0, pos, 0, 0))
         value = jax.lax.dynamic_update_slice(kv_cache.value, value, (0, pos, 0, 0))
@@ -95,6 +95,8 @@ class AttentionBlock(nnx.Module):
     def __call__(
         self, inputs: jax.Array, seq_pos: jax.Array, kv_cache: KVCache | None = None
     ) -> tuple[jax.Array, KVCache | None]:
+        batch, seq, _ = inputs.shape
+
         kv_proj = self.kv_proj(inputs)
         key, value = jnp.split(kv_proj, 2, -1)
         query = self.query_proj(inputs)
@@ -115,8 +117,7 @@ class AttentionBlock(nnx.Module):
             key = kv_cache.key
             value = kv_cache.value
 
-            batch, _, _ = inputs.shape
-            kv_length = jnp.full((batch,), seq_pos[0, 0] + 1)
+            kv_length = jnp.full((batch,), jnp.minimum(seq_pos[0, 0] + 1, self.max_seq_length))
             x = jax.nn.dot_product_attention(
                 query,
                 key,
@@ -125,9 +126,18 @@ class AttentionBlock(nnx.Module):
                 implementation=self.attention_impl,
             )
         else:
-            x = jax.nn.dot_product_attention(
-                query, key, value, is_causal=True, implementation=self.attention_impl
-            )
+            if self.max_seq_length < seq:
+                # sliding window attention
+                x = jax.nn.dot_product_attention(
+                    query,
+                    key,
+                    value,
+                    is_causal=True,
+                    local_window_size=(self.max_seq_length-1, 0),
+                    implementation=self.attention_impl
+                )
+            else:
+                x = jax.nn.dot_product_attention(query, key, value, is_causal=True, implementation=self.attention_impl)
 
         out = self.out(x)
 
