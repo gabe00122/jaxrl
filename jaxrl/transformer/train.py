@@ -173,39 +173,47 @@ def train(
 ):
     hypers = config.learner.trainer
 
-    @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
+    # @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
     @jax.named_scope("evaluate")
     def _vec_rollout(model, rngs) -> tuple[RolloutState, nnx.Rngs]:
         return evaluate(model, rollout, rngs, env, hypers)
 
-    @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
+    # @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
     @partial(nnx.grad, has_aux=True)
     @jax.named_scope("gradient")
     def _vec_grad(model, rollout_state):
         return ppo_loss(model, rollout_state, hypers)
 
-    def _minibatch_step(i, x):
-        optimizer, rollout_state, logs = x
-
-        grads, step_logs = _vec_grad(optimizer.model, rollout_state)
+    def _minibatch_step(carry, rollout_state):
+        optimizer, logs = carry
+        grad, step_logs = _vec_grad(optimizer.model, rollout_state)
 
         # combine accross devices
-        step_logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), step_logs)
-        grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
+        # step_logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), step_logs)
+        # grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
 
         optimizer.update(grad)
         logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
 
-        return optimizer, rollout_state, logs
+        return (optimizer, logs)
+
+    def _epoch_step(i, x):
+        optimizer, rollout_state, logs, rng_key = x
+
+        rng_key, minibatch_rng = jax.random.split(rng_key)
+        minibatch_rollout_state = rollout.create_minibatches(rollout_state, hypers.minibatch_count, minibatch_rng)
+        optimizer, logs = nnx.scan(_minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry)((optimizer, logs), minibatch_rollout_state)
+
+        return optimizer, rollout_state, logs, rng_key
 
     def _global_step(i, x):
         optimizer, logs, rngs = x
         rollout_state, rngs = _vec_rollout(optimizer.model, rngs)
-        optimizer, rollout_state, logs = nnx.fori_loop(
+        optimizer, rollout_state, logs, _ = nnx.fori_loop(
             0,
-            hypers.minibatch_count,
-            _minibatch_step,
-            init_val=(optimizer, rollout_state, logs)
+            hypers.epoch_count,
+            _epoch_step,
+            init_val=(optimizer, rollout_state, logs, rngs.shuffle())
         )
 
         return optimizer, logs, rngs
@@ -216,7 +224,7 @@ def train(
         0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, rngs)
     )
 
-    logs = jax.tree_util.tree_map(lambda x: x / (config.updates_per_jit * hypers.minibatch_count), logs)
+    logs = jax.tree_util.tree_map(lambda x: x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count), logs)
 
     return optimizer, rngs, logs
 
@@ -234,9 +242,9 @@ def train_run(
     trial: optuna.Trial | None = None,
     profile: bool = False
 ):
-    mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
-    replicate_sharding = NamedSharding(mesh, P())
-    batch_sharding = NamedSharding(mesh, P("batch"))
+    # mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
+    # replicate_sharding = NamedSharding(mesh, P())
+    # batch_sharding = NamedSharding(mesh, P("batch"))
 
     max_steps = experiment.config.max_env_steps
 
@@ -269,19 +277,19 @@ def train_run(
         ),
     )
 
-    replicate_model(optimizer, replicate_sharding)
+    # replicate_model(optimizer, replicate_sharding)
 
-    rng = jax.random.PRNGKey(experiment.default_seed)
-    device_rngs = jax.random.split(rng, len(jax.devices()))
-    device_rngs = jax.device_put(device_rngs, batch_sharding)
-    rngs = nnx.Rngs(default=device_rngs)
+    # rng = jax.random.PRNGKey(experiment.default_seed)
+    # device_rngs = jax.random.split(rng, len(jax.devices()))
+    # device_rngs = jax.device_put(device_rngs, batch_sharding)
+    rngs = nnx.Rngs(default=jax.random.PRNGKey(experiment.default_seed))
 
     jitted_train = nnx.jit(train, static_argnums=(2, 3, 4))
 
     env_steps_per_update = (
         batch_size
         * max_steps
-        * device_rngs.shape[0]
+        # * device_rngs.shape[0]
         * experiment.config.updates_per_jit
     )
     outer_updates = experiment.config.update_steps // experiment.config.updates_per_jit
@@ -293,15 +301,14 @@ def train_run(
     for i in track(range(outer_updates), description="Training", disable=False):
         start_time = time.time()
 
-        with mesh:
-            optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+        optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
 
-            if profile and i >= 4:
-                with jax.profiler.trace("/tmp/jax-trace"):
-                    optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
-                    block_all(nnx.state(optimizer))
+        if profile and i >= 4:
+            with jax.profiler.trace("/tmp/jax-trace"):
+                optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+                block_all(nnx.state(optimizer))
 
-                break
+            break
 
 
         # this should be delayed n-1 for jax to use async dispatch

@@ -60,6 +60,7 @@ class TransformerBlockConfig(BaseModel):
     num_heads: int
     num_kv_heads: int
     head_dim: int
+    sliding_window: int | None = None
 
     attention_impl: str = "xla"
 
@@ -161,6 +162,7 @@ class PPOConfig(BaseModel):
 
     trainer_type: Literal["ppo"]
 
+    epoch_count: int = 1
     minibatch_count: int = 1
     vf_coef: float = 1.0
     entropy_coef: float = 0.005
