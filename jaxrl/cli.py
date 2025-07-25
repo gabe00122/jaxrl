@@ -9,6 +9,7 @@ from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnClient
 from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
+from jaxrl.envs.trust.prisoners import PrisonersRenderer
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
@@ -20,7 +21,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def create_client(env: Environment):
-    return ReturnColorClient(env)
+    return PrisonersRenderer(env)
 
 
 @app.command()
@@ -70,13 +71,13 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
 
     for _ in range(10):
         env_state, timestep = env.reset(rngs.env())
-        client.render(env_state)
+        client.render(env_state, timestep)
         for _ in range(max_steps):
             env_state, timestep, kv_cache, rngs = step(
                 timestep, kv_cache, env_state, rngs
             )
-            print(timestep.obs[0])
-            client.render(env_state)
+            # timestep = timestep._replace(last_action=timestep.last_action.at[0].set(1))
+            client.render(env_state, timestep)
 
     client.save_video()
 

@@ -37,6 +37,11 @@ class ReturnColorConfig(BaseModel):
     view_height: int = 5
 
 
+class PrisonersConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["prisoners"] = "prisoners"
+
+
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
@@ -173,7 +178,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | PrisonersConfig
 
 
 class Config(BaseModel):
