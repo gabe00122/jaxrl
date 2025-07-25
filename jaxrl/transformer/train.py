@@ -227,8 +227,7 @@ def replicate_model(optimizer, sharding):
     nnx.update(optimizer, state)
 
 def block_all(xs):
-  jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
-  return xs
+  return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 def train_run(
     experiment: Experiment,

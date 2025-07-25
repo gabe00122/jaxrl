@@ -20,3 +20,4 @@ uv run pmarl enjoy "run_name"
 
 Variable n-back
 Grid Return
+Grid Return Communication
