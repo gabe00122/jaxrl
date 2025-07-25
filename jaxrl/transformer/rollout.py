@@ -1,5 +1,6 @@
 from typing import NamedTuple
 
+from einops import rearrange
 import jax
 from jax import numpy as jnp
 
@@ -125,3 +126,13 @@ class Rollout:
             advantages=advantages,
             targets=targets,
         )
+
+    def _shuffle(self, state: RolloutState, rng_key: jax.Array) -> RolloutState:
+        indecies = jax.random.permutation(rng_key, self.batch_size)
+        return jax.tree_util.tree_map(lambda x: x[indecies], state)
+
+    def create_minibatches(self, state: RolloutState, minibatches: int, rng_key: jax.Array) -> RolloutState:
+        if minibatches > 1:
+            state = self._shuffle(state, rng_key)
+
+        return jax.tree_util.tree_map(lambda x: rearrange(x, "(m b) ... -> m b ...", m=minibatches), state)

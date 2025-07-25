@@ -214,7 +214,7 @@ class TransformerBlock(nnx.Module):
             head_dim,
             num_heads,
             num_kv_heads,
-            max_seq_length=max_seq_length,
+            max_seq_length=max_seq_length if config.sliding_window is None else config.sliding_window,
             rope_max_wavelength=rope_max_wavelength,
             dtype=dtype,
             param_dtype=param_dtype,
