@@ -3,6 +3,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnEnv
 from jaxrl.envs.memory.return_2d_colors import ReturnColorEnv
+from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
 from jaxrl.envs.trust.prisoners import PrisonersEnv
 
 
@@ -14,6 +15,8 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
             return ReturnEnv(env_config)
         case "return_color":
             return ReturnColorEnv(env_config)
+        case "return_digging":
+            return ReturnDiggingEnv(env_config)
         case "prisoners":
             return PrisonersEnv()
         case _:

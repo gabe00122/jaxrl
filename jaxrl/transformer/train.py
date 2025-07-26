@@ -273,7 +273,8 @@ def train_run(
         tx=create_optimizer(
             experiment.config.learner.optimizer,
             experiment.config.update_steps
-            * experiment.config.learner.trainer.minibatch_count,
+            * experiment.config.learner.trainer.minibatch_count
+            * experiment.config.learner.trainer.epoch_count
         ),
     )
 

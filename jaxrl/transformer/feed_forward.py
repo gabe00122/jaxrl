@@ -25,6 +25,7 @@ class FFBlock(nnx.Module):
         linear = functools.partial(
             nnx.Linear,
             kernel_init=kernel_init,
+            use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -58,6 +59,7 @@ class GLUBlock(nnx.Module):
 
         linear = functools.partial(
             nnx.Linear,
+            use_bias=False,
             kernel_init=kernel_init,
             dtype=dtype,
             param_dtype=param_dtype,
