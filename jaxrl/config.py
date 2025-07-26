@@ -37,6 +37,21 @@ class ReturnColorConfig(BaseModel):
     view_height: int = 5
 
 
+class ReturnDiggingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["return_digging"] = "return_digging"
+
+    num_agents: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+    mapgen_threshold: float = 0.3
+    digging_timeout: int = 5
+
+
 class PrisonersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["prisoners"] = "prisoners"
@@ -180,7 +195,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | PrisonersConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | PrisonersConfig
 
 
 class Config(BaseModel):
