@@ -56,6 +56,19 @@ class PrisonersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["prisoners"] = "prisoners"
 
+class TreasureConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["treasure"] = "treasure"
+
+    num_seers: int = 1
+    num_openers: int = 1
+    num_treasures: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -121,7 +134,7 @@ class LoggerConfig(BaseModel):
 class OptimizerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    type: Literal["adamw", "moun"]
+    type: Literal["adamw", "muon"]
     learning_rate: float
     weight_decay: float
     eps: float
