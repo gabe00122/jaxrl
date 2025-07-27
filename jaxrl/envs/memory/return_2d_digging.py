@@ -302,7 +302,7 @@ class ReturnDiggingClient:
 
 def demo():
     env = ReturnDiggingEnv(ReturnDiggingConfig(
-        mapgen_threshold=0.025
+        mapgen_threshold=0.05
     ))
 
     rng_key = jax.random.PRNGKey(11)

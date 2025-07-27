@@ -328,6 +328,7 @@ def train_run(
 
         if i % (outer_updates // 5) == (outer_updates // 5) - 1:
             checkpointer.save(optimizer, i * experiment.config.updates_per_jit)
+            optimizer.model.preturb(rngs)
 
     checkpointer.save(optimizer, experiment.config.update_steps)
 
