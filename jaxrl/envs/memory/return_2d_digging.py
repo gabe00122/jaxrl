@@ -237,7 +237,7 @@ class ReturnDiggingClient:
 
         self._tile_size = self.screen_width // self.env.unpadded_width
 
-    def render(self, state: ReturnDiggingState):
+    def render(self, state: ReturnDiggingState, timestep):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
         tiles = state.map.tolist()
@@ -269,7 +269,7 @@ class ReturnDiggingClient:
         self.screen.blit(self.surface, (0, 0))
         pygame.display.flip()
 
-        # self.record_frame()
+        self.record_frame()
 
     def _tile_to_screen(self, x: int, y: int):
         return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height
