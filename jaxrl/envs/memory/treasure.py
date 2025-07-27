@@ -7,25 +7,24 @@ from jax import numpy as jnp
 import pygame
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnConfig
+from jaxrl.config import ReturnConfig, TreasureConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.utils.video_writter import save_video
 
-NUM_CLASSES = 4
+NUM_CLASSES = 5
 
 TILE_EMPTY = 0
 TILE_WALL = 1
 TILE_TREASURE = 2
-TILE_AGENT = 3
+TILE_TREASURE_OPEN = 3
+TILE_AGENT = 4
 
 
-class ReturnState(NamedTuple):
-    agents_pos: jax.Array       # n length (x, y)
-
-    treasure_pos: jax.Array     # n length (x, y)
-    treasure_id_map: jax.Array  # 2d map of treasure id's
+class TreasureState(NamedTuple):
+    seer_pos: jax.Array       # n length (x, y)
+    opener_pos: jax.Array
 
     time: jax.Array             # ()
 
@@ -34,11 +33,13 @@ class ReturnState(NamedTuple):
     spawn_count: jax.Array      # () size of spawn_pos
 
 
-class ReturnEnv(Environment[ReturnState]):
-    def __init__(self, config: ReturnConfig) -> None:
+class TreasureEnv(Environment[TreasureState]):
+    def __init__(self, config: TreasureConfig) -> None:
         super().__init__()
 
-        self._num_agents = config.num_agents
+        self._num_seers = config.num_seers
+        self._num_openers = config.num_openers
+        self._num_treasures = config.num_treasures
 
         self.unpadded_width = config.width
         self.unpadded_height = config.height
@@ -90,24 +91,29 @@ class ReturnEnv(Environment[ReturnState]):
 
         return tiles, spawn_pos, spawn_count
 
-    def reset(self, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
-        map_key, pos_key = jax.random.split(rng_key)
+    def reset(self, rng_key: jax.Array) -> tuple[TreasureState, TimeStep]:
+        map_key, seer_key, opener_key, treasure_key = jax.random.split(rng_key, 4)
 
         map, spawn_pos, spawn_count = self._generate_map(map_key)
 
-        positions = jax.random.randint(
-            pos_key, (1 + self.num_agents,), minval=0, maxval=spawn_count
+        seer_pos = jax.random.randint(
+            seer_key, (self._num_seers,), minval=0, maxval=spawn_count
         )
-        treasure_pos = spawn_pos[positions[0]]
-        agents_pos = spawn_pos[positions[1:]]
+        opener_pos = jax.random.randint(
+            opener_key, (self._num_seers,), minval=0, maxval=spawn_count
+        )
+        treasure_pos = jax.random.randint(
+            treasure_key, (self._num_treasures,), minval=0, maxval=spawn_count
+        )
 
-        state = ReturnState(
+        map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(TILE_TREASURE)
+
+        state = TreasureState(
             map=map,
             spawn_pos=spawn_pos,
             spawn_count=spawn_count,
-            treasure_pos=treasure_pos,
-            agents_pos=agents_pos,
-            found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
+            seer_pos=seer_pos,
+            opener_pos=opener_pos,
             time=jnp.int32(0),
         )
 
@@ -134,13 +140,16 @@ class ReturnEnv(Environment[ReturnState]):
 
     @property
     def num_agents(self) -> int:
-        return self._num_agents
+        return self._num_seers + self._num_openers
 
     def step(
-        self, state: ReturnState, action: jax.Array, rng_key: jax.Array
-    ) -> tuple[ReturnState, TimeStep]:
+        self, state: TreasureState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[TreasureState, TimeStep]:
+        seeker_actions = action[:self._num_seers]
+        opener_actions = action[self._num_seers:]
+
         @partial(jax.vmap, in_axes=(0, 0, 0), out_axes=(0, 0))
-        def _step_agent(local_position, local_action, random_position):
+        def _step_seeker(local_position, local_action):
             directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
             new_pos = local_position + directions[local_action]
 
@@ -149,13 +158,21 @@ class ReturnEnv(Environment[ReturnState]):
             # don't move if we are moving into a wall
             new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
 
-            found_treasure = jnp.all(
-                new_pos == state.treasure_pos
-            )  # new_tile == TILE_TREASURE
-            reward = found_treasure.astype(jnp.float32)
+            reward = (new_tile == TILE_TREASURE_OPEN).astype(jnp.float32)
 
-            # randomize position if the agent finds the reward
-            new_pos = jnp.where(found_treasure, random_position, new_pos)
+            return new_pos, reward
+
+        @partial(jax.vmap, in_axes=(0, 0, 0), out_axes=(0, 0))
+        def _step_opener(local_position, local_action):
+            directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
+            new_pos = local_position + directions[local_action]
+
+            new_tile = state.map[new_pos[0], new_pos[1]]
+
+            # don't move if we are moving into a wall
+            new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
+
+            reward = (new_tile == TILE_TREASURE).astype(jnp.float32)
 
             return new_pos, reward
 
@@ -174,7 +191,7 @@ class ReturnEnv(Environment[ReturnState]):
 
         return state, self.encode_observations(state, action, rewards)
 
-    def encode_observations(self, state: ReturnState, actions, rewards) -> TimeStep:
+    def encode_observations(self, state: TreasureState, actions, rewards) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
@@ -202,8 +219,8 @@ class ReturnEnv(Environment[ReturnState]):
         )
 
 
-class ReturnClient:
-    def __init__(self, env: ReturnEnv):
+class TreasureClient:
+    def __init__(self, env: TreasureEnv):
         self.env = env
 
         self.screen_width = 800
@@ -220,7 +237,7 @@ class ReturnClient:
 
         self._tile_size = self.screen_width // self.env.unpadded_width
 
-    def render(self, state: ReturnState):
+    def render(self, state: TreasureState):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
         tiles = state.map.tolist()
@@ -283,12 +300,12 @@ class ReturnClient:
 
 
 def demo():
-    env = ReturnEnv(ReturnConfig())
+    env = TreasureEnv(TreasureConfig())
 
     rng_key = jax.random.PRNGKey(11)
     state, timestep = env.reset(rng_key)
 
-    client = ReturnClient(env)
+    client = TreasureClient(env)
 
     running = True
     ts = None
