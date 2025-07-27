@@ -19,6 +19,7 @@ from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.transformer.gate import GatingMechanism
+from jaxrl.utils.preturb import preturb
 
 
 def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
@@ -291,6 +292,10 @@ class TransformerBlock(nnx.Module):
 
         return x, kv_cache
 
+    def preturb(self, alpha: float, rngs: nnx.Rngs):
+        self.attention.preturb(alpha, rngs)
+        self.ffn.preturb(alpha, rngs)
+
 
 class Embedder(nnx.Module):
     def __init__(
@@ -436,3 +441,17 @@ class TransformerActorCritic(nnx.Module):
         action_logits = action_logits.astype(jnp.float32)
 
         return value, policy, kv_cache
+
+    def preturb(self, rngs: nnx.Rngs):
+        level = 0.2
+
+        # preturb(self.reward_encoder, level, rngs)
+
+        self.layers[0].preturb(0.2, rngs)
+        self.layers[1].preturb(0.2, rngs)
+        self.layers[2].preturb(0.2, rngs)
+        self.layers[3].preturb(0.2, rngs)
+        self.layers[4].preturb(1.0, rngs)
+        self.layers[5].preturb(1.0, rngs)
+
+        # preturb(self.value_head, 1.0, rngs)
