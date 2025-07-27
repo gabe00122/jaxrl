@@ -4,6 +4,7 @@ from typing import Callable
 from flax import nnx
 import jax
 from jax import numpy as jnp
+import numpy as np
 from jax.typing import DTypeLike
 
 
@@ -75,3 +76,19 @@ class GLUBlock(nnx.Module):
         x = self.activation(x) * gate
         out = self.down_proj(x)
         return out
+
+def preturb(layer: nnx.Linear, alpha: float, rngs: nnx.Rngs):
+    kernel_key = rngs.params()
+    new_params = layer.kernel_init(kernel_key, (layer.in_features, layer.out_features), layer.param_dtype)
+
+    layer.kernel.value = (1 - alpha) * layer.kernel.value + alpha * new_params
+
+def preturb_genreal(layer: nnx.LinearGeneral, alpha: float, rngs: nnx.Rngs):
+    kernel_key = rngs.params()
+    in_features = np.prod(layer.in_features)
+    out_features = np.prod(layer.out_features)
+
+    new_params = layer.kernel_init(kernel_key, (in_features, out_features), layer.param_dtype)
+    new_params = jnp.reshape(new_params, (*layer.in_features, *layer.out_features))
+
+    layer.kernel.value = (1 - alpha) * layer.kernel.value + alpha * new_params

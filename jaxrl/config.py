@@ -121,7 +121,7 @@ class LoggerConfig(BaseModel):
 class OptimizerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    type: Literal["adamw"]
+    type: Literal["adamw", "moun"]
     learning_rate: float
     weight_decay: float
     eps: float
