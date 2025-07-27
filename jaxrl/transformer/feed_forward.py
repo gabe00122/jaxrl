@@ -4,7 +4,10 @@ from typing import Callable
 from flax import nnx
 import jax
 from jax import numpy as jnp
+import numpy as np
 from jax.typing import DTypeLike
+
+from jaxrl.utils.preturb import preturb
 
 
 class FFBlock(nnx.Module):
@@ -41,6 +44,10 @@ class FFBlock(nnx.Module):
         out = self.down_proj(x)
         return out
 
+    def preturb(self, alpha: float, rngs: nnx.Rngs):
+        preturb(self.up_proj, alpha, rngs)
+        preturb(self.down_proj, alpha, rngs)
+
 
 class GLUBlock(nnx.Module):
     def __init__(
@@ -67,11 +74,18 @@ class GLUBlock(nnx.Module):
         )
 
         self.activation = activation
-        self.up_proj = linear(d_model, hidden_features * 2)
+        self.up_proj = linear(d_model, hidden_features)
+        self.up_gate = linear(d_model, hidden_features)
         self.down_proj = linear(hidden_features, d_model)
 
     def __call__(self, inputs):
-        x, gate = jnp.split(self.up_proj(inputs), 2, axis=-1)
+        x = self.up_proj(inputs)
+        gate = self.up_gate(inputs)
         x = self.activation(x) * gate
         out = self.down_proj(x)
         return out
+
+    def preturb(self, alpha: float, rngs: nnx.Rngs):
+        preturb(self.up_proj, alpha, rngs)
+        preturb(self.up_gate, alpha, rngs)
+        preturb(self.down_proj, alpha, rngs)
