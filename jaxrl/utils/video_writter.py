@@ -39,7 +39,7 @@ def save_video(frames: np.ndarray, filename, fps=60):
         .output(
             filename,
             {
-                "vf": "scale=iw*4:ih*4:flags=neighbor",
+                # "vf": "scale=iw*4:ih*4:flags=neighbor",
                 "pix_fmt": "yuv420p",
                 "codec:v": "libx264",
                 "movflags": "faststart",

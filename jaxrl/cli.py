@@ -9,6 +9,7 @@ from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnClient
 from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
+from jaxrl.envs.memory.return_2d_digging import ReturnDiggingClient
 from jaxrl.envs.trust.prisoners import PrisonersRenderer
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -21,7 +22,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def create_client(env: Environment):
-    return PrisonersRenderer(env)
+    return ReturnClient(env)
 
 
 @app.command()
@@ -69,7 +70,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
 
         return env_state, timestep, kv_cache, rngs
 
-    for _ in range(10):
+    for _ in range(3):
         env_state, timestep = env.reset(rngs.env())
         client.render(env_state, timestep)
         for _ in range(max_steps):
