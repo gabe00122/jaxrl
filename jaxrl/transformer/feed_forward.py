@@ -68,11 +68,13 @@ class GLUBlock(nnx.Module):
         )
 
         self.activation = activation
-        self.up_proj = linear(d_model, hidden_features * 2)
+        self.up_proj = linear(d_model, hidden_features)
+        self.up_gate = linear(d_model, hidden_features)
         self.down_proj = linear(hidden_features, d_model)
 
     def __call__(self, inputs):
-        x, gate = jnp.split(self.up_proj(inputs), 2, axis=-1)
+        x = self.up_proj(inputs)
+        gate = self.up_gate(inputs)
         x = self.activation(x) * gate
         out = self.down_proj(x)
         return out
