@@ -42,7 +42,7 @@ class TreasureEnv(Environment[TreasureState]):
         self._num_scouts = config.num_scouts
         self._num_harvesters = config.num_harvesters
         self._num_treasures = config.num_treasures
-        self._harvester_timeout = 3
+        self._harvester_timeout = 6
 
         self.unpadded_width = config.width
         self.unpadded_height = config.height
@@ -325,7 +325,7 @@ def demo():
     env = TreasureEnv(TreasureConfig(
         num_scouts=12,
         num_harvesters=4,
-        num_treasures=64
+        num_treasures=32
     ))
 
     rng_key = jax.random.PRNGKey(11)
