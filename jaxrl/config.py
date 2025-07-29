@@ -60,8 +60,8 @@ class TreasureConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["treasure"] = "treasure"
 
-    num_seers: int = 1
-    num_openers: int = 1
+    num_scouts: int = 1
+    num_harvesters: int = 1
     num_treasures: int = 1
 
     width: int = 40
@@ -208,7 +208,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | PrisonersConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | TreasureConfig | PrisonersConfig
 
 
 class Config(BaseModel):

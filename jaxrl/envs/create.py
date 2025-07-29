@@ -4,6 +4,7 @@ from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnEnv
 from jaxrl.envs.memory.return_2d_colors import ReturnColorEnv
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
+from jaxrl.envs.memory.treasure import TreasureEnv
 from jaxrl.envs.trust.prisoners import PrisonersEnv
 
 
@@ -19,5 +20,7 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
             return ReturnDiggingEnv(env_config)
         case "prisoners":
             return PrisonersEnv()
+        case "treasure":
+            return TreasureEnv(env_config)
         case _:
             raise ValueError(f"Unknown environment type: {env_config.type}")
