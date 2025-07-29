@@ -196,15 +196,15 @@ class TreasureEnv(Environment[TreasureState]):
         map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(jnp.where(new_scout_tile == TILE_TREASURE_OPEN, TILE_EMPTY, new_scout_tile))
 
         # for each treasure that was found create a new one
-        random_positions = state.spawn_pos[jax.random.randint(
-            rng_key, (self._num_scouts,), minval=0, maxval=state.spawn_count
-        )]
-        # there is a change two of these positions are the same and be lose a treasure
-        map = map.at[random_positions[:, 0], random_positions[:, 1]].set(jnp.where(
-            new_scout_tile == TILE_TREASURE_OPEN,
-            TILE_TREASURE,
-            map[random_positions[:, 0], random_positions[:, 1]],
-        ))
+        # random_positions = state.spawn_pos[jax.random.randint(
+        #     rng_key, (self._num_scouts,), minval=0, maxval=state.spawn_count
+        # )]
+        # # there is a change two of these positions are the same and be lose a treasure
+        # map = map.at[random_positions[:, 0], random_positions[:, 1]].set(jnp.where(
+        #     new_scout_tile == TILE_TREASURE_OPEN,
+        #     TILE_TREASURE,
+        #     map[random_positions[:, 0], random_positions[:, 1]],
+        # ))
 
         state = state._replace(
             map=map,
@@ -263,7 +263,7 @@ class TreasureClient:
 
         self._tile_size = self.screen_width // self.env.unpadded_width
 
-    def render(self, state: TreasureState):
+    def render(self, state: TreasureState, timestep):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
         tiles = state.map.tolist()
@@ -325,7 +325,7 @@ def demo():
     env = TreasureEnv(TreasureConfig(
         num_scouts=12,
         num_harvesters=4,
-        num_treasures=4
+        num_treasures=64
     ))
 
     rng_key = jax.random.PRNGKey(11)
@@ -360,7 +360,7 @@ def demo():
             state, ts = env.step(state, action, rng_key)
 
         # print(ts)
-        client.render(state)
+        client.render(state, ts)
 
     pygame.quit()
 

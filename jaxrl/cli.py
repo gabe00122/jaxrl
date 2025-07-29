@@ -10,6 +10,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnClient
 from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingClient
+from jaxrl.envs.memory.treasure import TreasureClient
 from jaxrl.envs.trust.prisoners import PrisonersRenderer
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -22,7 +23,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def create_client(env: Environment):
-    return ReturnClient(env)
+    return TreasureClient(env)
 
 
 @app.command()
