@@ -1,8 +1,8 @@
 {
   "seed": "random",
-  "num_envs": 32,
-  "max_env_steps": 256,
-  "update_steps": 20000,
+  "num_envs": 6,
+  "max_env_steps": 512,
+  "update_steps": 4000,
   "updates_per_jit": 10,
   "environment": {
     "env_type": "return",
@@ -22,19 +22,19 @@
       "obs_encoder": {
         "obs_type": "grid_cnn"
       },
-      "hidden_features": 128,
+      "hidden_features": 256,
       "transformer_block": {
-        "attention_impl": "xla",
-        "num_heads": 4,
+        "attention_impl": "cudnn",
+        "num_heads": 8,
         "num_kv_heads": 4,
         "head_dim": 32,
-        "ffn_size": 512,
+        "ffn_size": 1536,
         "rope_max_wavelength": 10000.0,
-        "glu": false,
+        "glu": true,
         "gtrxl_gate": false,
         "gtrxl_bias": 1.0
       },
-      "num_layers": 6,
+      "num_layers": 14,
       "activation": "gelu",
       "norm": "layer_norm",
       "kernel_init": "glorot_uniform",
@@ -44,6 +44,7 @@
     "trainer": {
       "trainer_type": "ppo",
       "minibatch_count": 1,
+      "epoch_count": 1,
       "vf_coef": 1.401531000697826,
       "entropy_coef": 0.0007561531481145621,
       "vf_clip": 0.2717602880463028,
@@ -56,6 +57,6 @@
     "use_console": true,
     "use_tb": false,
     "use_neptune": false,
-    "use_wandb": true
+    "use_wandb": false
   }
 }

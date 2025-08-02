@@ -23,6 +23,8 @@ TILE_SCOUT = 4
 TILE_HARVESTER = 5
 
 
+DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
+
 class TreasureState(NamedTuple):
     scout_pos: jax.Array       # n length (x, y)
     harvester_pos: jax.Array
@@ -42,7 +44,6 @@ class TreasureEnv(Environment[TreasureState]):
         self._num_scouts = config.num_scouts
         self._num_harvesters = config.num_harvesters
         self._num_treasures = config.num_treasures
-        self._harvester_timeout = 6
 
         self.unpadded_width = config.width
         self.unpadded_height = config.height
@@ -55,15 +56,25 @@ class TreasureEnv(Environment[TreasureState]):
         self.width = self.unpadded_width + self.pad_width
         self.height = self.unpadded_height + self.pad_height
 
-    def _generate_map(self, rng_key):
-        noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=rng_key
-        )
-        noise = noise + generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=rng_key
-        )
+        self.harvesters_move_every = config.harvesters_move_every
 
-        tiles = jnp.where(noise > 0.3, TILE_WALL, TILE_EMPTY)
+    def _generate_map(self, rng_key):
+        res = [4, 5, 8, 10]
+
+        noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
+
+        amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
+        noise = generate_perlin_noise_2d(
+            (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
+        ) * amplitude[0]
+
+        for i, r in enumerate(res):
+            noise_key, rng_key = jax.random.split(rng_key)
+            noise = noise + generate_perlin_noise_2d(
+                (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
+            ) * amplitude[i+1]
+
+        tiles = jnp.where(noise > 0.05, TILE_WALL, TILE_EMPTY)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
@@ -152,8 +163,7 @@ class TreasureEnv(Environment[TreasureState]):
 
         @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
         def _step_scouter(local_position, local_action):
-            directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
-            new_pos = local_position + directions[local_action]
+            new_pos = local_position + DIRECTIONS[local_action]
 
             new_tile = state.map[new_pos[0], new_pos[1]]
 
@@ -170,8 +180,7 @@ class TreasureEnv(Environment[TreasureState]):
                 return local_position, 0.0, time - 1
 
             def step_move(local_position, local_action, time):
-                directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
-                new_pos = local_position + directions[local_action]
+                new_pos = local_position + DIRECTIONS[local_action]
 
                 new_tile = state.map[new_pos[0], new_pos[1]]
 
@@ -180,7 +189,7 @@ class TreasureEnv(Environment[TreasureState]):
 
                 reward = (new_tile == TILE_TREASURE).astype(jnp.float32)
 
-                return new_pos, reward, self._harvester_timeout
+                return new_pos, reward, self.harvesters_move_every
 
             return jax.lax.cond(time > 0, step_time, step_move, local_position, local_action, time)
 
@@ -292,7 +301,7 @@ class TreasureClient:
         self.screen.blit(self.surface, (0, 0))
         pygame.display.flip()
 
-        # self.record_frame()
+        self.record_frame()
 
     def _tile_to_screen(self, x: int, y: int):
         return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height

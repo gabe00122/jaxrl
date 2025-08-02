@@ -69,6 +69,8 @@ class TreasureConfig(BaseModel):
     view_width: int = 5
     view_height: int = 5
 
+    harvesters_move_every: int = 6
+
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

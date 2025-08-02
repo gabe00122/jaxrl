@@ -24,7 +24,7 @@
       },
       "hidden_features": 128,
       "transformer_block": {
-        "attention_impl": "cudnn",
+        "attention_impl": "xla",
         "num_heads": 4,
         "num_kv_heads": 4,
         "head_dim": 32,
