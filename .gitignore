@@ -1,5 +1,7 @@
 .DS_Store
 
+.ruff_cache/
+
 #ide
 .idea/
 
@@ -18,8 +20,6 @@ checkpoints
 .mypy_cache/
 
 tensorboard/
-videos/
-videos2/
 
 results/
 
