@@ -11,7 +11,6 @@ dependencies = [
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
     "jax>=0.6.0",
-    "jaxtyping>=0.3.2",
     "optax>=0.2.4",
     "optuna>=4.3.0",
     "optuna-dashboard>=0.18.0",
@@ -20,9 +19,7 @@ dependencies = [
     "pygame-ce>=2.5.4",
     "python-ffmpeg>=2.0.12",
     "rich>=14.0.0",
-    "rlax>=0.1.7",
     "tensorboardx>=2.6.2.2",
-    "tensorflow>=2.19.0",
     "typer>=0.15.3",
     "wandb>=0.19.10",
 ]

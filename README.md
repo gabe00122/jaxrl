@@ -85,7 +85,7 @@ Same as Grid Return, but agents have additional actions to change their color. A
 ### Grid Return (Digging)
 Same as Grid Return, but agents can "dig" through obstacle tiles. Moving into an obstacle removes the tile but adds a timeout before the agent can move again.
 
-<video src="videos/return2d_digging.mp4" controls="controls" style="max-width: 400px;"></video>
+<video src="https://raw.githubusercontent.com/gabe00122/jaxrl/main/videos/return2d_digging.mp4" controls="controls" style="max-width: 400px;"></video>
 
 ### Scouts
 A multi-agent coordination task with two specialized agent types. A Harvester must first unlock a resource tile, which a Scout can then gather.
@@ -94,6 +94,6 @@ Scout: Fast-moving agents that can gather resources only after they are "unlocke
 
 Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches a resource tile, it gets a reward and unlocks the resource, allowing Scouts to gather it.
 
-<video src="videos/scouts.mp4" controls="controls" style="max-width: 400px;"></video>
+<video src="https://raw.githubusercontent.com/gabe00122/jaxrl/main/videos/scouts.mp4" controls="controls" style="max-width: 400px;"></video>
 
 
