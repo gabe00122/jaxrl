@@ -96,6 +96,3 @@ https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
 
 Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches a resource tile, it gets a reward and unlocks the resource, allowing Scouts to gather it.
 
-https://raw.githubusercontent.com/gabe00122/jaxrl/main/videos/scouts.mp4
-
-
