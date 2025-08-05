@@ -18,7 +18,6 @@ from jaxrl.envs.specs import ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
-from jaxrl.transformer.gate import GatingMechanism
 from jaxrl.utils.preturb import preturb
 
 
@@ -196,13 +195,10 @@ class TransformerBlock(nnx.Module):
 
         ffn_size = config.ffn_size
         glu = config.glu
-        gtrxl_gate = config.gtrxl_gate
-        gtrxl_bias = config.gtrxl_bias
         rope_max_wavelength = config.rope_max_wavelength
 
         self.use_post_attn_norm = config.use_post_attn_norm
         self.use_post_ffw_norm = config.use_post_ffw_norm
-        self.gtrxl_gate = gtrxl_gate
 
         self.attention_norm = normalizer(
             num_features=hidden_features,
@@ -256,22 +252,6 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-        if gtrxl_gate:
-            self.attention_gate = GatingMechanism(
-                hidden_features,
-                gtrxl_bias,
-                dtype=dtype,
-                param_dtype=param_dtype,
-                rngs=rngs,
-            )
-            self.ffn_gate = GatingMechanism(
-                hidden_features,
-                gtrxl_bias,
-                dtype=dtype,
-                param_dtype=param_dtype,
-                rngs=rngs,
-            )
-
     def create_kv_cache(self, batch_size: int) -> KVCache:
         return self.attention.create_kv_cache(batch_size)
 
@@ -282,19 +262,15 @@ class TransformerBlock(nnx.Module):
         attention_output, kv_cache = self.attention(attention_input, time_steps, kv_cache)
         if self.use_post_attn_norm:
             attention_output = self.post_attn_norm(attention_output)
-        x = self.attention_gate(x, attention_output) if self.gtrxl_gate else x + attention_output
+        x = x + attention_output
 
         feed_forward_input = self.ffn_norm(x)
         feed_forward_output = self.ffn(feed_forward_input)
         if self.use_post_ffw_norm:
             feed_forward_output = self.post_ffw_norm(feed_forward_output)
-        x = self.ffn_gate(x, feed_forward_output) if self.gtrxl_gate else x + feed_forward_output
+        x = x + feed_forward_output
 
         return x, kv_cache
-
-    def preturb(self, alpha: float, rngs: nnx.Rngs):
-        self.attention.preturb(alpha, rngs)
-        self.ffn.preturb(alpha, rngs)
 
 
 class Embedder(nnx.Module):
@@ -391,8 +367,17 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
+        if config.value_hidden_dim is not None:
+            self.value_mlp = nnx.Linear(
+                hidden_features,
+                config.value_hidden_dim,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
+
         self.value_head = nnx.Linear(
-            hidden_features,
+            hidden_features if config.value_hidden_dim is None else config.value_hidden_dim,
             1,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -411,7 +396,6 @@ class TransformerActorCritic(nnx.Module):
 
         x = obs_embedding + reward_embedding + action_embedding
 
-        # todo: evaluate nnx scan for this
         if kv_cache is not None:
             out_kv_cache = []
             for layer, _kv_cache in zip(self.layers, kv_cache):
@@ -432,26 +416,19 @@ class TransformerActorCritic(nnx.Module):
                 jnp.finfo(action_logits.dtype).min,
             )
 
+        action_logits = action_logits.astype(jnp.float32)
+
         policy = IdentityTransformation(
             distribution=tfd.Categorical(logits=action_logits)
         )
-        value = self.value_head(x).squeeze(-1)
 
+        prevalue = x
+        if hasattr(self, 'value_mlp'):
+            prevalue = self.value_mlp(prevalue)
+            prevalue = nnx.gelu(prevalue)
+
+        value = self.value_head(prevalue).squeeze(-1)
         value = value.astype(jnp.float32)
-        action_logits = action_logits.astype(jnp.float32)
 
         return value, policy, kv_cache
 
-    def preturb(self, rngs: nnx.Rngs):
-        level = 0.2
-
-        # preturb(self.reward_encoder, level, rngs)
-
-        self.layers[0].preturb(0.2, rngs)
-        self.layers[1].preturb(0.2, rngs)
-        self.layers[2].preturb(0.2, rngs)
-        self.layers[3].preturb(0.2, rngs)
-        self.layers[4].preturb(1.0, rngs)
-        self.layers[5].preturb(1.0, rngs)
-
-        # preturb(self.value_head, 1.0, rngs)
