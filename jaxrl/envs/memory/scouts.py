@@ -7,7 +7,7 @@ from jax import numpy as jnp
 import pygame
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnConfig, TreasureConfig
+from jaxrl.config import ReturnConfig, ScoutsConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -25,7 +25,7 @@ TILE_HARVESTER = 5
 
 DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
 
-class TreasureState(NamedTuple):
+class ScoutsState(NamedTuple):
     scout_pos: jax.Array       # n length (x, y)
     harvester_pos: jax.Array
     harvester_time: jax.Array  # n length ()
@@ -37,8 +37,8 @@ class TreasureState(NamedTuple):
     spawn_count: jax.Array      # () size of spawn_pos
 
 
-class TreasureEnv(Environment[TreasureState]):
-    def __init__(self, config: TreasureConfig) -> None:
+class ScoutsEnv(Environment[ScoutsState]):
+    def __init__(self, config: ScoutsConfig) -> None:
         super().__init__()
 
         self._num_scouts = config.num_scouts
@@ -102,7 +102,7 @@ class TreasureEnv(Environment[TreasureState]):
 
         return tiles, spawn_pos, spawn_count
 
-    def reset(self, rng_key: jax.Array) -> tuple[TreasureState, TimeStep]:
+    def reset(self, rng_key: jax.Array) -> tuple[ScoutsState, TimeStep]:
         map_key, scout_key, harvester_key, treasure_key = jax.random.split(rng_key, 4)
 
         map, spawn_pos, spawn_count = self._generate_map(map_key)
@@ -120,7 +120,7 @@ class TreasureEnv(Environment[TreasureState]):
 
         map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(TILE_TREASURE)
 
-        state = TreasureState(
+        state = ScoutsState(
             map=map,
             spawn_pos=spawn_pos,
             spawn_count=spawn_count,
@@ -156,8 +156,8 @@ class TreasureEnv(Environment[TreasureState]):
         return self._num_scouts + self._num_harvesters
 
     def step(
-        self, state: TreasureState, action: jax.Array, rng_key: jax.Array
-    ) -> tuple[TreasureState, TimeStep]:
+        self, state: ScoutsState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[ScoutsState, TimeStep]:
         seeker_actions = action[:self._num_scouts]
         harvester_actions = action[self._num_scouts:]
 
@@ -228,7 +228,7 @@ class TreasureEnv(Environment[TreasureState]):
 
         return state, self.encode_observations(state, action, rewards)
 
-    def encode_observations(self, state: TreasureState, actions, rewards) -> TimeStep:
+    def encode_observations(self, state: ScoutsState, actions, rewards) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
@@ -255,8 +255,8 @@ class TreasureEnv(Environment[TreasureState]):
         )
 
 
-class TreasureClient:
-    def __init__(self, env: TreasureEnv):
+class ScoutsClient:
+    def __init__(self, env: ScoutsEnv):
         self.env = env
 
         self.screen_width = 800
@@ -273,7 +273,7 @@ class TreasureClient:
 
         self._tile_size = self.screen_width // self.env.unpadded_width
 
-    def render(self, state: TreasureState, timestep):
+    def render(self, state: ScoutsState, timestep):
         self.surface.fill(pygame.color.Color(40, 40, 40, 100))
 
         tiles = state.map.tolist()
@@ -332,7 +332,7 @@ class TreasureClient:
 
 
 def demo():
-    env = TreasureEnv(TreasureConfig(
+    env = ScoutsEnv(ScoutsConfig(
         num_scouts=12,
         num_harvesters=4,
         num_treasures=32
@@ -341,7 +341,7 @@ def demo():
     rng_key = jax.random.PRNGKey(11)
     state, timestep = env.reset(rng_key)
 
-    client = TreasureClient(env)
+    client = ScoutsClient(env)
 
     running = True
     ts = None

@@ -156,9 +156,3 @@ class AttentionBlock(nnx.Module):
         out = self.out(x)
 
         return out, kv_cache
-
-    def preturb(self, alpha: float, rngs: nnx.Rngs):
-        preturb_genreal(self.query_proj, alpha, rngs)
-        preturb_genreal(self.key_proj, alpha, rngs)
-        preturb_genreal(self.value_proj, alpha, rngs)
-        preturb_genreal(self.out, alpha, rngs)

@@ -58,7 +58,7 @@ class PrisonersConfig(BaseModel):
 
 class TreasureConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    env_type: Literal["treasure"] = "treasure"
+    env_type: Literal["scouts"] = "scouts"
 
     num_scouts: int = 1
     num_harvesters: int = 1
@@ -99,8 +99,6 @@ class TransformerBlockConfig(BaseModel):
     use_post_ffw_norm: bool = False
     use_qk_norm: bool = False
 
-    gtrxl_gate: bool = False
-    gtrxl_bias: float = 0.0
 
 
 class TransformerActorCriticConfig(BaseModel):
@@ -113,6 +111,8 @@ class TransformerActorCriticConfig(BaseModel):
 
     transformer_block: TransformerBlockConfig
     num_layers: int
+
+    value_hidden_dim: int | None = None
 
     activation: Literal["relu", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
@@ -210,7 +210,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | TreasureConfig | PrisonersConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig
 
 
 class Config(BaseModel):

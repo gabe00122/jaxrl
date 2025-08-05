@@ -173,14 +173,7 @@ def train(
 ):
     hypers = config.learner.trainer
 
-    # @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
-    @jax.named_scope("evaluate")
-    def _vec_rollout(model, rngs) -> tuple[RolloutState, nnx.Rngs]:
-        return evaluate(model, rollout, rngs, env, hypers)
-
-    # @partial(nnx.vmap, in_axes=(None, 0), out_axes=(0, 0))
     @partial(nnx.grad, has_aux=True)
-    @jax.named_scope("gradient")
     def _vec_grad(model, rollout_state):
         return ppo_loss(model, rollout_state, hypers)
 
@@ -208,7 +201,7 @@ def train(
 
     def _global_step(i, x):
         optimizer, logs, rngs = x
-        rollout_state, rngs = _vec_rollout(optimizer.model, rngs)
+        rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
         optimizer, rollout_state, logs, _ = nnx.fori_loop(
             0,
             hypers.epoch_count,
@@ -268,7 +261,7 @@ def train_run(
         rngs=rngs,
     )
 
-    optimizer = nnx.Optimizer(
+    optimizer = nnx.ModelAndOptimizer(
         model=model,
         tx=create_optimizer(
             experiment.config.learner.optimizer,
@@ -276,6 +269,7 @@ def train_run(
             * experiment.config.learner.trainer.minibatch_count
             * experiment.config.learner.trainer.epoch_count
         ),
+        wrt=nnx.Param
     )
 
     # replicate_model(optimizer, replicate_sharding)

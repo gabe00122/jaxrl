@@ -1,18 +1,18 @@
 {
   "seed": "random",
-  "num_envs": 32,
-  "max_env_steps": 256,
-  "update_steps": 20000,
+  "num_envs": 256,
+  "max_env_steps": 512,
+  "update_steps": 4000,
   "updates_per_jit": 10,
   "environment": {
-    "env_type": "return",
+    "env_type": "return_digging",
     "num_agents": 16
   },
   "learner": {
     "optimizer": {
       "type": "adamw",
       "learning_rate": 0.0009442327101842291,
-      "weight_decay": 0.0001215732069346454,
+      "weight_decay": 0.1,
       "eps": 1e-8,
       "beta1": 0.9,
       "beta2": 0.999,
@@ -23,29 +23,29 @@
         "obs_type": "grid_cnn"
       },
       "hidden_features": 128,
+      "value_hidden_dim": 128,
       "transformer_block": {
-        "attention_impl": "xla",
+        "attention_impl": "cudnn",
         "num_heads": 4,
         "num_kv_heads": 4,
         "head_dim": 32,
-        "ffn_size": 512,
+        "ffn_size": 768,
         "rope_max_wavelength": 10000.0,
-        "glu": false,
-        "gtrxl_gate": false,
-        "gtrxl_bias": 1.0
+        "glu": true
       },
       "num_layers": 6,
       "activation": "gelu",
-      "norm": "layer_norm",
+      "norm": "rms_norm",
       "kernel_init": "glorot_uniform",
       "dtype": "bfloat16",
       "param_dtype": "float32"
     },
     "trainer": {
       "trainer_type": "ppo",
-      "minibatch_count": 1,
+      "minibatch_count": 16,
+      "epoch_count": 1,
       "vf_coef": 1.401531000697826,
-      "entropy_coef": 0.0007561531481145621,
+      "entropy_coef": 0.00005,
       "vf_clip": 0.2717602880463028,
       "discount": 0.9623508086831543,
       "gae_lambda": 0.9700622054336805
