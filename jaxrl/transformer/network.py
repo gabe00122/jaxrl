@@ -332,7 +332,7 @@ class TransformerActorCritic(nnx.Module):
         self.reward_encoder = nnx.Linear(
             1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         )
-        self.action_encoder = Embedder(
+        self.action_embedder = Embedder(
             action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         )
         self.obs_encoder = create_obs_encoder(
@@ -392,7 +392,7 @@ class TransformerActorCritic(nnx.Module):
     ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
-        action_embedding = self.action_encoder.encode(ts.last_action)
+        action_embedding = self.action_embedder.encode(ts.last_action)
 
         x = obs_embedding + reward_embedding + action_embedding
 
@@ -408,7 +408,7 @@ class TransformerActorCritic(nnx.Module):
 
         x = self.output_norm(x)
 
-        action_logits = self.action_encoder.decode(x)
+        action_logits = self.action_embedder.decode(x)
         if ts.action_mask is not None:
             action_logits = jnp.where(
                 ts.action_mask,

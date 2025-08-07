@@ -91,8 +91,6 @@ https://github.com/user-attachments/assets/a98a9277-de7e-43a6-a0c2-d6b8856eba10
 A multi-agent coordination task with two specialized agent types. A Harvester must first unlock a resource tile, which a Scout can then gather.
 
 Scout: Fast-moving agents that can gather resources only after they are "unlocked."
-
-https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
-
 Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches a resource tile, it gets a reward and unlocks the resource, allowing Scouts to gather it.
 
+https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
