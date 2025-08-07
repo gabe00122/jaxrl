@@ -7,7 +7,7 @@ from jax import numpy as jnp
 import pygame
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnConfig, ScoutsConfig
+from jaxrl.config import ScoutsConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
