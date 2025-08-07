@@ -56,7 +56,7 @@ class PrisonersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["prisoners"] = "prisoners"
 
-class TreasureConfig(BaseModel):
+class ScoutsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["scouts"] = "scouts"
 
