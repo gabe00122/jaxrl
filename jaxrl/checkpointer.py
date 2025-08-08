@@ -16,9 +16,9 @@ class Checkpointer:
 
     def restore[T](self, model: T, step: int) -> T:
         graphdef, state = nnx.split(model)
-        abstract_state = jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, state)
+        #abstract_state = jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, state)
         restored_state = self.mngr.restore(
-            step, args=ocp.args.StandardRestore(abstract_state)
+            step, #args=ocp.args.StandardRestore(abstract_state)
         )
 
         return nnx.merge(graphdef, restored_state)

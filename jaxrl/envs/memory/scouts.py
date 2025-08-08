@@ -6,6 +6,7 @@ import numpy as np
 from jax import numpy as jnp
 import pygame
 
+from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
 from jaxrl.config import ScoutsConfig
 from jaxrl.envs.environment import Environment
@@ -127,7 +128,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             scout_pos=scout_pos,
             harvester_pos=harvester_pos,
             harvester_time=jnp.zeros((self._num_harvesters,), dtype=jnp.int32),
-            time=jnp.int32(0),
+            time=jnp.int32(50),
         )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
@@ -188,8 +189,9 @@ class ScoutsEnv(Environment[ScoutsState]):
                 new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
 
                 reward = (new_tile == TILE_TREASURE).astype(jnp.float32)
+                time = (new_tile == TILE_TREASURE).astype(jnp.int32) * 20
 
-                return new_pos, reward, self.harvesters_move_every
+                return new_pos, reward, time
 
             return jax.lax.cond(time > 0, step_time, step_move, local_position, local_action, time)
 
@@ -255,7 +257,7 @@ class ScoutsEnv(Environment[ScoutsState]):
         )
 
 
-class ScoutsClient:
+class ScoutsClient(EnvironmentClient[ScoutsState]):
     def __init__(self, env: ScoutsEnv):
         self.env = env
 
