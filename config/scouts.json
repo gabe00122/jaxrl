@@ -1,12 +1,13 @@
 {
   "seed": "random",
-  "num_envs": 256,
+  "num_envs": 2048,
   "max_env_steps": 512,
   "update_steps": 20000,
   "updates_per_jit": 10,
   "environment": {
-    "env_type": "return_digging",
-    "num_agents": 16
+    "env_type": "scouts",
+    "num_scouts": 1,
+    "num_harvesters": 1
   },
   "learner": {
     "optimizer": {

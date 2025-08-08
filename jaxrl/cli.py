@@ -5,12 +5,12 @@ import jax
 from jax import numpy as jnp
 
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.create import create_env
+from jaxrl.envs.create import create_client, create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnClient
 from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingClient
-from jaxrl.envs.memory.treasure import TreasureClient
+from jaxrl.envs.memory.scouts import ScoutsClient
 from jaxrl.envs.trust.prisoners import PrisonersRenderer
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -20,10 +20,6 @@ import shutil
 
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
-
-
-def create_client(env: Environment):
-    return TreasureClient(env)
 
 
 @app.command()
@@ -44,11 +40,12 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         max_seq_length=max_steps,
         rngs=rngs,
     )
-    optimizer = nnx.Optimizer(
+    optimizer = nnx.ModelAndOptimizer(
         model=model,
         tx=create_optimizer(
             experiment.config.learner.optimizer, experiment.config.update_steps
         ),
+        wrt=nnx.Param
     )
 
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
@@ -63,7 +60,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     def step(timestep, kv_cache, env_state, rngs):
         action_key = rngs.action()
         env_key = rngs.env()
-        _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
         actions = policy.sample(seed=action_key)
         actions = jnp.squeeze(actions, axis=-1)
 

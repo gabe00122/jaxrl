@@ -6,6 +6,7 @@ import numpy as np
 from jax import numpy as jnp
 import pygame
 
+from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
 from jaxrl.config import ReturnConfig
 from jaxrl.envs.environment import Environment
@@ -274,7 +275,7 @@ class ReturnEnv(Environment[ReturnState]):
         )
 
 
-class ReturnClient:
+class ReturnClient(EnvironmentClient[ReturnState]):
     def __init__(self, env: ReturnEnv):
         self.env = env
 

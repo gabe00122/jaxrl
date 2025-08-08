@@ -6,8 +6,9 @@ import numpy as np
 from jax import numpy as jnp
 import pygame
 
+from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnColorConfig, ReturnConfig
+from jaxrl.config import ReturnColorConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -22,7 +23,7 @@ TILE_AGENT = 3
 
 NUM_COLORS = 4
 
-class ReturnState(NamedTuple):
+class ReturnColorState(NamedTuple):
     agents_pos: jax.Array
     agent_color: jax.Array
     found_reward: jax.Array
@@ -35,7 +36,7 @@ class ReturnState(NamedTuple):
     spawn_count: jax.Array
 
 
-class ReturnColorEnv(Environment[ReturnState]):
+class ReturnColorEnv(Environment[ReturnColorState]):
     def __init__(self, config: ReturnColorConfig) -> None:
         super().__init__()
 
@@ -88,7 +89,7 @@ class ReturnColorEnv(Environment[ReturnState]):
 
         return tiles, spawn_pos, spawn_count
 
-    def reset(self, rng_key: jax.Array) -> tuple[ReturnState, TimeStep]:
+    def reset(self, rng_key: jax.Array) -> tuple[ReturnColorState, TimeStep]:
         map_key, pos_key = jax.random.split(rng_key)
 
         map, spawn_pos, spawn_count = self._generate_map(map_key)
@@ -100,7 +101,7 @@ class ReturnColorEnv(Environment[ReturnState]):
         agents_pos = spawn_pos[positions[1:]]
         agent_color = jnp.zeros((self.num_agents,), dtype=jnp.int32)
 
-        state = ReturnState(
+        state = ReturnColorState(
             map=map,
             spawn_pos=spawn_pos,
             spawn_count=spawn_count,
@@ -137,7 +138,7 @@ class ReturnColorEnv(Environment[ReturnState]):
     def num_agents(self) -> int:
         return self._num_agents
 
-    def _move_step(self, state: ReturnState, action: jax.Array, rng_key: jax.Array):
+    def _move_step(self, state: ReturnColorState, action: jax.Array, rng_key: jax.Array):
         @partial(jax.vmap, in_axes=(0, 0, 0), out_axes=(0, 0))
         def _step_agent(local_position, local_action, random_position):
             directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
@@ -175,7 +176,7 @@ class ReturnColorEnv(Environment[ReturnState]):
 
         return state, rewards, action_mask
 
-    def _color_step(self, state: ReturnState, action: jax.Array, rng_key: jax.Array):
+    def _color_step(self, state: ReturnColorState, action: jax.Array, rng_key: jax.Array):
         action = action - 4 # remove the movement action to get the color id's
 
         action_mask = jnp.repeat((jnp.arange(self.action_spec.num_actions) < 4)[None, :], self.num_agents, axis=0) # move actions
@@ -187,8 +188,8 @@ class ReturnColorEnv(Environment[ReturnState]):
         return state, jnp.zeros((self.num_agents,)), action_mask
 
     def step(
-        self, state: ReturnState, action: jax.Array, rng_key: jax.Array
-    ) -> tuple[ReturnState, TimeStep]:
+        self, state: ReturnColorState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[ReturnColorState, TimeStep]:
         is_color_step = jnp.equal(state.time % 2, 1)
 
         state, rewards, action_mask = jax.lax.cond(
@@ -200,7 +201,7 @@ class ReturnColorEnv(Environment[ReturnState]):
 
         return state, self.encode_observations(state, action, rewards, action_mask)
 
-    def encode_observations(self, state: ReturnState, actions, rewards, action_mask) -> TimeStep:
+    def encode_observations(self, state: ReturnColorState, actions, rewards, action_mask) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
@@ -229,7 +230,7 @@ class ReturnColorEnv(Environment[ReturnState]):
 
 agent_color_names = ["darkorchid1", "darkorchid2", "darkorchid3", "darkorchid4"]
 
-class ReturnColorClient:
+class ReturnColorClient(EnvironmentClient[ReturnColorState]):
     def __init__(self, env: ReturnColorEnv):
         self.env = env
 
@@ -247,7 +248,7 @@ class ReturnColorClient:
 
         self._tile_size = self.screen_width // self.env.unpadded_width
 
-    def render(self, state: ReturnState):
+    def render(self, state: ReturnColorState):
         if state.time % 2 == 0:
             return
 
