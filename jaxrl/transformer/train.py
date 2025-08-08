@@ -7,8 +7,7 @@ from flax import nnx
 from einops import rearrange
 import optuna
 from rich.progress import track
-
-# from rlax import vmpo_loss, LagrangePenalty
+import optax
 
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
@@ -31,6 +30,7 @@ class TrainingLogs(NamedTuple):
     value_loss: jax.Array
     actor_loss: jax.Array
     entropy_loss: jax.Array
+    obs_loss: jax.Array
     total_loss: jax.Array
 
 
@@ -40,6 +40,7 @@ def create_training_logs() -> TrainingLogs:
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
+        obs_loss=jnp.array(0.0),
         total_loss=jnp.array(0.0),
     )
 
@@ -67,7 +68,7 @@ def evaluate(
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        value, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
@@ -119,14 +120,16 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
-    values, policy, _ = model(
+    values, policy, _, obs_logits = model(
         TimeStep(
             obs=batch_obs,
             time=positions,
             last_action=batch_last_actions,
             last_reward=batch_last_rewards,
             action_mask=batch_action_masks,
-        )
+        ),
+        None,
+        batch_actions
     )
     log_probs = policy.log_prob(batch_actions)
 
@@ -150,8 +153,13 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
+    obs_loss = optax.softmax_cross_entropy_with_integer_labels(
+        logits=rearrange(obs_logits[:, :-1], "b t w h c -> b (t w h) c"),
+        labels=rearrange(batch_obs[:, 1:], "b t w h -> b (t w h)"),
+    ).mean()
+
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
+        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss + obs_loss * 0.005
     )
 
     logs = TrainingLogs(
@@ -159,6 +167,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
         value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
+        obs_loss=obs_loss,
         total_loss=total_loss,
     )
 
