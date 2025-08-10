@@ -444,6 +444,5 @@ class TransformerActorCritic(nnx.Module):
         values = transform_from_probs(centers, value_probs)
         values = rearrange(values, "(b t) -> b t", b=b, t=t)
 
-
         return values, value_logits, policy, kv_cache
 
