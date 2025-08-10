@@ -5,6 +5,8 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
+from numpy import reshape
+import optax
 import optuna
 from rich.progress import track
 
@@ -18,6 +20,7 @@ from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
+from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs, transform_to_probs
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
@@ -67,7 +70,7 @@ def evaluate(
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        value, _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
@@ -119,7 +122,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
-    values, policy, _ = model(
+    values, value_logits, policy, _ = model(
         TimeStep(
             obs=batch_obs,
             time=positions,
@@ -130,13 +133,22 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     )
     log_probs = policy.log_prob(batch_actions)
 
-    value_pred_clipped = batch_values + jnp.clip(
-        values - batch_values, -hypers.vf_clip, hypers.vf_clip
-    )
+    b, t = batch_target.shape
+    batch_target = rearrange(batch_target, "b t -> (b t)")
 
-    value_losses = jnp.square(values - batch_target)
-    value_losses_clipped = jnp.square(value_pred_clipped - batch_target)
-    value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
+    support, _ = calculate_supports(model.hl_gauss, b * t)
+    target_probs = transform_to_probs(model.hl_gauss, support, batch_target)
+    target_probs = rearrange(target_probs, "(b t) p -> b t p", b=b, t=t)
+
+    value_loss = optax.softmax_cross_entropy(value_logits, target_probs).mean()
+
+    # value_pred_clipped = batch_values + jnp.clip(
+    #     values - batch_values, -hypers.vf_clip, hypers.vf_clip
+    # )
+
+    # value_losses = jnp.square(values - batch_target)
+    # value_losses_clipped = jnp.square(value_pred_clipped - batch_target)
+    # value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
     ratio = jnp.exp(log_probs - batch_log_prob)
 
@@ -151,7 +163,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     entropy_loss = -policy.entropy().mean()
 
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
+        hypers.vf_coef * value_loss * 10 + actor_loss + hypers.entropy_coef * entropy_loss
     )
 
     logs = TrainingLogs(
@@ -257,6 +269,7 @@ def train_run(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
+        hl_gauss=experiment.config.hl_gauss,
         max_seq_length=max_steps,
         rngs=rngs,
     )

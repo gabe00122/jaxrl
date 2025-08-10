@@ -7,6 +7,7 @@ from typing import Callable, Any
 from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 
+from jaxrl import hl_gauss
 from jaxrl.config import (
     GridCnnObsEncoderConfig,
     LinearObsEncoderConfig,
@@ -15,6 +16,7 @@ from jaxrl.config import (
 )
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
+from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs
 from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
@@ -310,6 +312,7 @@ class TransformerActorCritic(nnx.Module):
         config: TransformerActorCriticConfig,
         obs_spec: ObservationSpec,
         action_dim: int,
+        hl_gauss: HlGaussConfig,
         max_seq_length: int,
         *,
         rngs: nnx.Rngs,
@@ -328,6 +331,7 @@ class TransformerActorCritic(nnx.Module):
         norm = get_norm(config.norm)
 
         self.dtype = config.dtype
+        self.hl_gauss = hl_gauss
 
         self.reward_encoder = nnx.Linear(
             1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
@@ -378,7 +382,7 @@ class TransformerActorCritic(nnx.Module):
 
         self.value_head = nnx.Linear(
             hidden_features if config.value_hidden_dim is None else config.value_hidden_dim,
-            1,
+            hl_gauss.n_logits,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -389,7 +393,7 @@ class TransformerActorCritic(nnx.Module):
 
     def __call__(
         self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None
-    ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
+    ) -> tuple[jax.Array, jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
@@ -427,8 +431,19 @@ class TransformerActorCritic(nnx.Module):
             prevalue = self.value_mlp(prevalue)
             prevalue = nnx.gelu(prevalue)
 
-        value = self.value_head(prevalue).squeeze(-1)
-        value = value.astype(jnp.float32)
+        value = self.value_head(prevalue)
+        value_logits = value.astype(jnp.float32)
 
-        return value, policy, kv_cache
+        b, t, _ = value_logits.shape
+
+        value_probs = nnx.softmax(value_logits, axis=-1)
+        
+        _, centers = calculate_supports(self.hl_gauss, b * t)
+
+        value_probs = rearrange(value_probs, "b t v -> (b t) v")
+        values = transform_from_probs(centers, value_probs)
+        values = rearrange(values, "(b t) -> b t", b=b, t=t)
+
+
+        return values, value_logits, policy, kv_cache
 

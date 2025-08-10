@@ -1,12 +1,18 @@
 {
   "seed": "random",
-  "num_envs": 256,
+  "num_envs": 128,
   "max_env_steps": 512,
   "update_steps": 20000,
   "updates_per_jit": 10,
   "environment": {
     "env_type": "return_digging",
     "num_agents": 16
+  },
+  "hl_gauss": {
+    "min_value": 0.0,
+    "max_value": 10.0,
+    "n_logits": 51,
+    "sigma": 0.75
   },
   "learner": {
     "optimizer": {
@@ -42,12 +48,12 @@
     "trainer": {
       "trainer_type": "ppo",
       "minibatch_count": 8,
-      "epoch_count": 2,
+      "epoch_count": 1,
       "vf_coef": 1.401531000697826,
       "entropy_coef": 0.00005,
       "vf_clip": 0.2717602880463028,
       "discount": 0.9623508086831543,
-      "gae_lambda": 0.9700622054336805
+      "gae_lambda": 1.0
     }
   },
   "logger": {

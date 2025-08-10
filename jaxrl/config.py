@@ -3,6 +3,8 @@ import random
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
+from jaxrl.hl_gauss import HlGaussConfig
+
 
 class NBackConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -226,6 +228,8 @@ class Config(BaseModel):
     learner: LearnerConfig
     environment: EnvironmentConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
+
+    hl_gauss: HlGaussConfig
 
 
 def load_config(json_config: str) -> Config:
