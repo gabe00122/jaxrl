@@ -140,7 +140,9 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     target_probs = transform_to_probs(model.hl_gauss, support, batch_target)
     target_probs = rearrange(target_probs, "(b t) p -> b t p", b=b, t=t)
 
-    value_loss = optax.softmax_cross_entropy(value_logits, target_probs).mean()
+    value_loss = optax.softmax_cross_entropy(value_logits, target_probs)
+
+    # jax.debug.breakpoint()
 
     # value_pred_clipped = batch_values + jnp.clip(
     #     values - batch_values, -hypers.vf_clip, hypers.vf_clip
@@ -162,13 +164,14 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
-    total_loss = (
-        hypers.vf_coef * value_loss * 10 + actor_loss + hypers.entropy_coef * entropy_loss
-    )
+    # total_loss = (
+    #     hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
+    # )
+    total_loss = value_loss.mean()
 
     logs = TrainingLogs(
         rewards=batch_rewards.sum() / batch_obs.shape[0],
-        value_loss=value_loss,
+        value_loss=value_loss.mean(),
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
         total_loss=total_loss,
@@ -306,7 +309,7 @@ def train_run(
     print(f"Parameter Count: {count_parameters(model)}")
 
     logs = None
-    for i in track(range(outer_updates), description="Training", disable=False):
+    for i in track(range(outer_updates), description="Training", disable=True):
         start_time = time.time()
 
         optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)

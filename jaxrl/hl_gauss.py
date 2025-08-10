@@ -36,12 +36,12 @@ def transform_from_probs(centers: jax.Array, probs: jax.Array):
 
 def main():
     config = HlGaussConfig(
-        min_value=0,
-        max_value=10,
+        min_value=-0.5,
+        max_value=0.5,
         n_logits=51,
-        sigma=0.75
+        sigma=0.75/20
     )
-    target_value = 0.432
+    target_value = 0.0
     support, centers = calculate_supports(config, 1)
 
     probs = transform_to_probs(config, support, jnp.array([target_value]))
