@@ -92,7 +92,7 @@ def muon(
 
 def muon_param(path, x):
     key = path[0].key
-    if key == "value_head" or key == "action_encoder" or key == "reward_encoder" or key == "obs_encoder":
+    if key == "value_head" or key == "action_encoder" or key == "reward_encoder" or key == "obs_encoder" or key == "obs_decoder":
         return False
 
     return x.ndim == 2

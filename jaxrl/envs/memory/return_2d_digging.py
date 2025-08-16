@@ -57,11 +57,12 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
 
     def _generate_map(self, rng_key):
+        first_key, second_key = jax.random.split(rng_key)
         noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=rng_key
+            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=first_key
         )
         noise = noise + generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=rng_key
+            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=second_key
         )
 
         tiles = jnp.where(noise > self.mapgen_threshold, TILE_SOFT_WALL, TILE_EMPTY)
