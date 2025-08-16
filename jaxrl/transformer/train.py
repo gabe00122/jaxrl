@@ -5,13 +5,11 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
-from numpy import reshape
 import optax
 import optuna
 from rich.progress import track
 import optax
 
-from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 
 from jaxrl.config import Config, PPOConfig
@@ -19,7 +17,7 @@ from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
-from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs, transform_to_probs
+from jaxrl.hl_gauss import calculate_supports, transform_to_probs
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
@@ -143,7 +141,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     target_probs = transform_to_probs(model.hl_gauss, support, batch_target)
     target_probs = rearrange(target_probs, "(b t) p -> b t p", b=b, t=t)
 
-    value_loss = optax.softmax_cross_entropy(value_logits, target_probs)
+    value_loss = optax.softmax_cross_entropy(value_logits, target_probs).mean()
 
     # jax.debug.breakpoint()
 
@@ -167,14 +165,13 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
-    total_loss = value_loss.mean()
     obs_loss = optax.softmax_cross_entropy_with_integer_labels(
         logits=rearrange(obs_logits[:, :-1], "b t w h c -> b (t w h) c"),
         labels=rearrange(batch_obs[:, 1:], "b t w h -> b (t w h)"),
     ).mean()
 
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss + obs_loss * 0.005
+        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss + obs_loss * hypers.obs_coef
     )
 
     logs = TrainingLogs(
@@ -318,7 +315,7 @@ def train_run(
     print(f"Parameter Count: {count_parameters(model)}")
 
     logs = None
-    for i in track(range(outer_updates), description="Training", disable=True):
+    for i in track(range(outer_updates), description="Training", disable=False):
         start_time = time.time()
 
         optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)

@@ -1,53 +1,69 @@
+from random import randint
 import optuna
+from rich.console import Console
+import typer
 
-from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, ReturnConfig, TransformerActorCriticConfig
+from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, LoggerConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.experiment import Experiment
+from jaxrl.hl_gauss import HlGaussConfig
+from jaxrl.transformer.train import train_run
 
 # This needs to be updated to match the new config structure.
 
 
 def objective(trial: optuna.Trial):
     config = Config(
-        seed=0,
-        num_envs=32,
-        max_env_steps=256,
-        update_steps=20000,
-        updates_per_jit=100,
+        seed=randint(0, 100000),
+        num_envs=256,
+        max_env_steps=512,
+        update_steps=1800*2,
+        updates_per_jit=10,
         environment=ReturnConfig(num_agents=16),
+        hl_gauss=HlGaussConfig(
+            min_value=-10.0,
+            max_value=10.0,
+            n_logits=51,
+            sigma=trial.suggest_float("sigma", 0.05, 0.15)
+        ),
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
                 obs_encoder=GridCnnObsEncoderConfig(),
                 hidden_features=128,
-                num_layers=3,
+                value_hidden_dim=768,
+                num_layers=6,
                 activation="gelu",
-                norm="layer_norm",
+                norm="rms_norm",
                 dtype="bfloat16",
                 param_dtype="float32",
                 transformer_block=TransformerBlockConfig(
+                    attention_impl="cudnn",
                     num_heads=4,
-                    ffn_size=512,
-                    glu=False,
-                    gtrxl_gate=False,
+                    num_kv_heads=1,
+                    head_dim=32,
+                    ffn_size=768,
+                    glu=True,
                 ),
             ),
             optimizer=OptimizerConfig(
-                type="adamw",
+                type=trial.suggest_categorical("optimizer", ["adamw", "muon"]),
                 learning_rate=trial.suggest_float(
-                    "learning_rate", 1e-5, 1e-3, log=True
+                    "learning_rate", 0.0005, 0.05, log=True
                 ),
-                weight_decay=trial.suggest_float("weight_decay", 1e-5, 1e-3, log=True),
+                weight_decay=trial.suggest_float("weight_decay", 0.00005, 0.0002),
                 eps=1e-8,
-                beta1=0.9,
-                beta2=0.999,
-                max_norm=trial.suggest_float("max_norm", 0.1, 1.0),
+                beta1=trial.suggest_float("beta1", 0.85, 0.95),
+                beta2=trial.suggest_float("beta2", 0.9, 0.999, log=True),
+                max_norm=trial.suggest_float("max_norm", 0.1, 0.5),
             ),
             trainer=PPOConfig(
                 trainer_type="ppo",
-                minibatch_count=1,
-                vf_coef=trial.suggest_float("vf_coef", 0.5, 2.0),
-                entropy_coef=trial.suggest_float("entropy_coef", 0.0, 0.01),
-                vf_clip=trial.suggest_float("vf_clip", 0.1, 0.3),
-                discount=trial.suggest_float("discount", 0.9, 0.99),
-                gae_lambda=trial.suggest_float("gae_lambda", 0.9, 0.99),
+                minibatch_count=16,
+                vf_coef=trial.suggest_float("vf_coef", 0.001, 1.0),
+                obs_coef=trial.suggest_float("obs_coef", 0.000, 0.2),
+                entropy_coef=trial.suggest_float("entropy_coef", 0.00005 / 2, 0.00005 * 2),
+                vf_clip=trial.suggest_float("vf_clip", 0.2717602880463028 / 2, 0.2717602880463028 * 2),
+                discount=trial.suggest_float("discount", 0.96, 0.99),
+                gae_lambda=trial.suggest_float("gae_lambda", 0.90, 0.99),
             ),
         ),
         logger=LoggerConfig(use_wandb=True),
@@ -55,16 +71,17 @@ def objective(trial: optuna.Trial):
 
     return train_run(
         experiment=Experiment.from_config(
-            config=config, unique_token=f"trial_{trial.number}"
+            config=config, unique_token=f"dimoned_trial_{trial.number}"
         ),
         trial=trial,
     )
 
+app = typer.Typer()
 
 @app.command()
 def sweep():
     """Runs an Optuna sweep."""
-    storage_name = "sqlite:///jaxrl_study.db"
+    storage_name = "sqlite:///jaxrl_study_v4.db"
     study_name = "jaxrl_study"
 
     # import optunahub
@@ -101,3 +118,7 @@ def sweep():
     console.print("  Params: ")
     for key, value in trial.params.items():
         console.print(f"    {key}: {value}")
+
+
+if __name__ == '__main__':
+    sweep()

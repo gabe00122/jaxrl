@@ -196,7 +196,8 @@ class PPOConfig(BaseModel):
 
     epoch_count: int = 1
     minibatch_count: int = 1
-    vf_coef: float = 1.0
+    vf_coef: float = 0.05
+    obs_coef: float = 0.05
     entropy_coef: float = 0.005
     vf_clip: float = 0.2
     discount: float = 0.95
