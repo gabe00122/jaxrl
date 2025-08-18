@@ -61,7 +61,7 @@ def evaluate(
     env_state, timestep = env.reset(reset_key)
 
     rollout_state = rollout.create_state()
-    kv_cache = model.create_kv_cache(rollout.batch_size)
+    kv_cache = model.create_kv_cache(rollout.batch_size, rngs)
 
     def _step(i, x):
         rollout_state, rngs, env_state, timestep, kv_cache = x
@@ -69,7 +69,7 @@ def evaluate(
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
+        value, _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache, rngs=rngs)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
@@ -212,22 +212,22 @@ def train(
         return (optimizer, logs)
 
     def _epoch_step(i, x):
-        optimizer, rollout_state, logs, rng_key = x
+        optimizer, rollout_state, logs, rngs = x
 
-        rng_key, minibatch_rng = jax.random.split(rng_key)
+        minibatch_rng = rngs.shuffle()
         minibatch_rollout_state = rollout.create_minibatches(rollout_state, hypers.minibatch_count, minibatch_rng)
         optimizer, logs = nnx.scan(_minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry)((optimizer, logs), minibatch_rollout_state)
 
-        return optimizer, rollout_state, logs, rng_key
+        return optimizer, rollout_state, logs, rngs
 
     def _global_step(i, x):
         optimizer, logs, rngs = x
         rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
-        optimizer, rollout_state, logs, _ = nnx.fori_loop(
+        optimizer, rollout_state, logs, rngs = nnx.fori_loop(
             0,
             hypers.epoch_count,
             _epoch_step,
-            init_val=(optimizer, rollout_state, logs, rngs.shuffle())
+            init_val=(optimizer, rollout_state, logs, rngs)
         )
 
         return optimizer, logs, rngs
@@ -250,6 +250,7 @@ def replicate_model(optimizer, sharding):
 
 def block_all(xs):
   return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
+
 
 def train_run(
     experiment: Experiment,

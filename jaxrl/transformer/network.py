@@ -19,7 +19,7 @@ from jaxrl.envs.specs import ObservationSpec
 from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs
 from jaxrl.transformer.observation import GridCnnObsDecoder, create_obs_encoder
 from jaxrl.types import TimeStep
-from jaxrl.transformer.attention import AttentionBlock, KVCache
+from jaxrl.transformer.attention import AttentionBlock, KVCache, RnnBlock
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
 from jaxrl.utils.preturb import preturb
 
@@ -107,18 +107,19 @@ class TransformerBlock(nnx.Module):
             param_dtype=param_dtype,
             rngs=rngs,
         )
-        self.attention = AttentionBlock(
-            hidden_features,
-            head_dim,
-            num_heads,
-            num_kv_heads,
-            max_seq_length=max_seq_length if config.sliding_window is None else config.sliding_window,
-            rope_max_wavelength=rope_max_wavelength,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            attention_impl=config.attention_impl,
-            rngs=rngs,
-        )
+        # self.attention = AttentionBlock(
+        #     hidden_features,
+        #     head_dim,
+        #     num_heads,
+        #     num_kv_heads,
+        #     max_seq_length=max_seq_length if config.sliding_window is None else config.sliding_window,
+        #     rope_max_wavelength=rope_max_wavelength,
+        #     dtype=dtype,
+        #     param_dtype=param_dtype,
+        #     attention_impl=config.attention_impl,
+        #     rngs=rngs,
+        # )
+        self.attention = RnnBlock(hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
 
         self.ffn_norm = normalizer(
             num_features=hidden_features,
@@ -153,14 +154,14 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-    def create_kv_cache(self, batch_size: int) -> KVCache:
-        return self.attention.create_kv_cache(batch_size)
+    def create_kv_cache(self, batch_size: int, rngs) -> KVCache:
+        return self.attention.create_kv_cache(batch_size, rngs)
 
     def __call__(
-        self, x, time_steps, kv_cache: KVCache | None = None
+        self, x, time_steps, kv_cache: KVCache | None = None, rngs = None
     ) -> tuple[jax.Array, KVCache | None]:
         attention_input = self.attention_norm(x)
-        attention_output, kv_cache = self.attention(attention_input, time_steps, kv_cache)
+        attention_output, kv_cache = self.attention(attention_input, time_steps, kv_cache, rngs)
         if self.use_post_attn_norm:
             attention_output = self.post_attn_norm(attention_output)
         x = x + attention_output
@@ -307,11 +308,11 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-    def create_kv_cache(self, batch_size: int) -> tuple[KVCache, ...]:
-        return tuple(layer.create_kv_cache(batch_size) for layer in self.layers)
+    def create_kv_cache(self, batch_size: int, rngs) -> tuple[KVCache, ...]:
+        return tuple(layer.create_kv_cache(batch_size, rngs) for layer in self.layers)
 
     def __call__(
-        self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None, actions: jax.Array | None = None
+        self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None, actions: jax.Array | None = None, rngs = None
     ) -> tuple[jax.Array, jax.Array, tfd.Distribution, tuple[KVCache, ...] | None, jax.Array]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
@@ -322,7 +323,7 @@ class TransformerActorCritic(nnx.Module):
         if kv_cache is not None:
             out_kv_cache = []
             for layer, _kv_cache in zip(self.layers, kv_cache):
-                x, _kv_cache = layer(x, ts.time, _kv_cache)
+                x, _kv_cache = layer(x, ts.time, _kv_cache, rngs)
                 out_kv_cache.append(_kv_cache)
             kv_cache = tuple(out_kv_cache)
         else:
