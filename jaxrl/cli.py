@@ -38,6 +38,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         obs_spec,
         action_spec.num_actions,
         max_seq_length=max_steps,
+        hl_gauss=experiment.config.hl_gauss,
         rngs=rngs,
     )
     optimizer = nnx.ModelAndOptimizer(
@@ -53,14 +54,13 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
 
     model = optimizer.model
 
-    kv_cache = model.create_kv_cache(env.num_agents)
     client = create_client(env)
 
     @nnx.jit
     def step(timestep, kv_cache, env_state, rngs):
         action_key = rngs.action()
         env_key = rngs.env()
-        _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
+        _, _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
         actions = policy.sample(seed=action_key)
         actions = jnp.squeeze(actions, axis=-1)
 
@@ -69,6 +69,8 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         return env_state, timestep, kv_cache, rngs
 
     for _ in range(3):
+        kv_cache = model.create_kv_cache(env.num_agents, rngs=rngs)
+
         env_state, timestep = env.reset(rngs.env())
         client.render(env_state, timestep)
         for _ in range(max_steps):
