@@ -1,14 +1,13 @@
 from abc import ABC, abstractmethod
 import os
 from pathlib import Path
-import csv
-from typing import Any
 
+from rich.console import Console
 import jax
 from flax import nnx
 import numpy as np
 from tensorboardX import SummaryWriter
-from jaxrl.config import Config, LoggerConfig
+from jaxrl.config import Config
 from jaxrl.util import json_normalize
 
 # import neptune
@@ -44,7 +43,7 @@ class MultiLogger(BaseLogger):
 
 
 class JaxLogger:
-    def __init__(self, settings: Config, unique_token: str):
+    def __init__(self, settings: Config, unique_token: str, console: Console):
         loggers: list[BaseLogger] = []
 
         if settings.logger.use_tb:

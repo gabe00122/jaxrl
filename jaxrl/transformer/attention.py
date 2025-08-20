@@ -1,35 +1,11 @@
 from typing import NamedTuple
-from einops import rearrange
 import jax
 import jax.numpy as jnp
 from jax.typing import DTypeLike
 from flax import nnx
 
 from jaxrl.transformer import positional_embeddings
-from jaxrl.utils.preturb import preturb_genreal
 
-
-class RnnBlock(nnx.Module):
-    def __init__(self, d_model: int, *, dtype: DTypeLike | None = None, param_dtype: DTypeLike = jnp.float32, rngs: nnx.Rngs) -> None:
-        self.d_model = d_model
-        self.rnn = nnx.RNN(
-            nnx.GRUCell(d_model, d_model, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
-        )
-
-    def create_kv_cache(self, batch_size: int, rngs):
-        return self.rnn.cell.initialize_carry((batch_size, self.d_model), rngs)
-
-    def __call__(
-        self, inputs: jax.Array, seq_pos: jax.Array, kv_cache = None, rngs = None
-    ):
-        if kv_cache is not None:
-            x = rearrange(inputs, "b t x -> (b t) x")
-            kv_cache, x = self.rnn.cell(kv_cache, x)
-            x = rearrange(x, "b x -> b 1 x")
-        else:
-            x = self.rnn(inputs)
-
-        return x, kv_cache
 
 
 class KVCache(NamedTuple):
@@ -116,7 +92,7 @@ class AttentionBlock(nnx.Module):
             self._query_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
             self._key_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
 
-    def create_kv_cache(self, batch_size: int) -> KVCache:
+    def initialize_carry(self, batch_size: int, rngs: nnx.Rngs) -> KVCache:
         shape = (batch_size, self.max_seq_length, self.num_kv_heads, self.head_dim)
         key = jnp.zeros(shape, dtype=self.dtype)
         value = jnp.zeros(shape, dtype=self.dtype)

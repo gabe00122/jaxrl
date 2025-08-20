@@ -4,6 +4,7 @@ import string
 import subprocess
 import fsspec
 from pydantic import BaseModel
+from rich.console import Console
 
 from jaxrl.config import Config, load_config
 from jaxrl.logger import JaxLogger
@@ -56,8 +57,8 @@ class Experiment:
         with self.fs.open(self.meta_path, "w") as f:
             f.write(self.meta.model_dump_json(indent=2))
 
-    def create_logger(self) -> JaxLogger:
-        return JaxLogger(self.config, self.unique_token)
+    def create_logger(self, console: Console) -> JaxLogger:
+        return JaxLogger(self.config, self.unique_token, console)
 
     @classmethod
     def load(cls, unique_token: str, base_dir: str = "results") -> "Experiment":

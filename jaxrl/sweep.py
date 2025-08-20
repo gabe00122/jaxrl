@@ -3,7 +3,7 @@ import optuna
 from rich.console import Console
 import typer
 
-from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, LoggerConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, TransformerBlockConfig
+from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, LoggerConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, AttentionConfig
 from jaxrl.experiment import Experiment
 from jaxrl.hl_gauss import HlGaussConfig
 from jaxrl.transformer.train import train_run
@@ -35,7 +35,7 @@ def objective(trial: optuna.Trial):
                 norm="rms_norm",
                 dtype="bfloat16",
                 param_dtype="float32",
-                transformer_block=TransformerBlockConfig(
+                transformer_block=AttentionConfig(
                     attention_impl="cudnn",
                     num_heads=4,
                     num_kv_heads=1,

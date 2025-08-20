@@ -3,8 +3,6 @@ from typing import Callable
 
 from flax import nnx
 import jax
-from jax import numpy as jnp
-import numpy as np
 from jax.typing import DTypeLike
 
 from jaxrl.utils.preturb import preturb

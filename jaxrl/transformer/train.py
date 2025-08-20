@@ -8,6 +8,7 @@ from einops import rearrange
 import optax
 import optuna
 from rich.progress import track
+from rich.console import Console
 import optax
 
 
@@ -31,7 +32,6 @@ class TrainingLogs(NamedTuple):
     value_loss: jax.Array
     actor_loss: jax.Array
     entropy_loss: jax.Array
-    obs_loss: jax.Array
     total_loss: jax.Array
 
 
@@ -41,7 +41,6 @@ def create_training_logs() -> TrainingLogs:
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
-        obs_loss=jnp.array(0.0),
         total_loss=jnp.array(0.0),
     )
 
@@ -61,21 +60,20 @@ def evaluate(
     env_state, timestep = env.reset(reset_key)
 
     rollout_state = rollout.create_state()
-    kv_cache = model.create_kv_cache(rollout.batch_size, rngs)
+    carry = model.initialize_carry(rollout.batch_size, rngs)
 
     def _step(i, x):
-        rollout_state, rngs, env_state, timestep, kv_cache = x
+        rollout_state, rngs, env_state, timestep, carry = x
 
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache, rngs=rngs)
+        value, _, policy, carry = model(add_seq_dim(timestep), carry)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
         value = value.squeeze(axis=-1)
-        # jax.debug.breakpoint()
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
@@ -88,13 +86,13 @@ def evaluate(
             value=value,
         )
 
-        return rollout_state, rngs, env_state, next_timestep, kv_cache
+        return rollout_state, rngs, env_state, next_timestep, carry
 
     rollout_state, rngs, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
-        init_val=(rollout_state, rngs, env_state, timestep, kv_cache),
+        init_val=(rollout_state, rngs, env_state, timestep, carry),
     )
 
     rollout_state = rollout.calculate_advantage(
@@ -121,7 +119,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
-    values, value_logits, policy, _, obs_logits = model(
+    values, value_logits, policy, _ = model(
         TimeStep(
             obs=batch_obs,
             time=positions,
@@ -129,8 +127,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
             last_reward=batch_last_rewards,
             action_mask=batch_action_masks,
         ),
-        None,
-        batch_actions
     )
     log_probs = policy.log_prob(batch_actions)
 
@@ -165,13 +161,8 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
-    obs_loss = optax.softmax_cross_entropy_with_integer_labels(
-        logits=rearrange(obs_logits[:, :-1], "b t w h c -> b (t w h) c"),
-        labels=rearrange(batch_obs[:, 1:], "b t w h -> b (t w h)"),
-    ).mean()
-
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss + obs_loss * hypers.obs_coef
+        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
     )
 
     logs = TrainingLogs(
@@ -179,7 +170,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
         value_loss=value_loss.mean(),
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
-        obs_loss=obs_loss,
         total_loss=total_loss,
     )
 
@@ -257,13 +247,14 @@ def train_run(
     trial: optuna.Trial | None = None,
     profile: bool = False
 ):
+    console = Console()
     # mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
     # replicate_sharding = NamedSharding(mesh, P())
     # batch_sharding = NamedSharding(mesh, P("batch"))
 
     max_steps = experiment.config.max_env_steps
 
-    logger = experiment.create_logger()
+    logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
     env = create_env(
