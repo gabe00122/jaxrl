@@ -1,9 +1,8 @@
 import json
 import random
 from typing import Literal
+from jaxrl.transformer import feed_forward
 from pydantic import BaseModel, ConfigDict, Field
-
-from jaxrl.hl_gauss import HlGaussConfig
 
 
 class NBackConfig(BaseModel):
@@ -83,11 +82,9 @@ class LinearObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["linear"] = "linear"
 
-
-class TransformerBlockConfig(BaseModel):
+class AttentionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    ffn_size: int
-    glu: bool = True
+    type: Literal["attention"] = "attention"
 
     num_heads: int
     num_kv_heads: int
@@ -97,10 +94,30 @@ class TransformerBlockConfig(BaseModel):
     attention_impl: str = "xla"
 
     rope_max_wavelength: float = 10_000
-    use_post_attn_norm: bool = False
-    use_post_ffw_norm: bool = False
     use_qk_norm: bool = False
 
+
+class RnnConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["rnn"] = "rnn"
+
+    # carry_dim: int
+
+
+class FeedForwardConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    size: int
+    glu: bool = True
+
+
+class LayerConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    feed_forward: FeedForwardConfig
+    history: AttentionConfig | RnnConfig = Field(discriminator="type")
+    
+    use_post_attn_norm: bool = False
+    use_post_ffw_norm: bool = False
 
 
 class TransformerActorCriticConfig(BaseModel):
@@ -111,7 +128,7 @@ class TransformerActorCriticConfig(BaseModel):
     )
     hidden_features: int
 
-    transformer_block: TransformerBlockConfig
+    layer: LayerConfig
     num_layers: int
 
     value_hidden_dim: int | None = None
@@ -128,7 +145,6 @@ class TransformerActorCriticConfig(BaseModel):
 class LoggerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    log_rate: int = 1000
     use_console: bool = True
     use_tb: bool = False
     use_neptune: bool = False
@@ -211,6 +227,16 @@ class LearnerConfig(BaseModel):
     optimizer: OptimizerConfig
     model: TransformerActorCriticConfig
     trainer: PPOConfig
+
+
+class HlGaussConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    min: float
+    max: float
+    n_logits: int
+    sigma: float
+
 
 
 type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig

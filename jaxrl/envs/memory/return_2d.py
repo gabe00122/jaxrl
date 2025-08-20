@@ -128,11 +128,13 @@ class ReturnEnv(Environment[ReturnState]):
         return jnp.asarray(tiles), jnp.asarray(empty_positions)
 
     def _generate_map(self, rng_key):
+        key1, key2 = jax.random.split(rng_key)
+
         noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=rng_key
+            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=key1
         )
         noise = noise + generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=rng_key
+            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=key2
         )
 
         tiles = jnp.where(noise > 0.3, TILE_WALL, TILE_EMPTY)
@@ -171,8 +173,9 @@ class ReturnEnv(Environment[ReturnState]):
         positions = jax.random.randint(
             pos_key, (1 + self.num_agents,), minval=0, maxval=spawn_count
         )
-        treasure_pos = spawn_pos[positions[0]]
-        agents_pos = spawn_pos[positions[1:]]
+        positions = spawn_pos[positions]
+        treasure_pos = positions[0]
+        agents_pos = positions[1:]
 
         state = ReturnState(
             map=map,

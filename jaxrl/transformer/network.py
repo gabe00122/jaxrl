@@ -2,26 +2,23 @@ from einops import rearrange
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
-from typing import Callable, Any
+from typing import Callable
 
 from flax import nnx
 import tensorflow_probability.substrates.jax.distributions as tfd
 
-from jaxrl import hl_gauss
 from jaxrl.config import (
-    GridCnnObsEncoderConfig,
-    LinearObsEncoderConfig,
+    LayerConfig,
     TransformerActorCriticConfig,
-    TransformerBlockConfig,
 )
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
 from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs
-from jaxrl.transformer.observation import GridCnnObsDecoder, create_obs_encoder
+from jaxrl.transformer.observation import create_obs_encoder
 from jaxrl.types import TimeStep
-from jaxrl.transformer.attention import AttentionBlock, KVCache, RnnBlock
+from jaxrl.transformer.attention import AttentionBlock, KVCache
+from jaxrl.transformer.rnn import RnnBlock
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
-from jaxrl.utils.preturb import preturb
 
 
 def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
@@ -79,7 +76,7 @@ def get_norm(norm_type: str):
 class TransformerBlock(nnx.Module):
     def __init__(
         self,
-        config: TransformerBlockConfig,
+        config: LayerConfig,
         hidden_features: int,
         activation: Callable[[jax.Array], jax.Array],
         normalizer,
@@ -90,36 +87,33 @@ class TransformerBlock(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
-        head_dim = config.head_dim
-        num_heads = config.num_heads
-        num_kv_heads = config.num_kv_heads
-
-        ffn_size = config.ffn_size
-        glu = config.glu
-        rope_max_wavelength = config.rope_max_wavelength
-
         self.use_post_attn_norm = config.use_post_attn_norm
         self.use_post_ffw_norm = config.use_post_ffw_norm
 
-        self.attention_norm = normalizer(
+        self.history_norm = normalizer(
             num_features=hidden_features,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
         )
-        # self.attention = AttentionBlock(
-        #     hidden_features,
-        #     head_dim,
-        #     num_heads,
-        #     num_kv_heads,
-        #     max_seq_length=max_seq_length if config.sliding_window is None else config.sliding_window,
-        #     rope_max_wavelength=rope_max_wavelength,
-        #     dtype=dtype,
-        #     param_dtype=param_dtype,
-        #     attention_impl=config.attention_impl,
-        #     rngs=rngs,
-        # )
-        self.attention = RnnBlock(hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+
+        if config.history.type == "rnn":
+            self.history = RnnBlock(hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+        else:
+            self.history = AttentionBlock(
+                hidden_features,
+                config.history.head_dim,
+                config.history.num_heads,
+                config.history.num_kv_heads,
+                max_seq_length=max_seq_length,
+                rope_max_wavelength=config.history.rope_max_wavelength,
+                attention_impl=config.history.attention_impl,
+                use_qk_norm=config.history.use_qk_norm,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                kernel_init=kernel_init,
+                rngs=rngs
+            )
 
         self.ffn_norm = normalizer(
             num_features=hidden_features,
@@ -127,10 +121,10 @@ class TransformerBlock(nnx.Module):
             param_dtype=param_dtype,
             rngs=rngs,
         )
-        ff_block = GLUBlock if glu else FFBlock
+        ff_block = GLUBlock if config.feed_forward.glu else FFBlock
         self.ffn = ff_block(
             hidden_features,
-            ffn_size,
+            config.feed_forward.size,
             activation=activation,
             kernel_init=kernel_init,
             dtype=dtype,
@@ -154,17 +148,15 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-    def create_kv_cache(self, batch_size: int, rngs) -> KVCache:
-        return self.attention.create_kv_cache(batch_size, rngs)
+    def initialize_carry(self, batch_size: int, rngs) -> KVCache:
+        return self.history.initialize_carry(batch_size, rngs)
 
-    def __call__(
-        self, x, time_steps, kv_cache: KVCache | None = None, rngs = None
-    ) -> tuple[jax.Array, KVCache | None]:
-        attention_input = self.attention_norm(x)
-        attention_output, kv_cache = self.attention(attention_input, time_steps, kv_cache, rngs)
+    def __call__(self, x, time_steps, carry = None) -> tuple[jax.Array, KVCache | None]:
+        history_input = self.history_norm(x)
+        history_output, carry = self.history(history_input, time_steps, carry)
         if self.use_post_attn_norm:
-            attention_output = self.post_attn_norm(attention_output)
-        x = x + attention_output
+            history_output = self.post_attn_norm(history_output)
+        x = x + history_output
 
         feed_forward_input = self.ffn_norm(x)
         feed_forward_output = self.ffn(feed_forward_input)
@@ -172,7 +164,7 @@ class TransformerBlock(nnx.Module):
             feed_forward_output = self.post_ffw_norm(feed_forward_output)
         x = x + feed_forward_output
 
-        return x, kv_cache
+        return x, carry
 
 
 class Embedder(nnx.Module):
@@ -217,10 +209,6 @@ class TransformerActorCritic(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
-        # Extract parameters from config
-        transformer_config = config.transformer_block
-        num_layers = config.num_layers
-
         hidden_features = config.hidden_features
 
         # Convert string representations to actual objects if needed
@@ -248,31 +236,11 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-        ## temp
-        self.obs_decoder = GridCnnObsDecoder(
-            config=config.obs_encoder,
-            obs_spec=obs_spec,
-            output_size=hidden_features,
-            dtype=dtype,
-            params_dtype=param_dtype,
-            rngs=rngs,
-        )
-        self.transition = FFBlock(
-            hidden_features,
-            hidden_features,
-            activation,
-            kernel_init=kernel_init,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            rngs=rngs
-        )
-        ## temp
-
         layers = []
-        for _ in range(num_layers):
+        for _ in range(config.num_layers):
             layers.append(
                 TransformerBlock(
-                    config=transformer_config,
+                    config=config.layer,
                     hidden_features=hidden_features,
                     activation=activation,
                     normalizer=norm,
@@ -308,24 +276,24 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-    def create_kv_cache(self, batch_size: int, rngs) -> tuple[KVCache, ...]:
-        return tuple(layer.create_kv_cache(batch_size, rngs) for layer in self.layers)
+    def initialize_carry(self, batch_size: int, rngs):
+        return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
 
     def __call__(
-        self, ts: TimeStep, kv_cache: tuple[KVCache, ...] | None = None, actions: jax.Array | None = None, rngs = None
-    ) -> tuple[jax.Array, jax.Array, tfd.Distribution, tuple[KVCache, ...] | None, jax.Array]:
+        self, ts: TimeStep, carry = None
+    ) -> tuple[jax.Array, jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
 
         x = obs_embedding + reward_embedding + action_embedding
 
-        if kv_cache is not None:
-            out_kv_cache = []
-            for layer, _kv_cache in zip(self.layers, kv_cache):
-                x, _kv_cache = layer(x, ts.time, _kv_cache, rngs)
-                out_kv_cache.append(_kv_cache)
-            kv_cache = tuple(out_kv_cache)
+        if carry is not None:
+            out_carry = []
+            for layer, _carry in zip(self.layers, carry):
+                x, _carry = layer(x, ts.time, _carry)
+                out_carry.append(_carry)
+            carry = tuple(out_carry)
         else:
             for layer in self.layers:
                 x, _ = layer(x, ts.time)
@@ -364,10 +332,5 @@ class TransformerActorCritic(nnx.Module):
         values = transform_from_probs(centers, value_probs)
         values = rearrange(values, "(b t) -> b t", b=b, t=t)
 
-        predicted_obs = None
-        if actions is not None:
-            predicted_obs = self.obs_decoder(self.transition(x + self.action_embedder.encode(actions)))
-
-
-        return values, value_logits, policy, kv_cache, predicted_obs
+        return values, value_logits, policy, carry
 
