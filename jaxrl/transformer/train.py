@@ -335,10 +335,10 @@ def train_run(
             #     raise optuna.exceptions.TrialPruned()
 
         if i % (outer_updates // 5) == (outer_updates // 5) - 1:
-            checkpointer.save(optimizer, i * experiment.config.updates_per_jit)
+            checkpointer.save(optimizer.model, i * experiment.config.updates_per_jit)
             # optimizer.model.preturb(rngs)
 
-    checkpointer.save(optimizer, experiment.config.update_steps)
+    checkpointer.save(optimizer.model, experiment.config.update_steps)
 
     logger.close()
     checkpointer.close()
