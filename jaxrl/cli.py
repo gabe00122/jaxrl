@@ -28,31 +28,30 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps)
-
-    obs_spec = env.observation_spec
-    action_spec = env.action_spec
     rngs = nnx.Rngs(default=seed)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
-        obs_spec,
-        action_spec.num_actions,
-        max_seq_length=max_steps,
+        env.observation_spec,
+        env.action_spec.num_actions,
         hl_gauss=experiment.config.hl_gauss,
+        max_seq_length=max_steps,
         rngs=rngs,
     )
-    optimizer = nnx.ModelAndOptimizer(
-        model=model,
-        tx=create_optimizer(
-            experiment.config.learner.optimizer, experiment.config.update_steps
-        ),
-        wrt=nnx.Param
-    )
+
+    # optimizer = nnx.ModelAndOptimizer(
+    #     model=model,
+    #     tx=create_optimizer(
+    #         experiment.config.learner.optimizer,
+    #         experiment.config.update_steps
+    #         * experiment.config.learner.trainer.minibatch_count
+    #         * experiment.config.learner.trainer.epoch_count
+    #     ),
+    #     wrt=nnx.Param
+    # )
 
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
-        optimizer = checkpointer.restore_latest(optimizer)
-
-    model = optimizer.model
+        model = checkpointer.restore_latest(model)
 
     client = create_client(env)
 
@@ -60,7 +59,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     def step(timestep, kv_cache, env_state, rngs):
         action_key = rngs.action()
         env_key = rngs.env()
-        _, _, policy, kv_cache, _ = model(add_seq_dim(timestep), kv_cache)
+        _, _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
         actions = policy.sample(seed=action_key)
         actions = jnp.squeeze(actions, axis=-1)
 
@@ -69,7 +68,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         return env_state, timestep, kv_cache, rngs
 
     for _ in range(3):
-        kv_cache = model.create_kv_cache(env.num_agents, rngs=rngs)
+        kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
 
         env_state, timestep = env.reset(rngs.env())
         client.render(env_state, timestep)
