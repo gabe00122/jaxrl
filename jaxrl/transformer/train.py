@@ -292,7 +292,7 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
 
     logs = None
-    for i in track(range(outer_updates), description="Training", disable=False):
+    for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
         optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
