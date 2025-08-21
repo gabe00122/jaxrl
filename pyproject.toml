@@ -3,7 +3,7 @@ name = "jaxrl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "chex>=0.1.89",
     "distrax>=0.1.5",
@@ -11,6 +11,7 @@ dependencies = [
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
     "jax>=0.6.0",
+    "matplotlib>=3.10.5",
     "optax>=0.2.4",
     "optuna>=4.3.0",
     "optuna-dashboard>=0.18.0",
