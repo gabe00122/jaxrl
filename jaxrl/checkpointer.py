@@ -11,7 +11,7 @@ class Checkpointer:
         self.mngr = ocp.CheckpointManager(directory)
 
     def save(self, model: object, global_step: int):
-        state = nnx.state(model)
+        state = nnx.state(model, nnx.Param)
         self.mngr.save(global_step, args=ocp.args.StandardSave(state))
 
     def restore[T](self, model: T, step: int) -> T:

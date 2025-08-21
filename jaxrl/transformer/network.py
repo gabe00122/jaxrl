@@ -13,12 +13,12 @@ from jaxrl.config import (
 )
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
-from jaxrl.hl_gauss import HlGaussConfig, calculate_supports, transform_from_probs
 from jaxrl.transformer.observation import create_obs_encoder
 from jaxrl.types import TimeStep
 from jaxrl.transformer.attention import AttentionBlock, KVCache
 from jaxrl.transformer.rnn import RnnBlock
 from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
+from jaxrl.values import HlGaussValue, MseValue
 
 
 def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
@@ -204,7 +204,6 @@ class TransformerActorCritic(nnx.Module):
         config: TransformerActorCriticConfig,
         obs_spec: ObservationSpec,
         action_dim: int,
-        hl_gauss: HlGaussConfig,
         max_seq_length: int,
         *,
         rngs: nnx.Rngs,
@@ -219,7 +218,6 @@ class TransformerActorCritic(nnx.Module):
         norm = get_norm(config.norm)
 
         self.dtype = config.dtype
-        self.hl_gauss = hl_gauss
 
         self.reward_encoder = nnx.Linear(
             1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
@@ -268,20 +266,18 @@ class TransformerActorCritic(nnx.Module):
                 rngs=rngs,
             )
 
-        self.value_head = nnx.Linear(
-            hidden_features if config.value_hidden_dim is None else config.value_hidden_dim,
-            hl_gauss.n_logits,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            rngs=rngs,
-        )
+        value_in_dim = hidden_features if config.value_hidden_dim is None else config.value_hidden_dim
+        if config.value.type == "hl_gauss":
+            self.value_head = HlGaussValue(value_in_dim, config.value, rngs=rngs)
+        elif config.value.type == "mse":
+            self.value_head = MseValue(value_in_dim, rngs=rngs)
 
     def initialize_carry(self, batch_size: int, rngs):
         return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
 
     def __call__(
         self, ts: TimeStep, carry = None
-    ) -> tuple[jax.Array, jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
+    ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
@@ -320,17 +316,12 @@ class TransformerActorCritic(nnx.Module):
             prevalue = nnx.gelu(prevalue)
 
         value = self.value_head(prevalue)
-        value_logits = value.astype(jnp.float32)
+        value_rep = value.astype(jnp.float32)
 
-        b, t, _ = value_logits.shape
+        return value_rep, policy, carry
 
-        value_probs = nnx.softmax(value_logits, axis=-1)
-        
-        _, centers = calculate_supports(self.hl_gauss, b * t)
-
-        value_probs = rearrange(value_probs, "b t v -> (b t) v")
-        values = transform_from_probs(centers, value_probs)
-        values = rearrange(values, "(b t) -> b t", b=b, t=t)
-
-        return values, value_logits, policy, carry
-
+    def get_value(self, value_rep: jax.Array) -> jax.Array:
+        return self.value_head.get_value(value_rep)
+    
+    def get_value_loss(self, value_rep: jax.Array, targets: jax.Array) -> jax.Array:
+        return self.value_head.get_loss(value_rep, targets)

@@ -1,7 +1,6 @@
 import json
 import random
 from typing import Literal
-from jaxrl.transformer import feed_forward
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -120,6 +119,21 @@ class LayerConfig(BaseModel):
     use_post_ffw_norm: bool = False
 
 
+class MseCriticConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["mse"] = "mse"
+
+
+class HlGaussConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["hl_gauss"] = "hl_gauss"
+
+    min: float
+    max: float
+    n_logits: int
+    sigma: float
+
+
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -132,6 +146,7 @@ class TransformerActorCriticConfig(BaseModel):
     num_layers: int
 
     value_hidden_dim: int | None = None
+    value: MseCriticConfig | HlGaussConfig = Field(discriminator="type")
 
     activation: Literal["relu", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
@@ -163,48 +178,6 @@ class OptimizerConfig(BaseModel):
     max_norm: float
 
 
-class MlpConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    type: Literal["mlp"]
-    layers: list[int]
-
-
-class CnnLayerConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    features: int
-    kernel_size: list[int]
-    stride: list[int]
-    # padding: Literal["valid", "same"]
-
-
-class CnnConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    type: Literal["cnn"]
-    layers: list[CnnLayerConfig]
-    output_size: int
-
-
-class ModelConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    body: MlpConfig | CnnConfig
-    activation: Literal["relu", "tanh", "gelu", "silu", "mish"]
-    dtype: Literal["float32", "bfloat16"] = "float32"
-    param_dtype: Literal["float32", "bfloat16"] = "float32"
-
-
-class BasicActorCriticConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    discount: float = 0.99
-    actor_coefficient: float = 1.0
-    critic_coefficient: float = 1.0
-    entropy_coefficient: float = 0.0
-
-
 class PPOConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -229,16 +202,6 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-class HlGaussConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    min: float
-    max: float
-    n_logits: int
-    sigma: float
-
-
-
 type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig
 
 
@@ -255,8 +218,6 @@ class Config(BaseModel):
     learner: LearnerConfig
     environment: EnvironmentConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
-
-    hl_gauss: HlGaussConfig
 
 
 def load_config(json_config: str) -> Config:

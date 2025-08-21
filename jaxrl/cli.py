@@ -6,14 +6,7 @@ from jax import numpy as jnp
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.create import create_client, create_env
-from jaxrl.envs.environment import Environment
-from jaxrl.envs.memory.return_2d import ReturnClient
-from jaxrl.envs.memory.return_2d_colors import ReturnColorClient
-from jaxrl.envs.memory.return_2d_digging import ReturnDiggingClient
-from jaxrl.envs.memory.scouts import ScoutsClient
-from jaxrl.envs.trust.prisoners import PrisonersRenderer
 from jaxrl.experiment import Experiment
-from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.train import add_seq_dim, train_run
 import shutil
@@ -34,7 +27,6 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
-        hl_gauss=experiment.config.hl_gauss,
         max_seq_length=max_steps,
         rngs=rngs,
     )
@@ -59,7 +51,7 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     def step(timestep, kv_cache, env_state, rngs):
         action_key = rngs.action()
         env_key = rngs.env()
-        _, _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
+        _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
         actions = policy.sample(seed=action_key)
         actions = jnp.squeeze(actions, axis=-1)
 

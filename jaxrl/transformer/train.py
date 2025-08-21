@@ -5,26 +5,21 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 from einops import rearrange
-import optax
 import optuna
 from rich.progress import track
 from rich.console import Console
-import optax
-
-
 
 from jaxrl.config import Config, PPOConfig
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
-from jaxrl.hl_gauss import calculate_supports, transform_to_probs
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.util import count_parameters
+from jaxrl.util import count_parameters, format_count
 
 
 class TrainingLogs(NamedTuple):
@@ -68,12 +63,12 @@ def evaluate(
         action_key = rngs.action()
         env_key = rngs.env()
 
-        value, _, policy, carry = model(add_seq_dim(timestep), carry)
+        value_rep, policy, carry = model(add_seq_dim(timestep), carry)
 
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
-        value = value.squeeze(axis=-1)
+        value = model.get_value(value_rep)
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
@@ -108,7 +103,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_actions = jax.lax.stop_gradient(rollout.actions)
     batch_action_masks = jax.lax.stop_gradient(rollout.action_mask)
     batch_advantage = jax.lax.stop_gradient(rollout.advantages)
-    batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
+    # batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
     batch_rewards = jax.lax.stop_gradient(rollout.rewards)
 
     batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
@@ -119,7 +114,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
-    values, value_logits, policy, _ = model(
+    value_rep, policy, _ = model(
         TimeStep(
             obs=batch_obs,
             time=positions,
@@ -130,16 +125,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     )
     log_probs = policy.log_prob(batch_actions)
 
-    b, t = batch_target.shape
-    batch_target = rearrange(batch_target, "b t -> (b t)")
-
-    support, _ = calculate_supports(model.hl_gauss, b * t)
-    target_probs = transform_to_probs(model.hl_gauss, support, batch_target)
-    target_probs = rearrange(target_probs, "(b t) p -> b t p", b=b, t=t)
-
-    value_loss = optax.softmax_cross_entropy(value_logits, target_probs).mean()
-
-    # jax.debug.breakpoint()
+    value_loss = model.get_value_loss(value_rep, batch_target)
 
     # value_pred_clipped = batch_values + jnp.clip(
     #     values - batch_values, -hypers.vf_clip, hypers.vf_clip
@@ -167,7 +153,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     logs = TrainingLogs(
         rewards=batch_rewards.sum() / batch_obs.shape[0],
-        value_loss=value_loss.mean(),
+        value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
         total_loss=total_loss,
@@ -270,7 +256,6 @@ def train_run(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
-        hl_gauss=experiment.config.hl_gauss,
         max_seq_length=max_steps,
         rngs=rngs,
     )
@@ -303,8 +288,8 @@ def train_run(
     )
     outer_updates = experiment.config.update_steps // experiment.config.updates_per_jit
 
-    print(f"Starting Training: {experiment.unique_token}")
-    print(f"Parameter Count: {count_parameters(model)}")
+    console.print(f"Starting Training: {experiment.unique_token}")
+    console.print(f"Parameter Count: {count_parameters(model)}")
 
     logs = None
     for i in track(range(outer_updates), description="Training", disable=False):
@@ -326,8 +311,8 @@ def train_run(
         stop_time = time.time()
 
         delta_time = stop_time - start_time
-        print(int(env_steps_per_update / delta_time))
-        print(experiment.config.updates_per_jit / delta_time)
+        console.print(f"Steps per second: {format_count(int(env_steps_per_update / delta_time))}")
+        console.print(f"Updates per second: {experiment.config.updates_per_jit / delta_time}")
 
         if trial:
             trial.report(logs.rewards.item(), i)
