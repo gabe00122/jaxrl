@@ -72,9 +72,19 @@ class ScoutsConfig(BaseModel):
     harvesters_move_every: int = 6
 
 
+class CraftaxConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["craftax"] = "craftax"
+
+
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
+
+
+class ResCnnObsEncoderConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    obs_type: Literal["res_cnn"] = "res_cnn"
 
 
 class LinearObsEncoderConfig(BaseModel):
@@ -137,7 +147,7 @@ class HlGaussConfig(BaseModel):
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig = Field(
+    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig | ResCnnObsEncoderConfig = Field(
         discriminator="obs_type"
     )
     hidden_features: int
@@ -202,7 +212,7 @@ class LearnerConfig(BaseModel):
     trainer: PPOConfig
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
 
 
 class Config(BaseModel):

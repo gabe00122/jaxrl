@@ -1,5 +1,6 @@
 from jaxrl.config import EnvironmentConfig
 from jaxrl.envs.client import EnvironmentClient
+from jaxrl.envs.craftax_wrapper import CraftaxEnvironment
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
@@ -23,6 +24,8 @@ def create_env(env_config: EnvironmentConfig, length: int) -> Environment:
             return PrisonersEnv()
         case "scouts":
             return ScoutsEnv(env_config)
+        case "craftax":
+            return CraftaxEnvironment()
         case _:
             raise ValueError(f"Unknown environment type: {env_config.type}")
 
