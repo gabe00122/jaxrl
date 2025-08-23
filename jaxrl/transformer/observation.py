@@ -2,8 +2,9 @@ import jax
 from flax import nnx
 from einops import rearrange
 
-from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig
+from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig, ResCnnObsEncoderConfig
 from jaxrl.envs.specs import ObservationSpec
+from jaxrl.resnet import ObsEncoderCNN
 
 
 class LinearObsEncoder(nnx.Module):
@@ -125,7 +126,7 @@ class GridCnnObsDecoder(nnx.Module):
 
 
 def create_obs_encoder(
-    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig,
+    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig | ResCnnObsEncoderConfig,
     obs_spec: ObservationSpec,
     output_size: int,
     *,
@@ -152,4 +153,6 @@ def create_obs_encoder(
                 params_dtype=params_dtype,
                 rngs=rngs,
             )
-        
+        case "res_cnn":
+            return ObsEncoderCNN(rngs=rngs)
+    
