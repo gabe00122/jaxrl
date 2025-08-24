@@ -40,7 +40,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
 
         state = CraftaxWrapperState(cstate, time)
 
-        return state, self._encode_timestep(obs, actions, rewards, time)
+        return state, self._encode_timestep(obs, jnp.array(False, dtype=jnp.bool), actions, rewards, time)
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
@@ -71,9 +71,9 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
             time=state.time + 1,
         )
 
-        return state, self._encode_timestep(obs, action, reward[None], state.time)
+        return state, self._encode_timestep(obs, done, action, reward[None], state.time)
     
-    def _encode_timestep(self, obs, actions, rewards, time):
+    def _encode_timestep(self, obs, terminated, actions, rewards, time):
         if not self._symbolic:
             obs = jax.image.resize(obs, (65, 55, 3), jax.image.ResizeMethod.LINEAR)
         obs = obs[None, ...]
@@ -81,19 +81,11 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         return TimeStep(
             obs=obs,
             time=time,
+            terminated=terminated[None],
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
         )
-
-    # def encode_observations(self, state, actions, rewards) -> TimeStep:
-    #     return TimeStep(
-    #         obs=view,
-    #         time=time,
-    #         last_action=actions,
-    #         last_reward=rewards,
-    #         action_mask=None,
-    #     )
 
 
 def main():

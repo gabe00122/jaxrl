@@ -97,17 +97,18 @@ def evaluate(
     return rollout_state, rngs
 
 def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
-    batch_obs = jax.lax.stop_gradient(rollout.obs)
-    batch_target = jax.lax.stop_gradient(rollout.targets)
-    batch_log_prob = jax.lax.stop_gradient(rollout.log_prob)
-    batch_actions = jax.lax.stop_gradient(rollout.actions)
-    batch_action_masks = jax.lax.stop_gradient(rollout.action_mask)
-    batch_advantage = jax.lax.stop_gradient(rollout.advantages)
-    # batch_values = jax.lax.stop_gradient(rollout.values[..., :-1])
-    batch_rewards = jax.lax.stop_gradient(rollout.rewards)
+    batch_obs = rollout.obs
+    batch_target = rollout.targets
+    batch_log_prob = rollout.log_prob
+    batch_actions = rollout.actions
+    batch_action_masks = rollout.action_mask
+    batch_advantage = rollout.advantages
+    # batch_values = rollout.values[..., :-1])
+    batch_rewards = rollout.rewards
+    batch_terminated = rollout.terminated
 
-    batch_last_actions = jax.lax.stop_gradient(rollout.last_actions)
-    batch_last_rewards = jax.lax.stop_gradient(rollout.last_rewards)
+    batch_last_actions = rollout.last_actions
+    batch_last_rewards = rollout.last_rewards
 
     if hypers.normalize_advantage:
         batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
@@ -118,6 +119,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
         TimeStep(
             obs=batch_obs,
             time=positions,
+            terminated=batch_terminated,
             last_action=batch_last_actions,
             last_reward=batch_last_rewards,
             action_mask=batch_action_masks,
@@ -152,7 +154,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     )
 
     logs = TrainingLogs(
-        rewards=batch_rewards.sum() / batch_obs.shape[0],
+        rewards=jnp.array(0.0),
         value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
@@ -183,7 +185,7 @@ def train(
         # grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
 
         optimizer.update(grad)
-        logs = jax.tree_util.tree_map(lambda x, y: x + y, logs, step_logs)
+        logs = jax.tree.map(lambda x, y: x + y, logs, step_logs)
 
         return (optimizer, logs)
 
@@ -204,6 +206,10 @@ def train(
             hypers.epoch_count,
             _epoch_step,
             init_val=(optimizer, rollout_state, logs, rngs)
+        )
+
+        logs = logs._replace(
+            rewards=rollout.calculate_cumulative_rewards(rollout_state).mean()
         )
 
         return optimizer, logs, rngs
