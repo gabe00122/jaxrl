@@ -19,6 +19,7 @@ class TimeStep(NamedTuple):
 
     obs: jax.Array  # (num_agents, num_obs_features)
     time: jax.Array
+    terminated: jax.Array
     last_action: jax.Array
     last_reward: jax.Array
     # step_type: jax.Array

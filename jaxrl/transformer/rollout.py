@@ -15,6 +15,8 @@ class RolloutState(NamedTuple):
     action_mask: jax.Array
     actions: jax.Array
     rewards: jax.Array
+    terminated: jax.Array
+    next_terminated: jax.Array
 
     log_prob: jax.Array
     values: jax.Array
@@ -58,6 +60,12 @@ class Rollout:
             rewards=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
+            terminated=jnp.zeros(
+                (self.batch_size, self.trajectory_length), dtype=jnp.bool
+            ),
+            next_terminated=jnp.zeros(
+                (self.batch_size, self.trajectory_length), dtype=jnp.bool
+            ),
             log_prob=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
@@ -99,6 +107,8 @@ class Rollout:
             log_prob=state.log_prob.at[:, step].set(log_prob),
             values=state.values.at[:, step].set(value),
             rewards=state.rewards.at[:, step].set(next_timestep.last_reward),
+            terminated=state.terminated.at[:, step].set(timestep.terminated),
+            next_terminated=state.next_terminated.at[:, step].set(next_timestep.terminated),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
             last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
         )
@@ -129,10 +139,38 @@ class Rollout:
 
     def _shuffle(self, state: RolloutState, rng_key: jax.Array) -> RolloutState:
         indecies = jax.random.permutation(rng_key, self.batch_size)
-        return jax.tree_util.tree_map(lambda x: x[indecies], state)
+        return jax.tree.map(lambda x: x[indecies], state)
 
     def create_minibatches(self, state: RolloutState, minibatches: int, rng_key: jax.Array) -> RolloutState:
         if minibatches > 1:
             state = self._shuffle(state, rng_key)
 
-        return jax.tree_util.tree_map(lambda x: rearrange(x, "(m b) ... -> m b ...", m=minibatches), state)
+        return jax.tree.map(lambda x: rearrange(x, "(m b) ... -> m b ...", m=minibatches), state)
+
+    def calculate_cumulative_rewards(self, state: RolloutState) -> jax.Array:
+        # this is a little jank but the idea is to find the total reward for only completed episodes and failing that find the reward for the only episode
+        def _body(carry, xs):
+            total_reward, current_reward = carry
+            reward, done = xs
+
+            current_reward = current_reward + reward
+            carry = jax.lax.cond(
+                done,
+                lambda total_reward, current_reward: (total_reward + current_reward, jnp.zeros_like(current_reward)),
+                lambda total_reward, current_reward: (total_reward, current_reward),
+                total_reward, current_reward
+            )
+
+            return carry, carry
+
+        batch_size = state.rewards.shape[0]
+
+        (total_reward, current_reward), _ = jax.lax.scan(_body, (jnp.zeros(batch_size), jnp.zeros(batch_size)), (state.rewards, state.terminated))
+        episode_count = jnp.count_nonzero(state.next_terminated, axis=-1) # TODO: this shouldn't ignore it if the first timestep is done
+
+        total_reward = total_reward / jnp.where(episode_count == 0, 1, episode_count)
+        reward = jnp.where(episode_count == 0, current_reward, total_reward)
+
+        return reward
+
+
