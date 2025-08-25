@@ -90,7 +90,14 @@ def evaluate(
         init_val=(rollout_state, rngs, env_state, timestep, carry),
     )
 
-    rollout_state = rollout.calculate_advantage(
+    # save the last value
+    value_rep, _, _ = model(add_seq_dim(timestep), carry)
+    value = model.get_value(value_rep)
+    rollout_state._replace(
+        values=rollout_state.values.at[:, -1].set(value)
+    )
+
+    rollout_state = rollout.calculate_advantage2(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
     )
 
@@ -104,7 +111,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_action_masks = rollout.action_mask
     batch_advantage = rollout.advantages
     # batch_values = rollout.values[..., :-1])
-    batch_rewards = rollout.rewards
+    # batch_rewards = rollout.rewards
     batch_terminated = rollout.terminated
 
     batch_last_actions = rollout.last_actions
@@ -209,7 +216,7 @@ def train(
         )
 
         logs = logs._replace(
-            rewards=rollout.calculate_cumulative_rewards(rollout_state).mean()
+            rewards=logs.rewards + rollout.calculate_cumulative_rewards(rollout_state).mean() * hypers.epoch_count * hypers.minibatch_count # this is because it's divided by the minibatch/epoch count and shouldn't
         )
 
         return optimizer, logs, rngs
