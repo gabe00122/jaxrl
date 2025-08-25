@@ -136,6 +136,33 @@ class Rollout:
             advantages=advantages,
             targets=targets,
         )
+    
+    def calculate_advantage2(self, state: RolloutState, discount: float, gae_lambda: float) -> RolloutState:
+        def _body(acc, xs):
+            rewards, discount, v_tp1 = xs
+            acc = rewards + discount * ((1-gae_lambda) * v_tp1 + gae_lambda * acc)
+            return acc, acc
+        
+        # swap to time major
+        rewards = jnp.swapaxes(state.rewards, 0, 1)
+        terminated = jnp.swapaxes(state.terminated, 0, 1)
+        values = jnp.swapaxes(state.values, 0, 1)
+
+        _, targets = jax.lax.scan(
+            _body,
+            values[-1],
+            (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
+            reverse=True
+        )
+        advantage = targets - values[:-1]
+
+        targets = jnp.swapaxes(targets, 0, 1)
+        advantages = jnp.swapaxes(advantage, 0, 1)
+
+        return state._replace(
+            advantages=advantages,
+            targets=targets,
+        )
 
     def _shuffle(self, state: RolloutState, rng_key: jax.Array) -> RolloutState:
         indecies = jax.random.permutation(rng_key, self.batch_size)
@@ -154,18 +181,20 @@ class Rollout:
             reward, done = xs
 
             current_reward = current_reward + reward
-            carry = jax.lax.cond(
-                done,
-                lambda total_reward, current_reward: (total_reward + current_reward, jnp.zeros_like(current_reward)),
-                lambda total_reward, current_reward: (total_reward, current_reward),
-                total_reward, current_reward
-            )
+            total_reward = jnp.where(done, total_reward + current_reward, total_reward)
+            current_reward = jnp.where(done, jnp.zeros_like(current_reward), current_reward)
+
+            carry = total_reward, current_reward
 
             return carry, carry
 
         batch_size = state.rewards.shape[0]
 
-        (total_reward, current_reward), _ = jax.lax.scan(_body, (jnp.zeros(batch_size), jnp.zeros(batch_size)), (state.rewards, state.terminated))
+        # swap to time major
+        rewards = jnp.swapaxes(state.rewards, 0, 1)
+        terminated = jnp.swapaxes(state.terminated, 0, 1)
+
+        (total_reward, current_reward), _ = jax.lax.scan(_body, (jnp.zeros(batch_size), jnp.zeros(batch_size)), (rewards, terminated))
         episode_count = jnp.count_nonzero(state.next_terminated, axis=-1) # TODO: this shouldn't ignore it if the first timestep is done
 
         total_reward = total_reward / jnp.where(episode_count == 0, 1, episode_count)
