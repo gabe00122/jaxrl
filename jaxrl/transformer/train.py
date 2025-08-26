@@ -68,7 +68,7 @@ def evaluate(
         action = policy.sample(seed=action_key)
         log_prob = policy.log_prob(action).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
-        value = model.get_value(value_rep)
+        value = model.get_value(value_rep).squeeze(axis=-1)
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
@@ -92,7 +92,7 @@ def evaluate(
 
     # save the last value
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
-    value = model.get_value(value_rep)
+    value = model.get_value(value_rep).squeeze(axis=-1)
     rollout_state._replace(
         values=rollout_state.values.at[:, -1].set(value)
     )

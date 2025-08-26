@@ -31,7 +31,7 @@ class HlGaussValue(nnx.Module):
 
     def get_value(self, logits):
         probs = nnx.softmax(logits, axis=-1)
-        return (probs * self._centers).sum((-2, -1))
+        return (probs * self._centers).sum(-1)
 
     def get_loss(self, logits, target_values):
         logits = rearrange(logits, "b t l -> (b t) l")

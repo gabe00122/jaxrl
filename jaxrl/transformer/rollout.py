@@ -145,7 +145,7 @@ class Rollout:
         
         # swap to time major
         rewards = jnp.swapaxes(state.rewards, 0, 1)
-        terminated = jnp.swapaxes(state.terminated, 0, 1)
+        terminated = jnp.swapaxes(state.next_terminated, 0, 1)
         values = jnp.swapaxes(state.values, 0, 1)
 
         _, targets = jax.lax.scan(

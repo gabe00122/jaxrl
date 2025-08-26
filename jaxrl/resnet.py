@@ -50,7 +50,7 @@ def _even_pad_hw(x: jax.Array) -> jax.Array:
 class ObsEncoderCNN(nnx.Module):
     def __init__(self, embed_dim: int = 256, *, rngs: nnx.Rngs):
         # Stage 1
-        self.down1 = DownBlock(3, 32, k=5, rngs=rngs)
+        self.down1 = DownBlock(1, 32, k=5, rngs=rngs)
         self.res1a = ResBlock(32, 32, rngs=rngs)
         self.res1b = ResBlock(32, 32, rngs=rngs)
 

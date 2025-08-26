@@ -12,12 +12,14 @@ from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 
 
-PREPROCESS_SHAPE = (65, 55, 3)
+PREPROCESS_SHAPE = (65, 55, 1)
 
 class CraftaxWrapperState(NamedTuple):
     cstate: Any
     time: jax.Array
 
+def rgb2gray(rgb):
+    return jnp.dot(rgb[...,:3], jnp.array([0.2989, 0.5870, 0.1140]))[..., None]
 
 class CraftaxEnvironment(Environment[CraftaxWrapperState]):
     def __init__(self) -> None:
@@ -76,6 +78,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
     def _encode_timestep(self, obs, terminated, actions, rewards, time):
         if not self._symbolic:
             obs = jax.image.resize(obs, (65, 55, 3), jax.image.ResizeMethod.LINEAR)
+            obs = rgb2gray(obs)
         obs = obs[None, ...]
 
         return TimeStep(
