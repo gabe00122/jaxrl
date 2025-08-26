@@ -55,7 +55,7 @@
     "trainer": {
       "trainer_type": "ppo",
       "epoch_count": 1,
-      "minibatch_count": 128,
+      "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
       "obs_coef": 0.00015886855022248167,
       "entropy_coef": 0.00008270466882977551,

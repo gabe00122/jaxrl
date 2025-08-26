@@ -275,6 +275,7 @@ class ReturnEnv(Environment[ReturnState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
+            terminated=jnp.equal(time, 511),
         )
 
 
