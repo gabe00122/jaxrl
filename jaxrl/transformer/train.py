@@ -1,5 +1,6 @@
 from functools import partial
 import time
+from turtle import width
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
@@ -9,10 +10,11 @@ import optuna
 from rich.progress import track
 from rich.console import Console
 
-from jaxrl.config import Config, PPOConfig, ReturnConfig, ScoutsConfig
+from jaxrl.config import Config, PPOConfig, ReturnConfig, ReturnDiggingConfig, ScoutsConfig
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnEnv
+from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
 from jaxrl.envs.memory.scouts import ScoutsEnv
 from jaxrl.envs.multiplex import MultiplexWrapper
 from jaxrl.envs.vmap_wrapper import VmapWrapper
@@ -224,8 +226,8 @@ def train(
         rewards = rollout.calculate_cumulative_rewards(rollout_state) * hypers.epoch_count * hypers.minibatch_count
 
         logs = logs._replace(
-            rewards=logs.rewards + rewards[:2048].mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
-            rewards2=logs.rewards2 + rewards[2048:].mean()
+            rewards=logs.rewards + rewards[:4096].mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
+            rewards2=logs.rewards2 + rewards[4096:].mean()
         )
 
         return optimizer, logs, rngs
@@ -270,10 +272,17 @@ def train_run(
     # )
     # env = VmapWrapper(env, experiment.config.num_envs)
     env = MultiplexWrapper((
-        VmapWrapper(ReturnEnv(ReturnConfig(
+        VmapWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
+            num_agents=32,
+            height=80,
+            width=80
+        )), 64),
+        VmapWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
             num_agents = 16
         )), 128),
-        VmapWrapper(ScoutsEnv(ScoutsConfig()), 1024)
+        VmapWrapper(ScoutsEnv(ScoutsConfig(
+            num_treasures = 24
+        )), 1024 * 2)
     ))
     batch_size = env.num_agents
 
