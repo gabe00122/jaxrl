@@ -1,6 +1,6 @@
 {
   "seed": 75264,
-  "num_envs": 1024,
+  "num_envs": 128,
   "max_env_steps": 512,
   "updates_per_jit": 10,
   "update_steps": 10800,
@@ -66,11 +66,11 @@
     }
   },
   "environment": {
-    "env_type": "scouts",
+    "env_type": "return",
     "width": 40,
     "height": 40,
-    "view_width": 11,
-    "view_height": 11
+    "view_width": 5,
+    "view_height": 5
   },
   "logger": {
     "use_console": true,

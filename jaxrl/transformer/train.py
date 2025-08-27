@@ -9,9 +9,12 @@ import optuna
 from rich.progress import track
 from rich.console import Console
 
-from jaxrl.config import Config, PPOConfig
+from jaxrl.config import Config, PPOConfig, ReturnConfig, ScoutsConfig
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
+from jaxrl.envs.memory.return_2d import ReturnEnv
+from jaxrl.envs.memory.scouts import ScoutsEnv
+from jaxrl.envs.multiplex import MultiplexWrapper
 from jaxrl.envs.vmap_wrapper import VmapWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
@@ -24,6 +27,7 @@ from jaxrl.util import count_parameters, format_count
 
 class TrainingLogs(NamedTuple):
     rewards: jax.Array
+    rewards2: jax.Array
     value_loss: jax.Array
     actor_loss: jax.Array
     entropy_loss: jax.Array
@@ -33,6 +37,7 @@ class TrainingLogs(NamedTuple):
 def create_training_logs() -> TrainingLogs:
     return TrainingLogs(
         rewards=jnp.array(0.0),
+        rewards2=jnp.array(0.0),
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
@@ -162,6 +167,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     logs = TrainingLogs(
         rewards=jnp.array(0.0),
+        rewards2=jnp.array(0.0),
         value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
@@ -215,8 +221,11 @@ def train(
             init_val=(optimizer, rollout_state, logs, rngs)
         )
 
+        rewards = rollout.calculate_cumulative_rewards(rollout_state) * hypers.epoch_count * hypers.minibatch_count
+
         logs = logs._replace(
-            rewards=logs.rewards + rollout.calculate_cumulative_rewards(rollout_state).mean() * hypers.epoch_count * hypers.minibatch_count # this is because it's divided by the minibatch/epoch count and shouldn't
+            rewards=logs.rewards + rewards[:2048].mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
+            rewards2=logs.rewards2 + rewards[2048:].mean()
         )
 
         return optimizer, logs, rngs
@@ -256,10 +265,16 @@ def train_run(
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env = create_env(
-        experiment.config.environment, max_steps
-    )
-    env = VmapWrapper(env, experiment.config.num_envs)
+    # env = create_env(
+    #     experiment.config.environment, max_steps
+    # )
+    # env = VmapWrapper(env, experiment.config.num_envs)
+    env = MultiplexWrapper((
+        VmapWrapper(ReturnEnv(ReturnConfig(
+            num_agents = 16
+        )), 128),
+        VmapWrapper(ScoutsEnv(ScoutsConfig()), 1024)
+    ))
     batch_size = env.num_agents
 
     rngs = nnx.Rngs(default=experiment.default_seed)
