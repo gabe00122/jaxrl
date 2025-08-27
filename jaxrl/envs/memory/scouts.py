@@ -189,7 +189,7 @@ class ScoutsEnv(Environment[ScoutsState]):
                 new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
 
                 reward = (new_tile == TILE_TREASURE).astype(jnp.float32)
-                time = (new_tile == TILE_TREASURE).astype(jnp.int32) * 20
+                time = self.harvesters_move_every #(new_tile == TILE_TREASURE).astype(jnp.int32) * 20
 
                 return new_pos, reward, time
 
@@ -254,6 +254,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
+            terminated=jnp.equal(time, 511)
         )
 
 
