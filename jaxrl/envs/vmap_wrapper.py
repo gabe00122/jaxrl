@@ -45,18 +45,4 @@ class VmapWrapper[EnvState](Environment[EnvState]):
         return self._vec_count * self.base_env.num_agents
 
     def _flatten_timestep(self, timestep: TimeStep) -> TimeStep:
-        return jax.tree_util.tree_map(
-            lambda x: rearrange(x, "b a ... -> (b a) ...") if x is not None else None,
-            timestep,
-        )
-        # return TimeStep(
-        #     action_mask=(
-        #         rearrange(timestep.action_mask, "b a ... -> (b a) ...")
-        #         if timestep.action_mask is not None
-        #         else None
-        #     ),
-        #     obs=rearrange(timestep.obs, "b a ... -> (b a) ..."),
-        #     time=timestep.time.reshape(self.num_agents),
-        #     last_action=timestep.last_action.reshape(self.num_agents),
-        #     last_reward=timestep.last_reward.reshape(self.num_agents),
-        # )
+        return jax.tree_util.tree_map(lambda x: rearrange(x, "b a ... -> (b a) ...") if x is not None else None, timestep,)
