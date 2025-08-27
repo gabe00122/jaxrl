@@ -2,7 +2,7 @@ import jax
 from flax import nnx
 from einops import rearrange
 
-from jaxrl.config import GridCnnObsEncoderConfig, LinearObsEncoderConfig, ResCnnObsEncoderConfig
+from jaxrl.config import FlattenedObsEncoderConfig, GridCnnObsEncoderConfig, LinearObsEncoderConfig, ResCnnObsEncoderConfig
 from jaxrl.envs.specs import ObservationSpec
 from jaxrl.resnet import ObsEncoderCNN
 
@@ -45,11 +45,21 @@ class GridCnnObsEncoder(nnx.Module):
             obs_spec.max_value is not None
         ), "max_value must be specified in the observation spec"
 
-        self.dtype = dtype
+        self.params_dtype = params_dtype
         self.num_classes = obs_spec.max_value
-        self.conv1 = nnx.Conv(
+        self.conv0 = nnx.Conv(
             in_features=self.num_classes,
             out_features=16,
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding="VALID",
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs,
+        )
+        self.conv1 = nnx.Conv(
+            in_features=16,
+            out_features=32,
             kernel_size=(3, 3),
             padding="VALID",
             dtype=dtype,
@@ -57,7 +67,7 @@ class GridCnnObsEncoder(nnx.Module):
             rngs=rngs,
         )
         self.conv2 = nnx.Conv(
-            in_features=16,
+            in_features=32,
             out_features=output_size,
             kernel_size=(3, 3),
             padding="VALID",
@@ -67,13 +77,60 @@ class GridCnnObsEncoder(nnx.Module):
         )
 
     def __call__(self, x) -> jax.Array:
-        x = jax.nn.one_hot(x, self.num_classes, dtype=self.dtype)
+        x = jax.nn.one_hot(x, self.num_classes, dtype=self.params_dtype)
 
+        x = self.conv0(x)
+        x = jax.nn.gelu(x)
         x = self.conv1(x)
         x = jax.nn.gelu(x)
         x = self.conv2(x)
 
         x = rearrange(x, "... w h c -> ... (w h c)")
+
+        return x
+
+
+class FlattenedObsEncoder(nnx.Module):
+    def __init__(
+        self,
+        config: FlattenedObsEncoderConfig,
+        obs_spec: ObservationSpec,
+        output_size: int,
+        *,
+        dtype,
+        params_dtype,
+        rngs: nnx.Rngs,
+    ) -> None:
+        assert (
+            obs_spec.max_value is not None
+        ), "max_value must be specified in the observation spec"
+
+        embed_features = 4
+
+        self.params_dtype = params_dtype
+        self.num_classes = obs_spec.max_value
+        in_features = embed_features * obs_spec.shape[0] * obs_spec.shape[1]
+
+        self.embedding = nnx.Linear(
+            self.num_classes,
+            embed_features,
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs,
+        )
+        self.dense = nnx.Linear(
+            in_features,
+            output_size,
+            dtype=dtype,
+            param_dtype=params_dtype,
+            rngs=rngs,
+        )
+
+    def __call__(self, x) -> jax.Array:
+        x = jax.nn.one_hot(x, self.num_classes, dtype=self.params_dtype)
+        x = self.embedding(x)
+        x = rearrange(x, "... w h c -> ... (w h c)")
+        x = self.dense(x)
 
         return x
 
@@ -126,7 +183,7 @@ class GridCnnObsDecoder(nnx.Module):
 
 
 def create_obs_encoder(
-    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig | ResCnnObsEncoderConfig,
+    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig | ResCnnObsEncoderConfig | FlattenedObsEncoderConfig,
     obs_spec: ObservationSpec,
     output_size: int,
     *,
@@ -155,4 +212,12 @@ def create_obs_encoder(
             )
         case "res_cnn":
             return ObsEncoderCNN(rngs=rngs)
-    
+        case "grid_flattened":
+            return FlattenedObsEncoder(
+                config,
+                obs_spec,
+                output_size,
+                dtype=dtype,
+                params_dtype=params_dtype,
+                rngs=rngs,
+            )
