@@ -57,15 +57,31 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
 
     def _generate_map(self, rng_key):
-        first_key, second_key = jax.random.split(rng_key)
-        noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=first_key
-        )
-        noise = noise + generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=second_key
-        )
+        noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
 
-        tiles = jnp.where(noise > self.mapgen_threshold, TILE_SOFT_WALL, TILE_EMPTY)
+        res = [4, 5, 8, 10]
+        amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
+        noise = generate_perlin_noise_2d(
+            (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
+        ) * amplitude[0]
+
+        for i, r in enumerate(res):
+            noise_key, rng_key = jax.random.split(rng_key)
+            noise = noise + generate_perlin_noise_2d(
+                (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
+            ) * amplitude[i+1]
+        
+        tiles = jnp.where(noise > 0.05, TILE_WALL, TILE_EMPTY)
+
+        # first_key, second_key = jax.random.split(rng_key)
+        # noise = generate_perlin_noise_2d(
+        #     (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=first_key
+        # )
+        # noise = noise + generate_perlin_noise_2d(
+        #     (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=second_key
+        # )
+
+        # tiles = jnp.where(noise > self.mapgen_threshold, TILE_SOFT_WALL, TILE_EMPTY)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
@@ -217,6 +233,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
+            terminated=jnp.equal(time, 511)
         )
 
 
