@@ -7,7 +7,7 @@ from jaxrl.envs.specs import ActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 
 
-class VmapWrapper[EnvState](Environment[EnvState]):
+class VectorWrapper[EnvState](Environment[EnvState]):
     def __init__(self, env: Environment[EnvState], vec_count: int):
         self.base_env = env
         self._vec_count = vec_count

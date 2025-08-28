@@ -16,8 +16,8 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.return_2d import ReturnEnv
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
 from jaxrl.envs.memory.scouts import ScoutsEnv
-from jaxrl.envs.multiplex import MultiplexWrapper
-from jaxrl.envs.vmap_wrapper import VmapWrapper
+from jaxrl.envs.multitask import MultiTaskWrapper
+from jaxrl.envs.vector import VectorWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
@@ -271,16 +271,16 @@ def train_run(
     #     experiment.config.environment, max_steps
     # )
     # env = VmapWrapper(env, experiment.config.num_envs)
-    env = MultiplexWrapper((
-        VmapWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
+    env = MultiTaskWrapper((
+        VectorWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
             num_agents=32,
             height=80,
             width=80
         )), 64),
-        VmapWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
+        VectorWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
             num_agents = 16
         )), 128),
-        VmapWrapper(ScoutsEnv(ScoutsConfig(
+        VectorWrapper(ScoutsEnv(ScoutsConfig(
             num_treasures = 24
         )), 1024 * 2)
     ))
