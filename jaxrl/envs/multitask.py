@@ -1,24 +1,17 @@
 from functools import cached_property
-from typing import Sequence
 
 import jax
 from jax import numpy as jnp
-from einops import rearrange
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import ActionSpec, DiscreteActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
 
 
 def _stack_pytree(batch):
     return jax.tree.map(lambda *xs: jnp.concatenate(xs, axis=0), *batch)
 
 
-# def _slice_pytree(tree, _slice):
-#     return jax.tree.map(lambda xs: xs[_slice], tree)
-
-
-class MultiplexWrapper[Environment]:
+class MultiTaskWrapper(Environment):
     def __init__(self, envs: tuple[Environment]) -> None:
         self._envs = envs
 

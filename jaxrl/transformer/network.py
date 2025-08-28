@@ -1,4 +1,3 @@
-from einops import rearrange
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike

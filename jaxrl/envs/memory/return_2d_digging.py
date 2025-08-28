@@ -71,7 +71,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
             ) * amplitude[i+1]
         
-        tiles = jnp.where(noise > 0.05, TILE_WALL, TILE_EMPTY)
+        tiles = jnp.where(noise > 0.05, TILE_SOFT_WALL, TILE_EMPTY)
 
         # first_key, second_key = jax.random.split(rng_key)
         # noise = generate_perlin_noise_2d(

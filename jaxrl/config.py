@@ -77,6 +77,21 @@ class CraftaxConfig(BaseModel):
     env_type: Literal["craftax"] = "craftax"
 
 
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
+
+
+class MultiTaskEnvConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    num: int = 1
+    env: EnvironmentConfig
+
+
+class MultiTaskConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["multi"] = "multi"
+
+
+
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
@@ -214,9 +229,6 @@ class LearnerConfig(BaseModel):
     optimizer: OptimizerConfig
     model: TransformerActorCriticConfig
     trainer: PPOConfig
-
-
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
 
 
 class Config(BaseModel):
