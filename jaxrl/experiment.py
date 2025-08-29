@@ -96,7 +96,7 @@ class Experiment:
 
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
-        return cls.from_config(os.path.basename(config_file), config, base_dir, create_directories=create_directories)
+        return cls.from_config(generate_unique_token(), config, base_dir, create_directories=create_directories)
 
 
 def generate_unique_token() -> str:
