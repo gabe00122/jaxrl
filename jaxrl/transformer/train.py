@@ -29,7 +29,6 @@ from jaxrl.util import count_parameters, format_count
 
 class TrainingLogs(NamedTuple):
     rewards: jax.Array
-    rewards2: jax.Array
     value_loss: jax.Array
     actor_loss: jax.Array
     entropy_loss: jax.Array
@@ -39,7 +38,6 @@ class TrainingLogs(NamedTuple):
 def create_training_logs() -> TrainingLogs:
     return TrainingLogs(
         rewards=jnp.array(0.0),
-        rewards2=jnp.array(0.0),
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
@@ -226,8 +224,7 @@ def train(
         rewards = rollout.calculate_cumulative_rewards(rollout_state) * hypers.epoch_count * hypers.minibatch_count
 
         logs = logs._replace(
-            rewards=logs.rewards + rewards[:4096].mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
-            rewards2=logs.rewards2 + rewards[4096:].mean()
+            rewards=logs.rewards + rewards.mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
         )
 
         return optimizer, logs, rngs
@@ -267,23 +264,8 @@ def train_run(
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    # env = create_env(
-    #     experiment.config.environment, max_steps
-    # )
-    # env = VmapWrapper(env, experiment.config.num_envs)
-    env = MultiTaskWrapper((
-        VectorWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
-            num_agents=32,
-            height=80,
-            width=80
-        )), 64),
-        VectorWrapper(ReturnDiggingEnv(ReturnDiggingConfig(
-            num_agents = 16
-        )), 128),
-        VectorWrapper(ScoutsEnv(ScoutsConfig(
-            num_treasures = 24
-        )), 1024 * 2)
-    ))
+    env = create_env(experiment.config.environment, max_steps, experiment.config.num_envs)
+
     batch_size = env.num_agents
 
     rngs = nnx.Rngs(default=experiment.default_seed)

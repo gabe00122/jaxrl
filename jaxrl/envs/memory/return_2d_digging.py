@@ -36,9 +36,10 @@ class ReturnDiggingState(NamedTuple):
 
 
 class ReturnDiggingEnv(Environment[ReturnDiggingState]):
-    def __init__(self, config: ReturnDiggingConfig) -> None:
+    def __init__(self, config: ReturnDiggingConfig, length: int) -> None:
         super().__init__()
 
+        self._length = length
         self._num_agents = config.num_agents
 
         self.unpadded_width = config.width
@@ -233,7 +234,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, 511)
+            terminated=jnp.equal(time, self._length - 1)
         )
 
 

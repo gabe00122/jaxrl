@@ -12,8 +12,10 @@ def _stack_pytree(batch):
 
 
 class MultiTaskWrapper(Environment):
-    def __init__(self, envs: tuple[Environment]) -> None:
+    def __init__(self, envs: tuple[Environment], env_names: tuple[str]) -> None:
         self._envs = envs
+        self._env_names = env_names
+
 
     def reset(self, rng_key: jax.Array):
         rng_keys = jax.random.split(rng_key, len(self._envs))

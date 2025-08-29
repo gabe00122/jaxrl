@@ -37,9 +37,10 @@ class ReturnColorState(NamedTuple):
 
 
 class ReturnColorEnv(Environment[ReturnColorState]):
-    def __init__(self, config: ReturnColorConfig) -> None:
+    def __init__(self, config: ReturnColorConfig, length: int) -> None:
         super().__init__()
 
+        self._length = length
         self._num_agents = config.num_agents
 
         self.unpadded_width = config.width
@@ -226,6 +227,7 @@ class ReturnColorEnv(Environment[ReturnColorState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=action_mask,
+            terminated=jnp.equal(time, self._length - 1)
         )
 
 agent_color_names = ["darkorchid1", "darkorchid2", "darkorchid3", "darkorchid4"]

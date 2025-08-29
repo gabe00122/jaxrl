@@ -83,13 +83,14 @@ type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | Return
 class MultiTaskEnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     num: int = 1
+    name: str
     env: EnvironmentConfig
 
 
 class MultiTaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["multi"] = "multi"
-
+    envs: tuple[MultiTaskEnvConfig]
 
 
 class GridCnnObsEncoderConfig(BaseModel):
@@ -242,7 +243,7 @@ class Config(BaseModel):
     update_steps: int
 
     learner: LearnerConfig
-    environment: EnvironmentConfig = Field(discriminator="env_type")
+    environment: EnvironmentConfig | MultiTaskConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
 
 
