@@ -76,6 +76,8 @@ class ReturnState(NamedTuple):
     spawn_pos: jax.Array
     spawn_count: jax.Array
 
+    rewards: jax.Array
+
 
 class ReturnEnv(Environment[ReturnState]):
     def __init__(self, config: ReturnConfig, length: int) -> None:
@@ -186,6 +188,7 @@ class ReturnEnv(Environment[ReturnState]):
             agents_pos=agents_pos,
             found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
             time=jnp.int32(0),
+            rewards=jnp.float32(0),
         )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
@@ -246,6 +249,7 @@ class ReturnEnv(Environment[ReturnState]):
         state = state._replace(
             agents_pos=new_position,
             found_reward=jnp.logical_or(state.found_reward, rewards),
+            rewards=state.rewards + jnp.mean(rewards),
             time=state.time + 1,
         )
 
@@ -278,6 +282,16 @@ class ReturnEnv(Environment[ReturnState]):
             action_mask=None,
             terminated=jnp.equal(time, self._length - 1),
         )
+    
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: ReturnState):
+        return {
+            "rewards": state.rewards
+        }
 
 
 class ReturnClient(EnvironmentClient[ReturnState]):

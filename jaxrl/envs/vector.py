@@ -1,5 +1,6 @@
 from functools import cached_property
 import jax
+from jax import numpy as jnp
 from einops import rearrange
 
 from jaxrl.envs.environment import Environment
@@ -46,3 +47,12 @@ class VectorWrapper[EnvState](Environment[EnvState]):
 
     def _flatten_timestep(self, timestep: TimeStep) -> TimeStep:
         return jax.tree_util.tree_map(lambda x: rearrange(x, "b a ... -> (b a) ...") if x is not None else None, timestep,)
+
+    def create_placeholder_logs(self):
+        return self.base_env.create_placeholder_logs()
+    
+    def create_logs(self, state):
+        log_updates = jax.vmap(self.base_env.create_logs)(state)
+        log_updates = jax.tree.map(lambda xs: jnp.mean(xs, axis=0), log_updates)
+
+        return log_updates
