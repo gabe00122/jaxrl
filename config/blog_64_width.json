@@ -1,6 +1,6 @@
 {
   "seed": "random",
-  "num_envs": 128,
+  "num_envs": 256,
   "max_env_steps": 512,
   "updates_per_jit": 10,
   "update_steps": 3800,
@@ -18,7 +18,7 @@
       "obs_encoder": {
         "obs_type": "grid_flattened"
       },
-      "hidden_features": 128,
+      "hidden_features": 64,
       "layer": {
         "feed_forward": {
           "glu": true,
@@ -67,6 +67,7 @@
   },
   "environment": {
     "env_type": "return",
+    "num_agents": 16,
     "width": 40,
     "height": 40,
     "view_width": 5,
