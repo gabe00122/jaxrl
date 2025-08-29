@@ -167,7 +167,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     logs = TrainingLogs(
         rewards=jnp.array(0.0),
-        rewards2=jnp.array(0.0),
         value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,

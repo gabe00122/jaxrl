@@ -47,6 +47,7 @@ def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec
             raise ValueError(f"Unknown environment type: {env_config.env_type}")
     
     if vec_count > 1:
+        print("vector")
         env = VectorWrapper(env, vec_count)
     
     return env

@@ -108,7 +108,7 @@ class FlattenedObsEncoder(nnx.Module):
         embed_features = 4
 
         self.params_dtype = params_dtype
-        self.num_classes = 6 #obs_spec.max_value
+        self.num_classes = obs_spec.max_value
         in_features = embed_features * obs_spec.shape[0] * obs_spec.shape[1]
 
         self.embedding = nnx.Linear(

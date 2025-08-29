@@ -1,6 +1,6 @@
 {
   "seed": "random",
-  "num_envs": 128,
+  "num_envs": 256,
   "max_env_steps": 512,
   "updates_per_jit": 10,
   "update_steps": 3800,
@@ -37,7 +37,7 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 6,
+      "num_layers": 2,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
@@ -67,6 +67,7 @@
   },
   "environment": {
     "env_type": "return",
+    "num_agents": 16,
     "width": 40,
     "height": 40,
     "view_width": 5,
