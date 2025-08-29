@@ -39,8 +39,10 @@ class ScoutsState(NamedTuple):
 
 
 class ScoutsEnv(Environment[ScoutsState]):
-    def __init__(self, config: ScoutsConfig) -> None:
+    def __init__(self, config: ScoutsConfig, length: int) -> None:
         super().__init__()
+
+        self._length = length
 
         self._num_scouts = config.num_scouts
         self._num_harvesters = config.num_harvesters
@@ -254,7 +256,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, 511)
+            terminated=jnp.equal(time, self._length - 1)
         )
 
 

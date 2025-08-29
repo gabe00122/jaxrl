@@ -78,9 +78,10 @@ class ReturnState(NamedTuple):
 
 
 class ReturnEnv(Environment[ReturnState]):
-    def __init__(self, config: ReturnConfig) -> None:
+    def __init__(self, config: ReturnConfig, length: int) -> None:
         super().__init__()
 
+        self._length = length
         self._num_agents = config.num_agents
 
         self.unpadded_width = config.width
@@ -275,7 +276,7 @@ class ReturnEnv(Environment[ReturnState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, 511),
+            terminated=jnp.equal(time, self._length - 1),
         )
 
 
