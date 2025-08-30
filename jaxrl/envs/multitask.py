@@ -74,5 +74,5 @@ class MultiTaskWrapper(Environment):
 
     
     def create_logs(self, state):
-        return { name: env.create_logs(state) for name, env in zip(self._env_names, self._envs) }
+        return { name: env.create_logs(s) for name, env, s in zip(self._env_names, self._envs, state) }
 

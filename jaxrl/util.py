@@ -81,6 +81,9 @@ def _normalise_json_ordered(data: dict[str, Any], separator: str) -> dict[str, A
 def json_normalize[T: (
     dict[str, Any] | list[dict[str, Any]]
 )](ds: T, sep: str = "/",) -> T:
+    if isinstance(ds, tuple):
+        ds = ds._asdict()
+
     normalised_json_object: dict[str, Any] = {}
     # expect a dictionary, as most jsons are. However, lists are perfectly valid
     if isinstance(ds, dict):

@@ -1,6 +1,5 @@
 from functools import partial
 import time
-from turtle import width
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
@@ -10,14 +9,9 @@ import optuna
 from rich.progress import track
 from rich.console import Console
 
-from jaxrl.config import Config, PPOConfig, ReturnConfig, ReturnDiggingConfig, ScoutsConfig
+from jaxrl.config import Config, PPOConfig
 from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
-from jaxrl.envs.memory.return_2d import ReturnEnv
-from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
-from jaxrl.envs.memory.scouts import ScoutsEnv
-from jaxrl.envs.multitask import MultiTaskWrapper
-from jaxrl.envs.vector import VectorWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.transformer.network import TransformerActorCritic
@@ -28,7 +22,6 @@ from jaxrl.util import count_parameters, format_count
 
 
 class TrainingLogs(NamedTuple):
-    rewards: jax.Array
     value_loss: jax.Array
     actor_loss: jax.Array
     entropy_loss: jax.Array
@@ -37,7 +30,6 @@ class TrainingLogs(NamedTuple):
 
 def create_training_logs() -> TrainingLogs:
     return TrainingLogs(
-        rewards=jnp.array(0.0),
         value_loss=jnp.array(0.0),
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
@@ -102,7 +94,7 @@ def evaluate(
         values=rollout_state.values.at[:, -1].set(value)
     )
 
-    rollout_state = rollout.calculate_advantage2(
+    rollout_state = rollout.calculate_advantage(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
     )
 
@@ -168,7 +160,6 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     )
 
     logs = TrainingLogs(
-        rewards=jnp.array(0.0),
         value_loss=value_loss,
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
@@ -236,7 +227,7 @@ def train(
     logs = jax.tree.map(lambda x: x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count), logs)
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
-    return optimizer, rngs, {"algo": logs, "env": env_logs}
+    return optimizer, rngs, {"algo": logs._asdict(), "env": env_logs}
 
 
 def replicate_model(optimizer, sharding):
@@ -324,7 +315,7 @@ def train_run(
 
 
         # this should be delayed n-1 for jax to use async dispatch
-        logger.log(logs._asdict(), i)
+        logger.log(logs, i)
 
         stop_time = time.time()
 
