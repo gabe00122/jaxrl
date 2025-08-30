@@ -36,6 +36,8 @@ class ScoutsState(NamedTuple):
     map: jax.Array              # (w, h) tile type id
     spawn_pos: jax.Array        # n length (x, y) spawnable positions, padded with -1
     spawn_count: jax.Array      # () size of spawn_pos
+    
+    rewards: jax.Array
 
 
 class ScoutsEnv(Environment[ScoutsState]):
@@ -131,6 +133,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             harvester_pos=harvester_pos,
             harvester_time=jnp.zeros((self._num_harvesters,), dtype=jnp.int32),
             time=jnp.int32(50),
+            rewards=jnp.float32(0.0),
         )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
@@ -220,15 +223,16 @@ class ScoutsEnv(Environment[ScoutsState]):
         #     map[random_positions[:, 0], random_positions[:, 1]],
         # ))
 
+        rewards = jnp.concatenate((scout_rewards, harvester_rewards))
+
         state = state._replace(
             map=map,
             scout_pos=new_scout_positions,
             harvester_pos=new_harvester_positions,
             harvester_time=harvester_time,
             time=state.time + 1,
+            rewards=state.rewards + jnp.mean(rewards),
         )
-
-        rewards = jnp.concatenate((scout_rewards, harvester_rewards))
 
         return state, self.encode_observations(state, action, rewards)
 
@@ -258,6 +262,16 @@ class ScoutsEnv(Environment[ScoutsState]):
             action_mask=None,
             terminated=jnp.equal(time, self._length - 1)
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: ScoutsState):
+        return {
+            "rewards": state.rewards
+        }
 
 
 class ScoutsClient(EnvironmentClient[ScoutsState]):

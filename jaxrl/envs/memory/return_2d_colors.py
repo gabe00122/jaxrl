@@ -34,6 +34,8 @@ class ReturnColorState(NamedTuple):
     map: jax.Array
     spawn_pos: jax.Array
     spawn_count: jax.Array
+    
+    rewards: jax.Array
 
 
 class ReturnColorEnv(Environment[ReturnColorState]):
@@ -111,6 +113,7 @@ class ReturnColorEnv(Environment[ReturnColorState]):
             agent_color=agent_color,
             found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
             time=jnp.int32(0),
+            rewards=jnp.float32(0.0),
         )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
@@ -173,6 +176,7 @@ class ReturnColorEnv(Environment[ReturnColorState]):
             agents_pos=new_position,
             found_reward=jnp.logical_or(state.found_reward, rewards),
             time=state.time + 1,
+            rewards=state.rewards + jnp.mean(rewards),
         )
 
         return state, rewards, action_mask
@@ -229,6 +233,16 @@ class ReturnColorEnv(Environment[ReturnColorState]):
             action_mask=action_mask,
             terminated=jnp.equal(time, self._length - 1)
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: ReturnColorState):
+        return {
+            "rewards": state.rewards
+        }
 
 agent_color_names = ["darkorchid1", "darkorchid2", "darkorchid3", "darkorchid4"]
 

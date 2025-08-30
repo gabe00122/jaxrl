@@ -88,7 +88,7 @@ def evaluate(
 
         return rollout_state, rngs, env_state, next_timestep, carry
 
-    rollout_state, rngs, _, _, _ = nnx.fori_loop(
+    rollout_state, rngs, env_state, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
@@ -106,7 +106,9 @@ def evaluate(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
     )
 
-    return rollout_state, rngs
+    env_logs = env.create_logs(env_state)
+
+    return rollout_state, env_logs, rngs
 
 def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
     batch_obs = rollout.obs
@@ -211,8 +213,8 @@ def train(
         return optimizer, rollout_state, logs, rngs
 
     def _global_step(i, x):
-        optimizer, logs, rngs = x
-        rollout_state, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
+        optimizer, logs, env_logs, rngs = x
+        rollout_state, env_log_update, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
         optimizer, rollout_state, logs, rngs = nnx.fori_loop(
             0,
             hypers.epoch_count,
@@ -220,23 +222,21 @@ def train(
             init_val=(optimizer, rollout_state, logs, rngs)
         )
 
-        rewards = rollout.calculate_cumulative_rewards(rollout_state) * hypers.epoch_count * hypers.minibatch_count
+        env_logs = jax.tree.map(lambda x, y: x + y, env_logs, env_log_update)
 
-        logs = logs._replace(
-            rewards=logs.rewards + rewards.mean(), # this is because it's divided by the minibatch/epoch count and shouldn't
-        )
-
-        return optimizer, logs, rngs
+        return optimizer, logs, env_logs, rngs
 
     logs = create_training_logs()
+    env_logs = env.create_placeholder_logs()
 
-    optimizer, logs, rngs = nnx.fori_loop(
-        0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, rngs)
+    optimizer, logs, env_logs, rngs = nnx.fori_loop(
+        0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, env_logs, rngs)
     )
 
-    logs = jax.tree_util.tree_map(lambda x: x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count), logs)
+    logs = jax.tree.map(lambda x: x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count), logs)
+    env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
-    return optimizer, rngs, logs
+    return optimizer, rngs, {"algo": logs, "env": env_logs}
 
 
 def replicate_model(optimizer, sharding):

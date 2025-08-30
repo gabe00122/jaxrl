@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
+from typing import Any
 
 from jax import Array
 
@@ -24,10 +25,10 @@ class Environment[State](ABC):
     ) -> tuple[State, TimeStep]: ...
 
     @abstractmethod
-    def create_placeholder_logs(self) -> dict[str, Array]: ...
+    def create_placeholder_logs(self) -> dict[str, Any]: ...
 
     @abstractmethod
-    def create_logs(self, state) -> dict[str, Array]: ...
+    def create_logs(self, state) -> dict[str, Any]: ...
 
     @cached_property
     @abstractmethod

@@ -17,6 +17,7 @@ PREPROCESS_SHAPE = (65, 55, 1)
 class CraftaxWrapperState(NamedTuple):
     cstate: Any
     time: jax.Array
+    rewards: jax.Array
 
 def rgb2gray(rgb):
     return jnp.dot(rgb[...,:3], jnp.array([0.2989, 0.5870, 0.1140]))[..., None]
@@ -40,7 +41,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         rewards = jnp.zeros(1)
         time = jnp.zeros(1, dtype=jnp.int32)
 
-        state = CraftaxWrapperState(cstate, time)
+        state = CraftaxWrapperState(cstate, time, jnp.float32(0.0))
 
         return state, self._encode_timestep(obs, jnp.array(False, dtype=jnp.bool), actions, rewards, time)
 
@@ -71,6 +72,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         state = state._replace(
             cstate=cstate,
             time=state.time + 1,
+            rewards=state.rewards + jnp.squeeze(reward),
         )
 
         return state, self._encode_timestep(obs, done, action, reward[None], state.time)
@@ -89,6 +91,16 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
             last_reward=rewards,
             action_mask=None,
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: CraftaxWrapperState):
+        return {
+            "rewards": state.rewards
+        }
 
 
 def main():

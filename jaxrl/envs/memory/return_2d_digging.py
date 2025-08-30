@@ -33,6 +33,8 @@ class ReturnDiggingState(NamedTuple):
     map: jax.Array
     spawn_pos: jax.Array
     spawn_count: jax.Array
+    
+    rewards: jax.Array
 
 
 class ReturnDiggingEnv(Environment[ReturnDiggingState]):
@@ -130,6 +132,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             agents_timeout=jnp.zeros((self.num_agents,), dtype=jnp.int32),
             found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
             time=jnp.int32(0),
+            rewards=jnp.float32(0.0),
         )
 
         actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
@@ -204,6 +207,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             agents_timeout=timeout,
             found_reward=jnp.logical_or(state.found_reward, rewards),
             time=state.time + 1,
+            rewards=state.rewards + jnp.mean(rewards),
             map=map,
         )
 
@@ -236,6 +240,16 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             action_mask=None,
             terminated=jnp.equal(time, self._length - 1)
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: ReturnDiggingState):
+        return {
+            "rewards": state.rewards
+        }
 
 
 class ReturnDiggingClient:
