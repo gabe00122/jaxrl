@@ -13,6 +13,16 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.utils.video_writter import save_video
+from jaxrl.envs.gridworld.renderer import (
+    GridRenderState,
+    TILE_EMPTY as GW_TILE_EMPTY,
+    TILE_WALL as GW_TILE_WALL,
+    TILE_SOFT_WALL as GW_TILE_SOFT_WALL,
+    TILE_TREASURE as GW_TILE_TREASURE,
+    TILE_TREASURE_OPEN as GW_TILE_TREASURE_OPEN,
+    AGENT_SCOUT as GW_AGENT_SCOUT,
+    AGENT_HARVESTER as GW_AGENT_HARVESTER,
+)
 
 NUM_CLASSES = 6
 
@@ -261,6 +271,38 @@ class ScoutsEnv(Environment[ScoutsState]):
             last_reward=rewards,
             action_mask=None,
             terminated=jnp.equal(time, self._length - 1)
+        )
+
+    # Shared renderer adapter
+    def get_render_state(self, state: ScoutsState) -> GridRenderState:
+        # Remap tile ids to unified scheme
+        smap = state.map
+        # Start with zeros (empty)
+        tilemap = jnp.zeros_like(smap)
+        tilemap = jnp.where(smap == TILE_WALL, GW_TILE_WALL, tilemap)
+        tilemap = jnp.where(smap == TILE_TREASURE, GW_TILE_TREASURE, tilemap)
+        tilemap = jnp.where(smap == TILE_TREASURE_OPEN, GW_TILE_TREASURE_OPEN, tilemap)
+
+        agent_positions = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
+        agent_types = jnp.concatenate(
+            (
+                jnp.full((state.scout_pos.shape[0],), GW_AGENT_SCOUT, dtype=jnp.int32),
+                jnp.full((state.harvester_pos.shape[0],), GW_AGENT_HARVESTER, dtype=jnp.int32),
+            ),
+            axis=0,
+        )
+
+        return GridRenderState(
+            tilemap=tilemap,
+            pad_width=self.pad_width,
+            pad_height=self.pad_height,
+            unpadded_width=self.unpadded_width,
+            unpadded_height=self.unpadded_height,
+            agent_positions=agent_positions,
+            agent_types=agent_types,
+            agent_colors=None,
+            view_width=self.view_width,
+            view_height=self.view_height,
         )
 
     def create_placeholder_logs(self):

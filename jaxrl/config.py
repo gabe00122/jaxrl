@@ -1,7 +1,7 @@
 import json
 import random
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class NBackConfig(BaseModel):
@@ -17,19 +17,6 @@ class ReturnConfig(BaseModel):
     env_type: Literal["return"] = "return"
 
     num_agents: int = 1
-
-    width: int = 40
-    height: int = 40
-    view_width: int = 5
-    view_height: int = 5
-
-
-class ReturnColorConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    env_type: Literal["return_color"] = "return_color"
-
-    num_agents: int = 1
-    num_colors: int = 4
 
     width: int = 40
     height: int = 40
@@ -77,20 +64,26 @@ class CraftaxConfig(BaseModel):
     env_type: Literal["craftax"] = "craftax"
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnColorConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
 
 
 class MultiTaskEnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     num: int = 1
     name: str
-    env: EnvironmentConfig
+    env: EnvironmentConfig = Field(discriminator="env_type")
 
 
 class MultiTaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["multi"] = "multi"
-    envs: tuple[MultiTaskEnvConfig]
+    envs: tuple[MultiTaskEnvConfig, ...]
+
+    @field_validator("envs", mode="before")
+    @classmethod
+    def coerce_envs(cls, v):
+        # JSON gives list; accept list and turn into tuple
+        return tuple(v) if isinstance(v, list) else v
 
 
 class GridCnnObsEncoderConfig(BaseModel):
@@ -236,7 +229,7 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     seed: int | Literal["random"] = "random"
-    num_envs: int
+    num_envs: int = 1
     max_env_steps: int
 
     updates_per_jit: int = 1

@@ -6,6 +6,7 @@ from jax import numpy as jnp
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.create import create_client, create_env
+from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.experiment import Experiment
 from jaxrl.transformer.network import TransformerActorCritic
 from jaxrl.transformer.train import add_seq_dim, train_run
@@ -45,7 +46,8 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         model = checkpointer.restore_latest(model)
 
-    client = create_client(env)
+    # client = create_client(env)
+    client = GridworldClient(env)
 
     @nnx.jit
     def step(timestep, kv_cache, env_state, rngs):

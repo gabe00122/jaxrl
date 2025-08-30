@@ -12,6 +12,10 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.utils.video_writter import save_video
+from jaxrl.envs.gridworld.renderer import (
+    GridRenderState,
+    TILE_TREASURE as GW_TILE_TREASURE,
+)
 
 NUM_CLASSES = 5
 
@@ -250,6 +254,25 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         return {
             "rewards": state.rewards
         }
+
+    # Shared renderer adapter
+    def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
+        # Map already uses empty/wall/soft-wall; overlay treasure to unified id
+        tilemap = state.map
+        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(GW_TILE_TREASURE)
+
+        return GridRenderState(
+            tilemap=tilemap,
+            pad_width=self.pad_width,
+            pad_height=self.pad_height,
+            unpadded_width=self.unpadded_width,
+            unpadded_height=self.unpadded_height,
+            agent_positions=state.agents_pos,
+            agent_types=None,
+            agent_colors=None,
+            view_width=self.view_width,
+            view_height=self.view_height,
+        )
 
 
 class ReturnDiggingClient:

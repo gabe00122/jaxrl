@@ -4,9 +4,9 @@ from jaxrl.envs.craftax_wrapper import CraftaxEnvironment
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d import ReturnClient, ReturnEnv
-from jaxrl.envs.memory.return_2d_colors import ReturnColorClient, ReturnColorEnv
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingClient, ReturnDiggingEnv
 from jaxrl.envs.memory.scouts import ScoutsClient, ScoutsEnv
+from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.envs.trust.prisoners import PrisonersEnv
 from jaxrl.envs.vector import VectorWrapper
@@ -33,8 +33,6 @@ def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec
             env = NBackMemory(env_config.max_n, env_config.max_value, length)
         case "return":
             env = ReturnEnv(env_config, length)
-        case "return_color":
-            env = ReturnColorEnv(env_config, length)
         case "return_digging":
             env = ReturnDiggingEnv(env_config, length)
         case "prisoners":
@@ -47,18 +45,12 @@ def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec
             raise ValueError(f"Unknown environment type: {env_config.env_type}")
     
     if vec_count > 1:
-        print("vector")
         env = VectorWrapper(env, vec_count)
     
     return env
 
 
 def create_client[State](env: Environment[State]) -> EnvironmentClient[State]:
-        if isinstance(env, ReturnEnv):
-            return ReturnClient(env)
-        elif isinstance(env, ReturnColorEnv):
-            return ReturnColorClient(env)
-        elif isinstance(env, ReturnDiggingEnv):
-            return ReturnDiggingClient(env)
-        elif isinstance(env, ScoutsEnv):
-            return ScoutsClient(env)
+        if isinstance(env, (ReturnEnv, ReturnDiggingEnv, ScoutsEnv)):
+            # Use the shared gridworld renderer for all gridworld envs
+            return GridworldClient(env)

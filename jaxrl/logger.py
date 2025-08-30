@@ -86,7 +86,7 @@ class ConsoleLogger(BaseLogger):
         pass
 
     def log_dict(self, data: Metrics, step: int) -> None:
-        data = json_normalize(data, sep=" ")
+        data = json_normalize(data, sep=".")
 
         keys = data.keys()
         values = []
@@ -95,7 +95,7 @@ class ConsoleLogger(BaseLogger):
                 value = value.item()
             values.append(f"{value:.3f}" if isinstance(value, float) else value)
 
-        log_str = " | ".join([f"{key}: {value}" for key, value in zip(keys, values)])
+        log_str = "\n".join([f"{key}: {value}" for key, value in zip(keys, values)])
         log_str = f"step: {step} | {log_str}"
         print(log_str)
 

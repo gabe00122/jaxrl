@@ -78,7 +78,10 @@ class NBackMemory(Environment[NBackMemoryState]):
         # Update position
         next_position = state.position + 1
 
-        new_state = state._replace(position=next_position, rewards=state.rewards + reward)
+        new_state = state._replace(
+            position=next_position,
+            rewards=state.rewards + reward
+        )
 
         done = next_position >= self.length
 
