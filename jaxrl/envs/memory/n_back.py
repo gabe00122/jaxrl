@@ -14,6 +14,7 @@ class NBackMemoryState(NamedTuple):
     data: jax.Array
     labels: jax.Array
     position: jax.Array
+    rewards: jax.Array
 
 
 class NBackMemory(Environment[NBackMemoryState]):
@@ -52,7 +53,7 @@ class NBackMemory(Environment[NBackMemoryState]):
 
         position = jnp.array(0, dtype=jnp.int32)
 
-        state = NBackMemoryState(data, labels, position)
+        state = NBackMemoryState(data, labels, position, jnp.float32(0.0))
 
         initial_timestep = self.encode_observation(
             state,
@@ -77,7 +78,7 @@ class NBackMemory(Environment[NBackMemoryState]):
         # Update position
         next_position = state.position + 1
 
-        new_state = state._replace(position=next_position)
+        new_state = state._replace(position=next_position, rewards=state.rewards + reward)
 
         done = next_position >= self.length
 
@@ -112,6 +113,17 @@ class NBackMemory(Environment[NBackMemoryState]):
             last_action=last_action[None, ...],
             last_reward=last_reward[None, ...],
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: NBackMemoryState):
+        # No cumulative reward tracked; keep interface consistent
+        return {
+            "rewards": jnp.float32(0.0)
+        }
 
 
 class NBackMemoryClient:

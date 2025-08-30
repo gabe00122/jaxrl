@@ -68,3 +68,11 @@ class MultiTaskWrapper(Environment):
     @property
     def num_agents(self) -> int:
         return sum([env.num_agents for env in self._envs])
+
+    def create_placeholder_logs(self):
+        return { name: env.create_placeholder_logs() for name, env in zip(self._env_names, self._envs) }
+
+    
+    def create_logs(self, state):
+        return { name: env.create_logs(state) for name, env in zip(self._env_names, self._envs) }
+

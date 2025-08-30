@@ -10,6 +10,7 @@ from jaxrl.types import TimeStep
 
 class PrisonersState(NamedTuple):
     time: jax.Array
+    rewards: jax.Array
 
 
 class PrisonersEnv(Environment[PrisonersState]):
@@ -36,7 +37,7 @@ class PrisonersEnv(Environment[PrisonersState]):
         return 2
 
     def reset(self, rng_key: jax.Array) -> tuple[PrisonersState, TimeStep]:
-        state = PrisonersState(time=jnp.zeros((), dtype=jnp.int32))
+        state = PrisonersState(time=jnp.zeros((), dtype=jnp.int32), rewards=jnp.float32(0.0))
         obs = jnp.array([
             [1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -63,7 +64,7 @@ class PrisonersEnv(Environment[PrisonersState]):
             reward_table[action[1], action[0]],
         ])
 
-        state = state._replace(time=state.time + 1)
+        state = state._replace(time=state.time + 1, rewards=state.rewards + jnp.mean(rewards))
 
         obs = jax.nn.one_hot(jnp.flip(action + 1), num_classes=3)
         time = jnp.repeat(state.time[None], 2)
@@ -75,6 +76,16 @@ class PrisonersEnv(Environment[PrisonersState]):
             last_reward=rewards,
             action_mask=None
         )
+
+    def create_placeholder_logs(self):
+        return {
+            "rewards": jnp.float32(0.0)
+        }
+
+    def create_logs(self, state: PrisonersState):
+        return {
+            "rewards": state.rewards
+        }
 
 
 class PrisonersRenderer:
