@@ -1,4 +1,5 @@
 import os
+import pygame
 import typer
 from flax import nnx
 import jax
@@ -16,8 +17,24 @@ import shutil
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
+def get_action_from_keypress():
+    keys = pygame.key.get_pressed()
+
+    if keys[pygame.K_w]:
+        return 0
+    elif keys[pygame.K_s]:
+        return 2
+    elif keys[pygame.K_a]:
+        return 3
+    elif keys[pygame.K_d]:
+        return 1
+
+    return None
+
 @app.command()
 def enjoy(name: str, base_dir: str = "results", seed: int = 0):
+    human_control = True
+
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -32,17 +49,6 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
         rngs=rngs,
     )
 
-    # optimizer = nnx.ModelAndOptimizer(
-    #     model=model,
-    #     tx=create_optimizer(
-    #         experiment.config.learner.optimizer,
-    #         experiment.config.update_steps
-    #         * experiment.config.learner.trainer.minibatch_count
-    #         * experiment.config.learner.trainer.epoch_count
-    #     ),
-    #     wrt=nnx.Param
-    # )
-
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         model = checkpointer.restore_latest(model)
 
@@ -50,30 +56,54 @@ def enjoy(name: str, base_dir: str = "results", seed: int = 0):
     client = GridworldClient(env)
 
     @nnx.jit
-    def step(timestep, kv_cache, env_state, rngs):
+    def sample_actions(timestep, kv_cache, rngs):
         action_key = rngs.action()
-        env_key = rngs.env()
         _, policy, kv_cache = model(add_seq_dim(timestep), kv_cache)
         actions = policy.sample(seed=action_key)
         actions = jnp.squeeze(actions, axis=-1)
 
+        return actions, kv_cache
+
+
+    @nnx.jit
+    def step(env_state, actions, rngs):
+        env_key = rngs.env()
         env_state, timestep = env.step(env_state, actions, env_key)
+        return env_state, timestep
 
-        return env_state, timestep, kv_cache, rngs
+    running = True
 
-    for _ in range(3):
-        kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
+    kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
+    env_state, timestep = env.reset(rngs.env())
+    client.render(env_state, timestep)
 
-        env_state, timestep = env.reset(rngs.env())
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        
+        human_action = get_action_from_keypress()
+        if human_action is not None or not human_control:
+            actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
+            if human_control:
+                actions = actions.at[0].set(human_action)
+
+            env_state, timestep = step(env_state, actions, rngs)
+
         client.render(env_state, timestep)
-        for _ in range(max_steps):
-            env_state, timestep, kv_cache, rngs = step(
-                timestep, kv_cache, env_state, rngs
-            )
-            # timestep = timestep._replace(last_action=timestep.last_action.at[0].set(1))
-            client.render(env_state, timestep)
 
-    client.save_video()
+
+    # for _ in range(3):
+    #     kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
+
+    #     env_state, timestep = env.reset(rngs.env())
+    #     client.render(env_state, timestep)
+    #     for _ in range(max_steps):
+    #         actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
+    #         env_state, timestep = step(env_state, actions, rngs)
+    #         client.render(env_state, timestep)
+
+    # client.save_video()
 
 
 @app.command("train")

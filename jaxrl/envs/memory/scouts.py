@@ -2,39 +2,17 @@ from functools import cached_property, partial
 from typing import NamedTuple
 
 import jax
-import numpy as np
 from jax import numpy as jnp
-import pygame
 
-from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
 from jaxrl.config import ScoutsConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.utils.video_writter import save_video
-from jaxrl.envs.gridworld.renderer import (
-    GridRenderState,
-    TILE_EMPTY as GW_TILE_EMPTY,
-    TILE_WALL as GW_TILE_WALL,
-    TILE_SOFT_WALL as GW_TILE_SOFT_WALL,
-    TILE_TREASURE as GW_TILE_TREASURE,
-    TILE_TREASURE_OPEN as GW_TILE_TREASURE_OPEN,
-    AGENT_SCOUT as GW_AGENT_SCOUT,
-    AGENT_HARVESTER as GW_AGENT_HARVESTER,
-)
-
-NUM_CLASSES = 6
-
-TILE_EMPTY = 0
-TILE_WALL = 1
-TILE_TREASURE = 2
-TILE_TREASURE_OPEN = 3
-TILE_SCOUT = 4
-TILE_HARVESTER = 5
+from jaxrl.envs.gridworld.renderer import GridRenderState
+import jaxrl.envs.gridworld.constance as GW
 
 
-DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
 
 class ScoutsState(NamedTuple):
     scout_pos: jax.Array       # n length (x, y)
@@ -89,15 +67,15 @@ class ScoutsEnv(Environment[ScoutsState]):
                 (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
             ) * amplitude[i+1]
 
-        tiles = jnp.where(noise > 0.05, TILE_WALL, TILE_EMPTY)
+        tiles = jnp.where(noise > 0.05, GW.TILE_WALL, GW.TILE_EMPTY)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
-            tiles == TILE_EMPTY,
+            tiles == GW.TILE_EMPTY,
             size=self.unpadded_width * self.unpadded_height,
             fill_value=-1,
         )
-        spawn_count = jnp.sum(tiles == TILE_EMPTY)
+        spawn_count = jnp.sum(tiles == GW.TILE_EMPTY)
 
         # pad the tiles
         tiles = jnp.pad(
@@ -107,7 +85,7 @@ class ScoutsEnv(Environment[ScoutsState]):
                 (self.pad_height, self.pad_height),
             ),
             mode="constant",
-            constant_values=TILE_WALL,
+            constant_values=GW.TILE_WALL,
         )
 
         # pad the empty tiles
@@ -133,7 +111,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             treasure_key, (self._num_treasures,), minval=0, maxval=spawn_count
         )]
 
-        map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(TILE_TREASURE)
+        map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(GW.TILE_TREASURE)
 
         state = ScoutsState(
             map=map,
@@ -155,13 +133,13 @@ class ScoutsEnv(Environment[ScoutsState]):
     def observation_spec(self) -> ObservationSpec:
         return ObservationSpec(
             shape=(self.view_width, self.view_height),
-            max_value=NUM_CLASSES,
+            max_value=GW.NUM_TYPES,
             dtype=jnp.int8,
         )
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
-        return DiscreteActionSpec(num_actions=4)
+        return DiscreteActionSpec(num_actions=GW.NUM_ACTIONS)
 
     @property
     def is_jittable(self) -> bool:
@@ -179,14 +157,14 @@ class ScoutsEnv(Environment[ScoutsState]):
 
         @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
         def _step_scouter(local_position, local_action):
-            new_pos = local_position + DIRECTIONS[local_action]
+            new_pos = local_position + GW.DIRECTIONS[local_action]
 
             new_tile = state.map[new_pos[0], new_pos[1]]
 
             # don't move if we are moving into a wall
-            new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
+            new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-            reward = (new_tile == TILE_TREASURE_OPEN).astype(jnp.float32)
+            reward = (new_tile == GW.TILE_TREASURE_OPEN).astype(jnp.float32)
 
             return new_pos, reward
 
@@ -196,14 +174,14 @@ class ScoutsEnv(Environment[ScoutsState]):
                 return local_position, 0.0, time - 1
 
             def step_move(local_position, local_action, time):
-                new_pos = local_position + DIRECTIONS[local_action]
+                new_pos = local_position + GW.DIRECTIONS[local_action]
 
                 new_tile = state.map[new_pos[0], new_pos[1]]
 
                 # don't move if we are moving into a wall
-                new_pos = jnp.where(new_tile == TILE_WALL, local_position, new_pos)
+                new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-                reward = (new_tile == TILE_TREASURE).astype(jnp.float32)
+                reward = (new_tile == GW.TILE_TREASURE).astype(jnp.float32)
                 time = self.harvesters_move_every #(new_tile == TILE_TREASURE).astype(jnp.int32) * 20
 
                 return new_pos, reward, time
@@ -215,12 +193,12 @@ class ScoutsEnv(Environment[ScoutsState]):
 
         # update unopened treasure to opened treasure
         new_harvester_tile = map[new_harvester_positions[:, 0], new_harvester_positions[:, 1]]
-        map = map.at[new_harvester_positions[:, 0], new_harvester_positions[:, 1]].set(jnp.where(new_harvester_tile == TILE_TREASURE, TILE_TREASURE_OPEN, new_harvester_tile))
+        map = map.at[new_harvester_positions[:, 0], new_harvester_positions[:, 1]].set(jnp.where(new_harvester_tile == GW.TILE_TREASURE, GW.TILE_TREASURE_OPEN, new_harvester_tile))
 
         # update scounters
         new_scout_positions, scout_rewards = _step_scouter(state.scout_pos, seeker_actions)
         new_scout_tile = map[new_scout_positions[:, 0], new_scout_positions[:, 1]]
-        map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(jnp.where(new_scout_tile == TILE_TREASURE_OPEN, TILE_EMPTY, new_scout_tile))
+        map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(jnp.where(new_scout_tile == GW.TILE_TREASURE_OPEN, GW.TILE_EMPTY, new_scout_tile))
 
         # for each treasure that was found create a new one
         # random_positions = state.spawn_pos[jax.random.randint(
@@ -255,8 +233,8 @@ class ScoutsEnv(Environment[ScoutsState]):
                 (self.view_width, self.view_height),
             )
 
-        map = state.map.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(TILE_SCOUT)
-        map = map.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(TILE_HARVESTER)
+        map = state.map.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(GW.AGENT_SCOUT)
+        map = map.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(GW.AGENT_HARVESTER)
 
         agents_pos = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
 
@@ -275,32 +253,23 @@ class ScoutsEnv(Environment[ScoutsState]):
 
     # Shared renderer adapter
     def get_render_state(self, state: ScoutsState) -> GridRenderState:
-        # Remap tile ids to unified scheme
-        smap = state.map
-        # Start with zeros (empty)
-        tilemap = jnp.zeros_like(smap)
-        tilemap = jnp.where(smap == TILE_WALL, GW_TILE_WALL, tilemap)
-        tilemap = jnp.where(smap == TILE_TREASURE, GW_TILE_TREASURE, tilemap)
-        tilemap = jnp.where(smap == TILE_TREASURE_OPEN, GW_TILE_TREASURE_OPEN, tilemap)
-
         agent_positions = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
         agent_types = jnp.concatenate(
             (
-                jnp.full((state.scout_pos.shape[0],), GW_AGENT_SCOUT, dtype=jnp.int32),
-                jnp.full((state.harvester_pos.shape[0],), GW_AGENT_HARVESTER, dtype=jnp.int32),
+                jnp.full((state.scout_pos.shape[0],), GW.AGENT_SCOUT, dtype=jnp.int32),
+                jnp.full((state.harvester_pos.shape[0],), GW.AGENT_HARVESTER, dtype=jnp.int32),
             ),
             axis=0,
         )
 
         return GridRenderState(
-            tilemap=tilemap,
+            tilemap=state.map,
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.unpadded_width,
             unpadded_height=self.unpadded_height,
             agent_positions=agent_positions,
             agent_types=agent_types,
-            agent_colors=None,
             view_width=self.view_width,
             view_height=self.view_height,
         )
@@ -314,127 +283,3 @@ class ScoutsEnv(Environment[ScoutsState]):
         return {
             "rewards": state.rewards
         }
-
-
-class ScoutsClient(EnvironmentClient[ScoutsState]):
-    def __init__(self, env: ScoutsEnv):
-        self.env = env
-
-        self.screen_width = 800
-        self.screen_height = 800
-
-        flags = pygame.SRCALPHA
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        self.surface = pygame.Surface(
-            (self.screen_width, self.screen_height), flags=flags
-        )
-        self.clock = pygame.time.Clock()
-
-        self.frames = []
-
-        self._tile_size = self.screen_width // self.env.unpadded_width
-
-    def render(self, state: ScoutsState, timestep):
-        self.surface.fill(pygame.color.Color(40, 40, 40, 100))
-
-        tiles = state.map.tolist()
-        colors = ["grey", "brown", "blue", "orange"]
-
-        for x in range(self.env.unpadded_width):
-            for y in range(self.env.unpadded_height):
-                tx = self.env.pad_width + x
-                ty = self.env.pad_height + y
-
-                tile_type = tiles[tx][ty]
-                self._draw_tile(self.screen, colors[tile_type], tx, ty)
-
-        scouts = state.scout_pos.tolist()
-        for x, y in scouts:
-            self._draw_tile(self.screen, "yellow", x, y)
-            self._draw_tile(self.surface, (0, 0, 0, 0), x, y, 5, 5)
-
-        harvesters = state.harvester_pos.tolist()
-        for x, y in harvesters:
-            self._draw_tile(self.screen, "purple", x, y)
-            self._draw_tile(self.surface, (0, 0, 0, 0), x, y, 5, 5)
-
-        self.clock.tick(10)
-        self.screen.blit(self.surface, (0, 0))
-        pygame.display.flip()
-
-        self.record_frame()
-
-    def _tile_to_screen(self, x: int, y: int):
-        return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height
-
-    def _draw_tile(self, surface, color, x, y, width: int = 1, height: int = 1):
-        x, y = self._tile_to_screen(x, y)
-
-        half_width = width // 2
-        half_height = height // 2
-
-        surface.fill(
-            color,
-            (
-                (x - half_width) * self._tile_size,
-                (y - half_height) * self._tile_size,
-                width * self._tile_size,
-                height * self._tile_size,
-            ),
-        )
-
-    def record_frame(self):
-        img_data = pygame.surfarray.array3d(pygame.display.get_surface())
-        self.frames.append(img_data)
-
-    def save_video(self):
-        frames = np.array(self.frames)
-        save_video(frames, "videos/test.mp4", 10)
-
-
-def demo():
-    env = ScoutsEnv(ScoutsConfig(
-        num_scouts=12,
-        num_harvesters=4,
-        num_treasures=32
-    ))
-
-    rng_key = jax.random.PRNGKey(11)
-    state, timestep = env.reset(rng_key)
-
-    client = ScoutsClient(env)
-
-    running = True
-    ts = None
-
-    while running:
-        # poll for events
-        # pygame.QUIT event means the user clicked X to close your window
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-
-        keys = pygame.key.get_pressed()
-        action = None
-
-        if keys[pygame.K_w]:
-            action = 0
-        elif keys[pygame.K_s]:
-            action = 2
-        elif keys[pygame.K_a]:
-            action = 3
-        elif keys[pygame.K_d]:
-            action = 1
-
-        if action is not None:
-            action = jnp.full((env.num_agents,), action)
-            state, ts = env.step(state, action, rng_key)
-
-        # print(ts)
-        client.render(state, ts)
-
-    pygame.quit()
-
-
-if __name__ == "__main__":
-    demo()

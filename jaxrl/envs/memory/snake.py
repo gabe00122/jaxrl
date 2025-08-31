@@ -1,6 +1,0 @@
-
-
-def SnakeState(Nam):
-    pass
-
-

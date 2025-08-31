@@ -11,19 +11,8 @@ from jaxrl.config import ReturnConfig, ReturnDiggingConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.utils.video_writter import save_video
-from jaxrl.envs.gridworld.renderer import (
-    GridRenderState,
-    TILE_TREASURE as GW_TILE_TREASURE,
-)
-
-NUM_CLASSES = 5
-
-TILE_EMPTY = 0
-TILE_WALL = 1
-TILE_SOFT_WALL = 2
-TILE_TREASURE = 3
-TILE_AGENT = 4
+from jaxrl.envs.gridworld.renderer import GridRenderState
+import jaxrl.envs.gridworld.constance as GW 
 
 
 class ReturnDiggingState(NamedTuple):
@@ -78,25 +67,15 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
             ) * amplitude[i+1]
         
-        tiles = jnp.where(noise > 0.05, TILE_SOFT_WALL, TILE_EMPTY)
-
-        # first_key, second_key = jax.random.split(rng_key)
-        # noise = generate_perlin_noise_2d(
-        #     (self.unpadded_width, self.unpadded_height), (5, 5), rng_key=first_key
-        # )
-        # noise = noise + generate_perlin_noise_2d(
-        #     (self.unpadded_width, self.unpadded_height), (10, 10), rng_key=second_key
-        # )
-
-        # tiles = jnp.where(noise > self.mapgen_threshold, TILE_SOFT_WALL, TILE_EMPTY)
+        tiles = jnp.where(noise > 0.05, GW.TILE_SOFT_WALL, GW.TILE_EMPTY)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
-            tiles == TILE_EMPTY,
+            tiles == GW.TILE_EMPTY,
             size=self.unpadded_width * self.unpadded_height,
             fill_value=-1,
         )
-        spawn_count = jnp.sum(tiles == TILE_EMPTY)
+        spawn_count = jnp.sum(tiles == GW.TILE_EMPTY)
 
         # pad the tiles
         tiles = jnp.pad(
@@ -106,7 +85,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 (self.pad_height, self.pad_height),
             ),
             mode="constant",
-            constant_values=TILE_WALL,
+            constant_values=GW.TILE_WALL,
         )
 
         # pad the empty tiles
@@ -148,13 +127,13 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
     def observation_spec(self) -> ObservationSpec:
         return ObservationSpec(
             shape=(self.view_width, self.view_height),
-            max_value=NUM_CLASSES,
+            max_value=GW.NUM_TYPES,
             dtype=jnp.int8,
         )
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
-        return DiscreteActionSpec(num_actions=4)
+        return DiscreteActionSpec(num_actions=GW.NUM_ACTIONS)
 
     @property
     def is_jittable(self) -> bool:
@@ -179,7 +158,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 new_tile = state.map[target_pos[0], target_pos[1]]
 
                 # don't move if we are moving into a wall
-                new_pos = jnp.where(jnp.logical_or(new_tile == TILE_WALL, new_tile == TILE_SOFT_WALL), local_position, target_pos)
+                new_pos = jnp.where(jnp.logical_or(new_tile == GW.TILE_WALL, new_tile == GW.TILE_SOFT_WALL), local_position, target_pos)
 
                 found_treasure = jnp.all(new_pos == state.treasure_pos)
                 reward = found_treasure.astype(jnp.float32)
@@ -188,7 +167,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 new_pos = jnp.where(found_treasure, random_position, new_pos)
 
                 # sets a timeout of the tile is dug
-                timeout = jnp.where(new_tile == TILE_SOFT_WALL, self.digging_timeout, 0)
+                timeout = jnp.where(new_tile == GW.TILE_SOFT_WALL, self.digging_timeout, 0)
 
                 return new_pos, target_pos, timeout, reward
 
@@ -203,7 +182,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         # dig actions
         target_tiles = state.map[target_pos[:, 0], target_pos[:, 1]]
-        map = state.map.at[target_pos[:, 0], target_pos[:, 1]].set(jnp.where(target_tiles == TILE_SOFT_WALL, TILE_EMPTY, target_tiles))
+        map = state.map.at[target_pos[:, 0], target_pos[:, 1]].set(jnp.where(target_tiles == GW.TILE_SOFT_WALL, GW.TILE_EMPTY, target_tiles))
         # /dig actions
 
         state = state._replace(
@@ -227,10 +206,10 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             )
 
         tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            TILE_AGENT
+            GW.AGENT_GENERIC
         )
         tiles = tiles.at[state.treasure_pos[0], state.treasure_pos[1]].set(
-            TILE_TREASURE
+            GW.TILE_TREASURE
         )
         view = _encode_view(tiles, state.agents_pos)
 
@@ -255,11 +234,9 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             "rewards": state.rewards
         }
 
-    # Shared renderer adapter
     def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
-        # Map already uses empty/wall/soft-wall; overlay treasure to unified id
         tilemap = state.map
-        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(GW_TILE_TREASURE)
+        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(GW.TILE_TREASURE)
 
         return GridRenderState(
             tilemap=tilemap,
@@ -269,138 +246,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             unpadded_height=self.unpadded_height,
             agent_positions=state.agents_pos,
             agent_types=None,
-            agent_colors=None,
             view_width=self.view_width,
             view_height=self.view_height,
         )
 
-
-class ReturnDiggingClient:
-    def __init__(self, env: ReturnDiggingEnv):
-        self.env = env
-
-        self.screen_width = 800
-        self.screen_height = 800
-
-        flags = pygame.SRCALPHA
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        self.surface = pygame.Surface(
-            (self.screen_width, self.screen_height), flags=flags
-        )
-        self.clock = pygame.time.Clock()
-
-        self.frames = []
-
-        self._tile_size = self.screen_width // self.env.unpadded_width
-
-    def render(self, state: ReturnDiggingState, timestep):
-        self.surface.fill(pygame.color.Color(40, 40, 40, 100))
-
-        tiles = state.map.tolist()
-        colors = ["grey", "grey", "brown", "blue"]
-
-        for x in range(self.env.unpadded_width):
-            for y in range(self.env.unpadded_height):
-                tx = self.env.pad_width + x
-                ty = self.env.pad_height + y
-
-                tile_type = tiles[tx][ty]
-                self._draw_tile(self.screen, colors[tile_type], tx, ty)
-
-        agents = state.agents_pos.tolist()
-        found_reward = state.found_reward.tolist()
-
-        for (x, y), r in zip(agents, found_reward):
-            self._draw_tile(self.screen, "yellow" if not r else "purple", x, y)
-            self._draw_tile(self.surface, (0, 0, 0, 0), x, y, 5, 5)
-
-        self._draw_tile(
-            self.screen,
-            "blue",
-            state.treasure_pos[0].item(),
-            state.treasure_pos[1].item(),
-        )
-
-        self.clock.tick(10)
-        self.screen.blit(self.surface, (0, 0))
-        pygame.display.flip()
-
-        self.record_frame()
-
-    def _tile_to_screen(self, x: int, y: int):
-        return x - self.env.pad_width, (self.env.height - y + 1) - self.env.pad_height
-
-    def _draw_tile(self, surface, color, x, y, width: int = 1, height: int = 1):
-        x, y = self._tile_to_screen(x, y)
-
-        half_width = width // 2
-        half_height = height // 2
-
-        surface.fill(
-            color,
-            (
-                (x - half_width) * self._tile_size,
-                (y - half_height) * self._tile_size,
-                width * self._tile_size,
-                height * self._tile_size,
-            ),
-        )
-
-    def record_frame(self):
-        img_data = pygame.surfarray.array3d(pygame.display.get_surface())
-        self.frames.append(img_data)
-
-    def save_video(self):
-        frames = np.array(self.frames)
-        save_video(frames, "videos/test.mp4", 10)
-
-
-
-def demo():
-    env = ReturnDiggingEnv(ReturnDiggingConfig(
-        mapgen_threshold=0.05
-    ))
-
-    rng_key = jax.random.PRNGKey(11)
-    state, timestep = env.reset(rng_key)
-
-    client = ReturnDiggingClient(env)
-
-    running = True
-    ts = None
-
-    while running:
-        # poll for events
-        # pygame.QUIT event means the user clicked X to close your window
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-
-        keys = pygame.key.get_pressed()
-        action = None
-
-        if keys[pygame.K_w]:
-            action = 0
-            # state, ts = env.step(state, jnp.array([0]), rng_key)
-        elif keys[pygame.K_s]:
-            action = 2
-            # state, ts = env.step(state, jnp.array([2]), rng_key)
-        elif keys[pygame.K_a]:
-            action = 3
-            # state, ts = env.step(state, jnp.array([3]), rng_key)
-        elif keys[pygame.K_d]:
-            action = 1
-            # state, ts = env.step(state, jnp.array([1]), rng_key)
-
-        if action is not None:
-            action = jnp.full((env.num_agents,), action)
-            state, ts = env.step(state, action, rng_key)
-
-        # print(ts)
-        client.render(state)
-
-    pygame.quit()
-
-
-if __name__ == "__main__":
-    demo()
