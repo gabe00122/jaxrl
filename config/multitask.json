@@ -1,9 +1,8 @@
 {
   "seed": "random",
-  "num_envs": 256,
   "max_env_steps": 512,
   "updates_per_jit": 10,
-  "update_steps": 10800,
+  "update_steps": 3800,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -37,10 +36,14 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 1,
-      "value_hidden_dim": null,
+      "num_layers": 6,
+      "value_hidden_dim": 768,
       "value": {
-        "type": "mse"
+        "type": "hl_gauss",
+        "min": -10.0,
+        "max": 10.0,
+        "n_logits": 51,
+        "sigma": 0.10381270166884848
       },
       "activation": "gelu",
       "norm": "rms_norm",
@@ -53,6 +56,7 @@
       "epoch_count": 1,
       "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
+      "obs_coef": 0.00015886855022248167,
       "entropy_coef": 0.00008270466882977551,
       "vf_clip": 0.2827893540340816,
       "discount": 0.9660902557298033,
@@ -61,12 +65,33 @@
     }
   },
   "environment": {
-    "env_type": "return",
-    "num_agents": 16,
-    "width": 40,
-    "height": 40,
-    "view_width": 5,
-    "view_height": 5
+    "env_type": "multi",
+    "envs": [
+        {
+            "num": 128,
+            "name": "return40",
+            "env": {
+                "env_type": "return_digging",
+                "num_agents": 16,
+                "width": 40,
+                "height": 40,
+                "view_width": 11,
+                "view_height": 11
+            }
+        },
+        {
+            "num": 64,
+            "name": "return80",
+            "env": {
+                "env_type": "return_digging",
+                "num_agents": 32,
+                "width": 80,
+                "height": 80,
+                "view_width": 11,
+                "view_height": 11
+            }
+        }
+    ]
   },
   "logger": {
     "use_console": true,

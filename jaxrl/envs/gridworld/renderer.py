@@ -3,21 +3,33 @@ from typing import NamedTuple
 import numpy as np
 import pygame
 import jax
-from jax import numpy as jnp
+
+import jaxrl.envs.gridworld.constance as GW
 
 
-# Unified tile ids across gridworld environments
-TILE_EMPTY = 0
-TILE_WALL = 1
-TILE_SOFT_WALL = 2
-TILE_TREASURE = 3
-TILE_TREASURE_OPEN = 4
+class SpriteSheet:
+    def __init__(self, filename) -> None:
+        self.sheet = pygame.image.load(filename).convert()
+        self.tile_size = 12
+        self.tile_pad = 1
+    
+    def image_at(self, rectangle, colorkey):
+        rect = pygame.Rect(rectangle)
+        image = pygame.Surface(rect.size).convert()
+        image.blit(self.sheet, (0, 0), rect)
+        if colorkey is not None:
+            if colorkey == -1:
+                colorkey = image.get_at((0, 0))
+            image.set_colorkey(colorkey, pygame.RLEACCEL)
+        
+        image = pygame.transform.scale2x(image)
+        return image
 
-
-# Agent type ids for rendering
-AGENT_GENERIC = 0
-AGENT_SCOUT = 1
-AGENT_HARVESTER = 2
+    def image_at_tile(self, x: int, y: int):
+        px = x * (self.tile_size + self.tile_pad) + self.tile_pad
+        py = y * (self.tile_size + self.tile_pad) + self.tile_pad
+        
+        return self.image_at((px, py, self.tile_size, self.tile_size), None)
 
 
 class GridRenderState(NamedTuple):
@@ -29,57 +41,39 @@ class GridRenderState(NamedTuple):
 
     agent_positions: jax.Array  # (N, 2)
     agent_types: jax.Array | None = None  # (N,)
-    agent_colors: jax.Array | None = None  # (N,)
 
     view_width: int = 0
     view_height: int = 0
 
 
-def _default_tile_color(tile_id: int) -> str:
-    # Greys for empty, brown-ish walls, blue/orange for treasures
-    palette = {
-        TILE_EMPTY: "grey",
-        TILE_WALL: "brown",
-        TILE_SOFT_WALL: "sienna",
-        TILE_TREASURE: "blue",
-        TILE_TREASURE_OPEN: "orange",
-    }
-    return palette.get(tile_id, "grey")
-
-
-def _agent_color(agent_type: int, color_id: int | None) -> str:
-    # Default agent palette
-    if color_id is not None:
-        # inspired by return_2d_colors
-        color_palette = [
-            "darkorchid1",
-            "darkorchid2",
-            "darkorchid3",
-            "darkorchid4",
-        ]
-        idx = int(color_id) % len(color_palette)
-        return color_palette[idx]
-
-    if agent_type == AGENT_SCOUT:
-        return "yellow"
-    if agent_type == AGENT_HARVESTER:
-        return "purple"
-    return "yellow"
+tilemap = {
+    GW.TILE_EMPTY: (17, 0),
+    GW.TILE_WALL: (0, 0),
+    GW.TILE_SOFT_WALL: (0, 0),
+    GW.TILE_TREASURE: (29, 23),
+    GW.TILE_TREASURE_OPEN: (29, 23),
+    GW.AGENT_GENERIC: (104, 0),
+}
 
 
 class GridworldRenderer:
-    def __init__(self, screen_width: int = 800, screen_height: int = 800, fps: int = 10):
+    def __init__(self, screen_width: int = 960, screen_height: int = 960, fps: int = 10):
+        
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.fps = fps
 
         flags = pygame.SRCALPHA
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        self.surface = pygame.Surface((self.screen_width, self.screen_height), flags=flags)
+        self.vision = pygame.Surface((self.screen_width, self.screen_height), flags=flags)
         self.clock = pygame.time.Clock()
 
         self.frames: list[np.ndarray] = []
         self._tile_size: int | None = None
+        self._focused_agent = 0 # None
+
+        spritesheet = SpriteSheet("./assets/urizen_onebit_tileset__v2d0.png")
+        self.tilemap = {name: spritesheet.image_at_tile(x, y) for name, (x, y) in tilemap.items()}
 
     def _ensure_tile_size(self, unpadded_width: int):
         # Compute tile size once per session based on the first env width
@@ -88,6 +82,11 @@ class GridworldRenderer:
 
     def _tile_to_screen(self, x: int, y: int, pad_width: int, height: int, pad_height: int):
         return x - pad_width, (height - y + 1) - pad_height
+
+    def _draw_tile2(self, image, x, y, pad_width: int, pad_height: int, total_height: int):
+        x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
+        self.screen.blit(image, (x * self._tile_size, y * self._tile_size, self._tile_size,self._tile_size))
+
 
     def _draw_tile(self, surface, color, x, y, width: int, height: int, pad_width: int, pad_height: int, total_height: int):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
@@ -103,12 +102,15 @@ class GridworldRenderer:
             ),
         )
 
+    def focus_agent(self, agent_id: int | None):
+        self._focused_agent = agent_id
+
     def render(self, rs: GridRenderState):
         # Ensure tile size
         self._ensure_tile_size(rs.unpadded_width)
 
         # Clear translucent overlay
-        self.surface.fill(pygame.color.Color(40, 40, 40, 100))
+        self.vision.fill(pygame.color.Color(40, 40, 40, 100))
 
         # Draw base tiles (only unpadded region)
         tiles = rs.tilemap.tolist()
@@ -119,53 +121,25 @@ class GridworldRenderer:
                 tx = rs.pad_width + x
                 ty = rs.pad_height + y
                 tile_type = tiles[tx][ty]
-                color = _default_tile_color(tile_type)
-                self._draw_tile(
-                    self.screen,
-                    color,
-                    tx,
-                    ty,
-                    1,
-                    1,
-                    rs.pad_width,
-                    rs.pad_height,
-                    total_height,
-                )
+                image = self.tilemap[tile_type]
+                self._draw_tile2(image, tx, ty, rs.pad_width, rs.pad_height, total_height)
 
         # Draw agents
         agent_pos = rs.agent_positions.tolist()
-        agent_types = rs.agent_types.tolist() if rs.agent_types is not None else [AGENT_GENERIC] * len(agent_pos)
-        agent_colors = rs.agent_colors.tolist() if rs.agent_colors is not None else [None] * len(agent_pos)
+        agent_types = rs.agent_types.tolist() if rs.agent_types is not None else [GW.AGENT_GENERIC] * len(agent_pos)
 
-        for (x, y), t, c in zip(agent_pos, agent_types, agent_colors):
-            self._draw_tile(
-                self.screen,
-                _agent_color(t, c),
-                x,
-                y,
-                1,
-                1,
-                rs.pad_width,
-                rs.pad_height,
-                total_height,
-            )
+        for i, ((x, y), t) in enumerate(zip(agent_pos, agent_types)):
+            image = self.tilemap[t]
+            self._draw_tile2(image, x, y, rs.pad_width, rs.pad_height, total_height)
+
             # Vision highlight
-            vw = max(1, int(rs.view_width))
-            vh = max(1, int(rs.view_height))
-            self._draw_tile(
-                self.surface,
-                (0, 0, 0, 0),
-                x,
-                y,
-                vw,
-                vh,
-                rs.pad_width,
-                rs.pad_height,
-                total_height,
-            )
+            if self._focused_agent is None or i == self._focused_agent:
+                vw = max(1, int(rs.view_width))
+                vh = max(1, int(rs.view_height))
+                self._draw_tile(self.vision, (0, 0, 0, 0), x, y, vw, vh, rs.pad_width, rs.pad_height, total_height)
 
         self.clock.tick(self.fps)
-        self.screen.blit(self.surface, (0, 0))
+        self.screen.blit(self.vision, (0, 0))
         pygame.display.flip()
 
     def record_frame(self):
@@ -185,7 +159,6 @@ class GridworldRenderer:
 class GridworldClient:
     """EnvironmentClient that renders via GridworldRenderer using per-env adapters."""
     def __init__(self, env):
-        from jaxrl.envs.client import EnvironmentClient as _EC  # type: ignore
         assert hasattr(env, "get_render_state"), "Env must implement get_render_state(state)"
         self.env = env
         self.renderer = GridworldRenderer()
