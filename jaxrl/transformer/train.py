@@ -337,6 +337,6 @@ def train_run(
     logger.close()
     checkpointer.close()
 
-    if logs:
-        return logs.rewards.item()
+    # if logs:
+    #     return logs.rewards.item()
     return -1.0

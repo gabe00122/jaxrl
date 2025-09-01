@@ -45,7 +45,9 @@ class ExploreEnv(Environment[ExploreState]):
         # pad the tiles
         # tiles = jnp.full((self.width, self.height), GW.TILE_WALL, dtype=jnp.int32)
         reward_map = jax.random.uniform(rng_key, (self.unpadded_width, self.unpadded_height))
-        reward_map = jnp.where(reward_map < 0.05, reward_map, 0.0)
+        reward_map = jnp.where(reward_map < 0.01, reward_map, 0.0) * 20
+        reward_map = reward_map * reward_map
+
         tiles = jnp.where(reward_map == 0, GW.TILE_EMPTY, GW.TILE_TREASURE)
 
         tiles = jnp.pad(
@@ -66,7 +68,7 @@ class ExploreEnv(Environment[ExploreState]):
         map, reward_map = self._generate_map(map_key)
 
         positions = jax.random.randint(
-            pos_key, (self.num_agents, 2), minval=0, maxval=self.width
+            pos_key, (self.num_agents, 2), minval=0, maxval=self.unpadded_width
         ) + self.pad_width
 
         state = ExploreState(

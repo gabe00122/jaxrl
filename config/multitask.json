@@ -57,9 +57,9 @@
       "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
       "obs_coef": 0.00015886855022248167,
-      "entropy_coef": 0.00008270466882977551,
+      "entropy_coef": 0.01,
       "vf_clip": 0.2827893540340816,
-      "discount": 0.9660902557298033,
+      "discount": 0.99,
       "gae_lambda": 0.9123716252262187,
       "normalize_advantage": false
     }
@@ -68,28 +68,51 @@
     "env_type": "multi",
     "envs": [
         {
-            "num": 128,
-            "name": "return40",
-            "env": {
-                "env_type": "return_digging",
-                "num_agents": 16,
-                "width": 40,
-                "height": 40,
-                "view_width": 11,
-                "view_height": 11
-            }
+          "num": 64,
+          "name": "return40",
+          "env": {
+              "env_type": "return_digging",
+              "num_agents": 16,
+              "width": 40,
+              "height": 40,
+              "view_width": 11,
+              "view_height": 11
+          }
         },
         {
-            "num": 64,
-            "name": "return80",
-            "env": {
-                "env_type": "return_digging",
-                "num_agents": 32,
-                "width": 80,
-                "height": 80,
-                "view_width": 11,
-                "view_height": 11
-            }
+          "num": 32,
+          "name": "return80",
+          "env": {
+              "env_type": "return_digging",
+              "num_agents": 32,
+              "width": 80,
+              "height": 80,
+              "view_width": 11,
+              "view_height": 11
+          }
+        },
+        {
+          "num": 512,
+          "name": "scouts",
+          "env": {
+            "env_type": "scouts",
+            "num_treasures": 24,
+            "width": 40,
+            "height": 40,
+            "view_width": 11,
+            "view_height": 11
+          }
+        },
+        {
+          "num": 1024,
+          "name": "explore",
+          "env": {
+            "env_type": "explore",
+            "width": 20,
+            "height": 20,
+            "view_width": 11,
+            "view_height": 11
+          }
         }
     ]
   },
