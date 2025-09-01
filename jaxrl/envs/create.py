@@ -1,15 +1,14 @@
 from jaxrl.config import EnvironmentConfig, MultiTaskConfig
 from jaxrl.envs.client import EnvironmentClient
-from jaxrl.envs.craftax_wrapper import CraftaxEnvironment
+from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
 from jaxrl.envs.environment import Environment
-from jaxrl.envs.memory.explore import ExploreEnv
-from jaxrl.envs.memory.n_back import NBackMemory
-from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
-from jaxrl.envs.memory.scouts import ScoutsEnv
+from jaxrl.envs.gridworld.explore import ExploreEnv
+from jaxrl.envs.sequence.n_back import NBackMemory
+from jaxrl.envs.gridworld.grid_return import ReturnDiggingEnv
+from jaxrl.envs.gridworld.scouts import ScoutsEnv
 from jaxrl.envs.gridworld.renderer import GridworldClient
-from jaxrl.envs.memory.traveling_salesman import TravelingSalesmanEnv
+from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanEnv
 from jaxrl.envs.multitask import MultiTaskWrapper
-from jaxrl.envs.trust.prisoners import PrisonersEnv
 from jaxrl.envs.vector import VectorWrapper
 
 
@@ -38,8 +37,6 @@ def create_env(
             env = NBackMemory(env_config.max_n, env_config.max_value, length)
         case "return_digging":
             env = ReturnDiggingEnv(env_config, length)
-        case "prisoners":
-            env = PrisonersEnv()
         case "scouts":
             env = ScoutsEnv(env_config, length)
         case "explore":
@@ -58,6 +55,8 @@ def create_env(
 
 
 def create_client[State](env: Environment[State]) -> EnvironmentClient[State]:
-    if isinstance(env, (ReturnEnv, ReturnDiggingEnv, ScoutsEnv)):
+    if isinstance(
+        env, (ReturnDiggingEnv, ScoutsEnv, ExploreEnv, TravelingSalesmanEnv)
+    ):
         # Use the shared gridworld renderer for all gridworld envs
         return GridworldClient(env)

@@ -8,7 +8,7 @@ import jax
 
 from jaxrl.config import load_config
 from jaxrl.envs.specs import ObservationSpec
-from jaxrl.transformer.network import TransformerActorCritic
+from jaxrl.model.network import TransformerActorCritic
 from jaxrl.types import TimeStep
 
 

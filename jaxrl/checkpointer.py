@@ -1,7 +1,6 @@
 import orbax.checkpoint as ocp
 from flax import nnx
 from pathlib import Path
-import jax
 
 
 class Checkpointer:

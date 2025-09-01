@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax.typing import DTypeLike
 from flax import nnx
 
-from jaxrl.transformer import positional_embeddings
+from jaxrl.model import positional_embeddings
 
 
 class KVCache(NamedTuple):

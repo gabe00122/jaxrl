@@ -12,11 +12,11 @@ from jaxrl.config import (
 )
 from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.specs import ObservationSpec
-from jaxrl.transformer.observation import create_obs_encoder
+from jaxrl.model.observation import create_obs_encoder
 from jaxrl.types import TimeStep
-from jaxrl.transformer.attention import AttentionBlock, KVCache
-from jaxrl.transformer.rnn import RnnBlock
-from jaxrl.transformer.feed_forward import GLUBlock, FFBlock
+from jaxrl.model.attention import AttentionBlock, KVCache
+from jaxrl.model.rnn import RnnBlock
+from jaxrl.model.feed_forward import GLUBlock, FFBlock
 from jaxrl.values import HlGaussValue, MseValue
 
 

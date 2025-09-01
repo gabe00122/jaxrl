@@ -274,3 +274,4 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             view_width=self.view_width,
             view_height=self.view_height,
         )
+

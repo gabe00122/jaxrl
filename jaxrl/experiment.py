@@ -3,7 +3,6 @@ import random
 import string
 import subprocess
 import fsspec
-import os
 from pydantic import BaseModel
 from rich.console import Console
 

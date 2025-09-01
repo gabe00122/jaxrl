@@ -5,23 +5,16 @@ from flax import nnx
 from jax import numpy as jnp
 
 from craftax.craftax.constants import (
-    OBS_DIM,
     BLOCK_PIXEL_SIZE_HUMAN,
-    INVENTORY_OBS_HEIGHT,
-    Action,
     Achievement,
 )
-from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv as CraftaxEnv
-from craftax.craftax_env import make_craftax_env_from_name
-from craftax.craftax.renderer import render_craftax_pixels
 from craftax.craftax.play_craftax import CraftaxRenderer
 
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.craftax_wrapper import CraftaxEnvironment
-from jaxrl.envs.create import create_env
+from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
 from jaxrl.experiment import Experiment
-from jaxrl.transformer.network import TransformerActorCritic
-from jaxrl.transformer.train import add_seq_dim
+from jaxrl.model.network import TransformerActorCritic
+from jaxrl.train import add_seq_dim
 from jaxrl.utils.video_writter import save_video
 
 

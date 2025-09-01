@@ -1,7 +1,6 @@
 from typing import Any
 from einops import rearrange
 from flax import nnx
-import jax
 import jax.numpy as jnp
 from jax.scipy.stats import norm
 import optax
