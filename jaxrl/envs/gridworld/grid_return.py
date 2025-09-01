@@ -1,16 +1,31 @@
 from functools import cached_property, partial
-from typing import NamedTuple
+from typing import NamedTuple, Literal
 
 import jax
 from jax import numpy as jnp
+from pydantic import BaseModel, ConfigDict
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnDiggingConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
 import jaxrl.envs.gridworld.constance as GW
+
+
+class ReturnDiggingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["return_digging"] = "return_digging"
+
+    num_agents: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+    mapgen_threshold: float = 0.3
+    digging_timeout: int = 5
 
 
 class ReturnDiggingState(NamedTuple):

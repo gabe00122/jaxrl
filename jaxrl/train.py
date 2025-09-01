@@ -10,7 +10,7 @@ from rich.progress import track
 from rich.console import Console
 
 from jaxrl.config import Config, PPOConfig
-from jaxrl.envs.create import create_env
+from jaxrl.envs.env_config import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer

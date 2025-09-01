@@ -1,16 +1,32 @@
 from functools import cached_property, partial
-from typing import NamedTuple
+from typing import NamedTuple, Literal
 
 import jax
 from jax import numpy as jnp
+from pydantic import BaseModel, ConfigDict
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ScoutsConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
 import jaxrl.envs.gridworld.constance as GW
+
+
+class ScoutsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["scouts"] = "scouts"
+
+    num_scouts: int = 1
+    num_harvesters: int = 1
+    num_treasures: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+    harvesters_move_every: int = 6
 
 
 class ScoutsState(NamedTuple):

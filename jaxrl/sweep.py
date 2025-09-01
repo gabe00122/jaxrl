@@ -10,10 +10,10 @@ from jaxrl.config import (
     LoggerConfig,
     OptimizerConfig,
     PPOConfig,
-    ReturnConfig,
     TransformerActorCriticConfig,
     AttentionConfig,
 )
+from jaxrl.envs.env_config import ReturnConfig
 from jaxrl.experiment import Experiment
 from jaxrl.hl_gauss import HlGaussConfig
 from jaxrl.train import train_run
