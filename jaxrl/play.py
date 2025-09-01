@@ -66,6 +66,8 @@ def play(experiment, human_control: bool, seed: int, selector: str | None = None
     model = load_policy(experiment, env, max_steps, load, rngs)
 
     client = GridworldClient(env)
+    if human_control:
+        client.renderer.focus_agent(0)
 
     @nnx.jit
     def sample_actions(timestep, kv_cache, rngs):

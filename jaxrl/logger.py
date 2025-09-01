@@ -49,7 +49,7 @@ class JaxLogger:
         if settings.logger.use_tb:
             loggers.append(TensorboardLogger(unique_token))
         if settings.logger.use_console:
-            loggers.append(ConsoleLogger(unique_token))
+            loggers.append(ConsoleLogger(unique_token, console))
         # if cfg.logger.use_neptune:
         #     loggers.append(NeptuneLogger(cfg, unique_token))
         if settings.logger.use_wandb:
