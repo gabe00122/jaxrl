@@ -2,12 +2,10 @@ from functools import cached_property, partial
 from typing import NamedTuple
 
 import jax
-import numpy as np
 from jax import numpy as jnp
-import pygame
 
 from jaxrl.envs.map_generator import generate_perlin_noise_2d
-from jaxrl.config import ReturnConfig, ReturnDiggingConfig
+from jaxrl.config import ReturnDiggingConfig
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -152,8 +150,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 return local_position, local_position, timeout - 1, 0.0
 
             def _step_move(local_position, timeout, local_action, random_position):
-                directions = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
-                target_pos = local_position + directions[local_action]
+                target_pos = local_position + GW.DIRECTIONS[local_action]
 
                 new_tile = state.map[target_pos[0], target_pos[1]]
 

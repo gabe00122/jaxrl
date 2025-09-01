@@ -39,6 +39,30 @@ class ReturnDiggingConfig(BaseModel):
     digging_timeout: int = 5
 
 
+class ExploreConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["explore"] = "explore"
+
+    num_agents: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+
+class TravelingSalesmanConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["traveling_salesman"] = "traveling_salesman"
+
+    num_agents: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
+
+
 class PrisonersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["prisoners"] = "prisoners"
@@ -64,7 +88,7 @@ class CraftaxConfig(BaseModel):
     env_type: Literal["craftax"] = "craftax"
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnDiggingConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
+type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnDiggingConfig | ExploreConfig | TravelingSalesmanConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
 
 
 class MultiTaskEnvConfig(BaseModel):

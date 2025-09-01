@@ -82,8 +82,8 @@ class TensorboardLogger(BaseLogger):
 
 
 class ConsoleLogger(BaseLogger):
-    def __init__(self, unique_token: str) -> None:
-        pass
+    def __init__(self, unique_token: str, console: Console) -> None:
+        self._console = console
 
     def log_dict(self, data: Metrics, step: int) -> None:
         data = json_normalize(data, sep=".")
@@ -96,8 +96,8 @@ class ConsoleLogger(BaseLogger):
             values.append(f"{value:.3f}" if isinstance(value, float) else value)
 
         log_str = "\n".join([f"{key}: {value}" for key, value in zip(keys, values)])
-        log_str = f"step: {step} | {log_str}"
-        print(log_str)
+        log_str = f"step: {step}\n{log_str}"
+        self._console.print(log_str)
 
 # class NeptuneLogger(BaseLogger):
 #     def __init__(self, unique_token: str):

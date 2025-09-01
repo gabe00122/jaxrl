@@ -5,6 +5,7 @@ import pygame
 import jax
 
 import jaxrl.envs.gridworld.constance as GW
+from jaxrl.utils.video_writter import save_video
 
 
 class SpriteSheet:
@@ -22,7 +23,8 @@ class SpriteSheet:
                 colorkey = image.get_at((0, 0))
             image.set_colorkey(colorkey, pygame.RLEACCEL)
         
-        image = pygame.transform.scale2x(image)
+        target_size = (920 // 20) + 2
+        image = pygame.transform.scale(image, (target_size, target_size))
         return image
 
     def image_at_tile(self, x: int, y: int):
@@ -81,26 +83,29 @@ class GridworldRenderer:
             self._tile_size = max(1, self.screen_width // max(1, int(unpadded_width)))
 
     def _tile_to_screen(self, x: int, y: int, pad_width: int, height: int, pad_height: int):
-        return x - pad_width, (height - y + 1) - pad_height
+        return x - pad_width, (height - 1 - y) - pad_height
 
     def _draw_tile(self, image, x, y, pad_width: int, pad_height: int, total_height: int):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
-        self.screen.blit(image, (x * self._tile_size, y * self._tile_size, self._tile_size,self._tile_size))
+        self.screen.blit(image, (x * self._tile_size, y * self._tile_size, self._tile_size, self._tile_size))
 
 
     def _draw_vision(self, color, x, y, width: int, height: int, pad_width: int, pad_height: int, total_height: int):
-        x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
-        half_width = width // 2
-        half_height = height // 2
-        self.vision.fill(
-            color,
-            (
-                (x - half_width) * self._tile_size,
-                (y - half_height) * self._tile_size,
-                width * self._tile_size,
-                height * self._tile_size,
-            ),
-        )
+        sx, sy = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
+
+        half_w = width // 2
+        half_h = height // 2
+
+        px = (sx - half_w) * self._tile_size
+        py = (sy - half_h) * self._tile_size
+        pw = width * self._tile_size
+        ph = height * self._tile_size
+
+        rect = pygame.Rect(int(px), int(py), int(pw), int(ph))
+
+        clipped = rect.clip(self.vision.get_rect())
+        if clipped.width > 0 and clipped.height > 0:
+            self.vision.fill(color, clipped)
 
     def focus_agent(self, agent_id: int | None):
         self._focused_agent = agent_id
@@ -114,7 +119,7 @@ class GridworldRenderer:
 
         # Draw base tiles (only unpadded region)
         tiles = rs.tilemap.tolist()
-        total_height = rs.unpadded_height + rs.pad_height
+        total_height = rs.unpadded_height + 2 * rs.pad_height
 
         for x in range(rs.unpadded_width):
             for y in range(rs.unpadded_height):
@@ -147,9 +152,6 @@ class GridworldRenderer:
         self.frames.append(img_data)
 
     def save_video(self):
-        # Lazy import to avoid dependency if unused
-        from jaxrl.utils.video_writter import save_video
-
         if len(self.frames) == 0:
             return
         frames = np.array(self.frames)
