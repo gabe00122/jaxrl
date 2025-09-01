@@ -22,6 +22,9 @@ def grayscale_to_rgb(image: np.ndarray) -> np.ndarray:
 def save_video(frames: np.ndarray, filename, fps=60):
     print("Saving video...")
     # frames = grayscale_to_rgb(frames)
+    frames = np.array(frames)
+    frames = np.rot90(frames, -1, (1, 2))
+    frames = np.flip(frames, 2)
 
     h, w = frames[0].shape[:2]
     ffmpeg = (
