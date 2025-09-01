@@ -52,7 +52,6 @@ class TravelingSalesmanConfig(BaseModel):
 class TravelingSalesmanState(NamedTuple):
     agents_pos: Position
     flag_available: jax.Array # [agent, flag]
-    flag_count: jax.Array
 
     time: jax.Array
 
@@ -135,7 +134,6 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         state = TravelingSalesmanState(
             agents_pos=agent_pos,
-            flag_count=jnp.zeros((self.num_agents,), dtype=jnp.int32),
             flag_available=jnp.full((self.num_agents, self._config.num_flags), True, dtype=jnp.bool),
             map=map,
             flag_index_map=flag_index_map,
