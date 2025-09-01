@@ -15,6 +15,7 @@ class RolloutState(NamedTuple):
     action_mask: jax.Array
     actions: jax.Array
     rewards: jax.Array
+    terminated: jax.Array
     next_terminated: jax.Array
 
     log_prob: jax.Array
@@ -58,6 +59,9 @@ class Rollout:
             ),
             rewards=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
+            ),
+            terminated=jnp.zeros(
+                (self.batch_size, self.trajectory_length), dtype=jnp.bool
             ),
             next_terminated=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.bool
@@ -103,6 +107,7 @@ class Rollout:
             log_prob=state.log_prob.at[:, step].set(log_prob),
             values=state.values.at[:, step].set(value),
             rewards=state.rewards.at[:, step].set(next_timestep.last_reward),
+            terminated=state.terminated.at[:, step].set(timestep.terminated),
             next_terminated=state.next_terminated.at[:, step].set(next_timestep.terminated),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
             last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
