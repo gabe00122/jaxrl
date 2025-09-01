@@ -16,7 +16,7 @@ from jaxrl.config import (
 )
 from jaxrl.experiment import Experiment
 from jaxrl.hl_gauss import HlGaussConfig
-from jaxrl.transformer.train import train_run
+from jaxrl.train import train_run
 
 # This needs to be updated to match the new config structure.
 

@@ -2,17 +2,13 @@ import pygame
 from jax import numpy as jnp
 from flax import nnx
 
-import tensorflow_probability.substrates.jax.distributions as tfd
-
 
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.distributions import IdentityTransformation
 from jaxrl.envs.create import create_env
 from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.experiment import Experiment
-from jaxrl.transformer.network import TransformerActorCritic
-from jaxrl.transformer.train import add_seq_dim
-from jaxrl.types import TimeStep
+from jaxrl.model.network import TransformerActorCritic
+from jaxrl.train import add_seq_dim
 
 
 def get_action_from_keypress():

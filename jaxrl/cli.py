@@ -3,7 +3,7 @@ import typer
 import jax
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_config, play_from_run
-from jaxrl.transformer.train import train_run
+from jaxrl.train import train_run
 import shutil
 
 

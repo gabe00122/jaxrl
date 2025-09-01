@@ -14,8 +14,8 @@ from jaxrl.envs.create import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
-from jaxrl.transformer.network import TransformerActorCritic
-from jaxrl.transformer.rollout import Rollout, RolloutState
+from jaxrl.model.network import TransformerActorCritic
+from jaxrl.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.util import count_parameters, format_count

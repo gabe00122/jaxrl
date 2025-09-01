@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax import random
 from flax import nnx
 
-from jaxrl.transformer.attention import AttentionBlock
+from jaxrl.model.attention import AttentionBlock
 
 
 @nnx.jit
