@@ -90,7 +90,7 @@ def evaluate(
     # save the last value
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
-    rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
+    rollout_state = rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
 
     rollout_state = rollout.calculate_advantage(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
