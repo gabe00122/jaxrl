@@ -1,3 +1,4 @@
+from pdb import run
 import pygame
 from jax import numpy as jnp
 from flax import nnx
@@ -70,7 +71,7 @@ def play(
 
     model = load_policy(experiment, env, max_steps, load, rngs)
 
-    client = GridworldClient(env)
+    client = GridworldClient(env, fps=6)
     if human_control:
         client.renderer.focus_agent(0)
 
@@ -95,7 +96,8 @@ def play(
     env_state, timestep = env.reset(rngs.env())
     client.render(env_state, timestep)
 
-    while running:
+    time = 0
+    while time < 512 and running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -108,5 +110,10 @@ def play(
 
             env_state, timestep = step(env_state, actions, rngs)
             print(timestep.last_reward[0].item())
+            
+            # client.record_frame()
+            time += 1
 
         client.render(env_state, timestep)
+
+    # client.save_video("videos/agent_pov.mp4")

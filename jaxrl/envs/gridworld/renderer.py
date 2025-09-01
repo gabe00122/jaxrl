@@ -193,30 +193,115 @@ class GridworldRenderer:
         self.screen.blit(self.vision, (0, 0))
         pygame.display.flip()
 
+    def render_agent_view(self, rs: GridRenderState, agent_id: int = 0):
+        """Renders only the focused agent's field-of-view, scaled to fill screen.
+
+        - Selects an `agent_id` and crops a (view_width x view_height) window around it.
+        - Scales the cropped region to fill the entire screen (may be non-square tiles).
+        """
+        # Ensure base sprites are loaded (for access to tile images)
+        self._ensure_tile_size(max(1, rs.unpadded_width))
+
+        vw = max(1, int(rs.view_width))
+        vh = max(1, int(rs.view_height))
+
+        # Determine agent position
+        agent_pos = rs.agent_positions.tolist()
+        if not (0 <= agent_id < len(agent_pos)):
+            agent_id = 0
+        ax, ay = agent_pos[agent_id]
+
+        # Compute top-left of view window in world coords
+        x0 = ax - vw // 2
+        y0 = ay - vh // 2
+
+        # Compute per-tile pixel size (allow non-square to fill screen exactly)
+        tw_f = self.screen_width / float(vw)
+        th_f = self.screen_height / float(vh)
+
+        tiles = rs.tilemap.tolist()
+        total_height = rs.unpadded_height + 2 * rs.pad_height
+
+        # Clear background
+        self.screen.fill((0, 0, 0))
+
+        # Draw the cropped tile window
+        for dx in range(vw):
+            for dy in range(vh):
+                tx = x0 + dx
+                ty = y0 + dy
+                # Guard against out-of-bounds just in case
+                if not (0 <= tx < len(tiles) and 0 <= ty < len(tiles[0])):
+                    continue
+                tile_type = tiles[tx][ty]
+                base_img = self._tilemap[tile_type]
+
+                # Compute screen placement; flip y to place origin at bottom-left
+                px = int(round(dx * tw_f))
+                py = int(round((vh - 1 - dy) * th_f))
+                pw = int(round((dx + 1) * tw_f)) - px
+                ph = int(round((vh - 0 - dy) * th_f)) - py
+                if pw <= 0 or ph <= 0:
+                    continue
+
+                scaled = pygame.transform.scale(base_img, (pw, ph))
+                self.screen.blit(scaled, (px, py))
+
+        # Draw any agents that fall within the window
+        agent_types = (
+            rs.agent_types.tolist()
+            if rs.agent_types is not None
+            else [GW.AGENT_GENERIC] * len(agent_pos)
+        )
+        for (x, y), t in zip(agent_pos, agent_types):
+            if x0 <= x < x0 + vw and y0 <= y < y0 + vh:
+                dx = x - x0
+                dy = y - y0
+                px = int(round(dx * tw_f))
+                py = int(round((vh - 1 - dy) * th_f))
+                pw = int(round((dx + 1) * tw_f)) - px
+                ph = int(round((vh - 0 - dy) * th_f)) - py
+                if pw <= 0 or ph <= 0:
+                    continue
+                agent_img = self._tilemap[t]
+                scaled = pygame.transform.scale(agent_img, (pw, ph))
+                self.screen.blit(scaled, (px, py))
+
+        self.clock.tick(self.fps)
+        pygame.display.flip()
+
     def record_frame(self):
         img_data = pygame.surfarray.array3d(pygame.display.get_surface())
         self.frames.append(img_data)
 
-    def save_video(self):
+    def save_video(self, file_name: str):
         if len(self.frames) == 0:
             return
         frames = np.array(self.frames)
-        save_video(frames, "videos/test.mp4", self.fps)
+        save_video(frames, file_name, self.fps)
 
 
 class GridworldClient:
     """EnvironmentClient that renders via GridworldRenderer using per-env adapters."""
 
-    def __init__(self, env):
+    def __init__(self, env, screen_width: int = 960, screen_height: int = 960, fps: int = 10):
         assert hasattr(env, "get_render_state"), (
             "Env must implement get_render_state(state)"
         )
         self.env = env
-        self.renderer = GridworldRenderer()
+        self.renderer = GridworldRenderer(screen_width=screen_width, screen_height=screen_height, fps=fps)
 
     def render(self, state, timestep):
         rs: GridRenderState = self.env.get_render_state(state)
         self.renderer.render(rs)
 
-    def save_video(self):
-        self.renderer.save_video()
+    def render_pov(self, state, timestep, agent_id: int = 0):
+        """Render only the focused agent's point-of-view, filling the screen."""
+        rs: GridRenderState = self.env.get_render_state(state)
+        self.renderer.render_agent_view(rs, agent_id=agent_id)
+
+    def record_frame(self):
+        self.renderer.record_frame()
+
+    def save_video(self, file_name: str):
+        self.renderer.save_video(file_name)
