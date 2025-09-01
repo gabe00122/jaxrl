@@ -1,15 +1,26 @@
 from functools import cached_property, partial
-from typing import NamedTuple
+from typing import NamedTuple, Literal
 
 import jax
 from jax import numpy as jnp
-
-from jaxrl.config import TravelingSalesmanConfig
+from pydantic import BaseModel, ConfigDict
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
 import jaxrl.envs.gridworld.constance as GW
+
+
+class TravelingSalesmanConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["traveling_salesman"] = "traveling_salesman"
+
+    num_agents: int = 1
+
+    width: int = 40
+    height: int = 40
+    view_width: int = 5
+    view_height: int = 5
 
 
 class TravelingSalesmanState(NamedTuple):

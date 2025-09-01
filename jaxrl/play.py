@@ -4,7 +4,7 @@ from flax import nnx
 
 
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.create import create_env
+from jaxrl.envs.env_config import create_env
 from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic

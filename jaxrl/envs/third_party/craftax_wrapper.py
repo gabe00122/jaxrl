@@ -1,8 +1,9 @@
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Literal
 
 import jax
 from jax import numpy as jnp
+from pydantic import BaseModel, ConfigDict
 
 from craftax.craftax_env import make_craftax_env_from_name
 
@@ -106,6 +107,11 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
 
     def create_logs(self, state: CraftaxWrapperState):
         return {"rewards": state.rewards}
+
+
+class CraftaxConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["craftax"] = "craftax"
 
 
 def main():

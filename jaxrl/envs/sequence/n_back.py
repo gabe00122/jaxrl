@@ -4,7 +4,8 @@ from jax import numpy as jnp
 import pygame
 from functools import cached_property
 
-from typing import NamedTuple
+from typing import NamedTuple, Literal
+from pydantic import BaseModel, ConfigDict
 
 from jaxrl.envs.environment import Environment, TimeStep, StepType
 from jaxrl.envs.specs import ObservationSpec, DiscreteActionSpec
@@ -280,3 +281,11 @@ def demo():
 
 if __name__ == "__main__":
     demo()
+
+
+class NBackConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    env_type: Literal["nback"] = "nback"
+
+    max_n: int = 12
+    max_value: int = 2
