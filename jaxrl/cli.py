@@ -1,17 +1,9 @@
 import os
-import pygame
 import typer
-from flax import nnx
 import jax
-from jax import numpy as jnp
-
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.create import create_client, create_env
-from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_config, play_from_run
-from jaxrl.transformer.network import TransformerActorCritic
-from jaxrl.transformer.train import add_seq_dim, train_run
+from jaxrl.transformer.train import train_run
 import shutil
 
 

@@ -101,6 +101,7 @@ def play(experiment, human_control: bool, seed: int, selector: str | None = None
                 actions = actions.at[0].set(human_action)
 
             env_state, timestep = step(env_state, actions, rngs)
+            print(timestep.last_reward[0].item())
 
         client.render(env_state, timestep)
 

@@ -2,10 +2,12 @@ from jaxrl.config import EnvironmentConfig, MultiTaskConfig
 from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.craftax_wrapper import CraftaxEnvironment
 from jaxrl.envs.environment import Environment
+from jaxrl.envs.memory.explore import ExploreEnv
 from jaxrl.envs.memory.n_back import NBackMemory
 from jaxrl.envs.memory.return_2d_digging import ReturnDiggingEnv
 from jaxrl.envs.memory.scouts import ScoutsEnv
 from jaxrl.envs.gridworld.renderer import GridworldClient
+from jaxrl.envs.memory.traveling_salesman import TravelingSalesmanEnv
 from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.envs.trust.prisoners import PrisonersEnv
 from jaxrl.envs.vector import VectorWrapper
@@ -36,6 +38,10 @@ def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec
             env = PrisonersEnv()
         case "scouts":
             env = ScoutsEnv(env_config, length)
+        case "explore":
+            env = ExploreEnv(env_config, length)
+        case "traveling_salesman":
+            env = TravelingSalesmanEnv(env_config, length)
         case "craftax":
             env = CraftaxEnvironment()
         case _:
