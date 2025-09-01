@@ -7,7 +7,6 @@ from flax import nnx
 from jaxrl.transformer import positional_embeddings
 
 
-
 class KVCache(NamedTuple):
     key: jax.Array
     value: jax.Array
@@ -131,7 +130,9 @@ class AttentionBlock(nnx.Module):
             key = kv_cache.key
             value = kv_cache.value
 
-            kv_length = jnp.full((batch,), jnp.minimum(seq_pos[0, 0] + 1, self.max_seq_length))
+            kv_length = jnp.full(
+                (batch,), jnp.minimum(seq_pos[0, 0] + 1, self.max_seq_length)
+            )
             x = jax.nn.dot_product_attention(
                 query,
                 key,
@@ -147,11 +148,17 @@ class AttentionBlock(nnx.Module):
                     key,
                     value,
                     is_causal=True,
-                    local_window_size=(self.max_seq_length-1, 0),
-                    implementation=self.attention_impl
+                    local_window_size=(self.max_seq_length - 1, 0),
+                    implementation=self.attention_impl,
                 )
             else:
-                x = jax.nn.dot_product_attention(query, key, value, is_causal=True, implementation=self.attention_impl)
+                x = jax.nn.dot_product_attention(
+                    query,
+                    key,
+                    value,
+                    is_causal=True,
+                    implementation=self.attention_impl,
+                )
 
         out = self.out(x)
 

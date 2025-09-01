@@ -40,7 +40,6 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
     env = CraftaxEnvironment()
     rngs = nnx.Rngs(default=seed)
 
-
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
@@ -52,14 +51,15 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         model = checkpointer.restore_latest(model)
 
-
     rng = rngs.env()
     rng, _rng = jax.random.split(rng)
     env_state, ts = env.reset(_rng)
 
     pixel_render_size = 64 // BLOCK_PIXEL_SIZE_HUMAN
 
-    renderer = CraftaxRenderer(env._env, env._env_params, pixel_render_size=pixel_render_size)
+    renderer = CraftaxRenderer(
+        env._env, env._env_params, pixel_render_size=pixel_render_size
+    )
     renderer.render(env_state.cstate)
 
     # step_fn = jax.jit(env.step)
@@ -89,7 +89,7 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
         # action = renderer.get_action_from_keypress(env_state)
 
         # if action is not None:
-            # old_achievements = env_state.achievements
+        # old_achievements = env_state.achievements
         env_state, ts, carry, rngs = step(ts, carry, env_state, rngs)
         # new_achievements = env_state.achievements
         # print_new_achievements(old_achievements, new_achievements)
@@ -108,11 +108,12 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
 
         clock.tick(5)
         time += 1
-    
+
     frames = np.array(frames)
     frames = np.rot90(frames, -1, (1, 2))
     frames = np.flip(frames, 2)
     save_video(frames, "videos/craftax.mp4", 5)
+
 
 if __name__ == "__main__":
     main("noble-mouse-nq67s4")

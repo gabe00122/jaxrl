@@ -47,10 +47,10 @@ def bench(fn, *args, n_warmup=1, n_iter=10, label=""):
 
     times = np.array(times)
     print(f"\n[{label}]")
-    print(f"  first call (compile+run): {first_call_s*1e3:.2f} ms")
-    print(f"  steady-state mean:        {times.mean()*1e3:.2f} ms")
-    print(f"  steady-state p50:         {np.percentile(times, 50)*1e3:.2f} ms")
-    print(f"  steady-state p95:         {np.percentile(times, 95)*1e3:.2f} ms")
+    print(f"  first call (compile+run): {first_call_s * 1e3:.2f} ms")
+    print(f"  steady-state mean:        {times.mean() * 1e3:.2f} ms")
+    print(f"  steady-state p50:         {np.percentile(times, 50) * 1e3:.2f} ms")
+    print(f"  steady-state p95:         {np.percentile(times, 95) * 1e3:.2f} ms")
     print(f"  runs:                     {n_iter}")
     return times
 
@@ -72,7 +72,9 @@ def main():
         rngs=rngs,
     )
 
-    time = jnp.repeat(jnp.arange(seq_length, dtype=jnp.int32)[None, :], batch_size, axis=0)
+    time = jnp.repeat(
+        jnp.arange(seq_length, dtype=jnp.int32)[None, :], batch_size, axis=0
+    )
 
     timestep = TimeStep(
         obs=jnp.zeros((batch_size, seq_length, *obs_size), dtype=jnp.int8),
@@ -105,8 +107,22 @@ def main():
     _block_until_ready(layered_inference(model, timestep))
 
     # --- benchmarks ---
-    bench(layered_inference, model, timestep, n_warmup=1, n_iter=20, label="layered_inference (@jit)")
-    bench(scanned_inference, timestep, init_carry, n_warmup=1, n_iter=20, label="scanned_inference (nnx.scan)")
+    bench(
+        layered_inference,
+        model,
+        timestep,
+        n_warmup=1,
+        n_iter=20,
+        label="layered_inference (@jit)",
+    )
+    bench(
+        scanned_inference,
+        timestep,
+        init_carry,
+        n_warmup=1,
+        n_iter=20,
+        label="scanned_inference (nnx.scan)",
+    )
 
     # If you want to see shapes once:
     v_scan, c_scan = scanned_inference(timestep, init_carry)

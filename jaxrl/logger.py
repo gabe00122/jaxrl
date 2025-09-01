@@ -99,6 +99,7 @@ class ConsoleLogger(BaseLogger):
         log_str = f"step: {step}\n{log_str}"
         self._console.print(log_str)
 
+
 # class NeptuneLogger(BaseLogger):
 #     def __init__(self, unique_token: str):
 #         self.logger = neptune.init_run(

@@ -19,10 +19,7 @@ class PrisonersEnv(Environment[PrisonersState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            dtype=jnp.float32,
-            shape=(3,)
-        )
+        return ObservationSpec(dtype=jnp.float32, shape=(3,))
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -37,11 +34,15 @@ class PrisonersEnv(Environment[PrisonersState]):
         return 2
 
     def reset(self, rng_key: jax.Array) -> tuple[PrisonersState, TimeStep]:
-        state = PrisonersState(time=jnp.zeros((), dtype=jnp.int32), rewards=jnp.float32(0.0))
-        obs = jnp.array([
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ])
+        state = PrisonersState(
+            time=jnp.zeros((), dtype=jnp.int32), rewards=jnp.float32(0.0)
+        )
+        obs = jnp.array(
+            [
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
 
         time = jnp.repeat(state.time[None], 2)
 
@@ -50,21 +51,29 @@ class PrisonersEnv(Environment[PrisonersState]):
             time,
             last_action=jnp.zeros((2,), dtype=jnp.int32),
             last_reward=jnp.zeros((2,), dtype=jnp.float32),
-            action_mask=None
+            action_mask=None,
         )
 
-    def step(self, state: PrisonersState, action: jax.Array, rng_key: jax.Array) -> tuple[PrisonersState, TimeStep]:
-        reward_table = jnp.array([
-            [-1.0, -3.0],
-            [0.0, -2.0],
-        ])
+    def step(
+        self, state: PrisonersState, action: jax.Array, rng_key: jax.Array
+    ) -> tuple[PrisonersState, TimeStep]:
+        reward_table = jnp.array(
+            [
+                [-1.0, -3.0],
+                [0.0, -2.0],
+            ]
+        )
 
-        rewards = jnp.array([
-            reward_table[action[0], action[1]],
-            reward_table[action[1], action[0]],
-        ])
+        rewards = jnp.array(
+            [
+                reward_table[action[0], action[1]],
+                reward_table[action[1], action[0]],
+            ]
+        )
 
-        state = state._replace(time=state.time + 1, rewards=state.rewards + jnp.mean(rewards))
+        state = state._replace(
+            time=state.time + 1, rewards=state.rewards + jnp.mean(rewards)
+        )
 
         obs = jax.nn.one_hot(jnp.flip(action + 1), num_classes=3)
         time = jnp.repeat(state.time[None], 2)
@@ -74,18 +83,14 @@ class PrisonersEnv(Environment[PrisonersState]):
             time=time,
             last_action=action,
             last_reward=rewards,
-            action_mask=None
+            action_mask=None,
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
     def create_logs(self, state: PrisonersState):
-        return {
-            "rewards": state.rewards
-        }
+        return {"rewards": state.rewards}
 
 
 class PrisonersRenderer:

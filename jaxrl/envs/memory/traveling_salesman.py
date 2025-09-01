@@ -9,7 +9,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
-import jaxrl.envs.gridworld.constance as GW 
+import jaxrl.envs.gridworld.constance as GW
 
 
 class TravelingSalesmanState(NamedTuple):
@@ -18,7 +18,7 @@ class TravelingSalesmanState(NamedTuple):
 
     map: jax.Array
     reward_map: jax.Array
-    
+
     rewards: jax.Array
 
 
@@ -40,11 +40,12 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         self.width = self.unpadded_width + self.pad_width
         self.height = self.unpadded_height + self.pad_height
 
-
     def _generate_map(self, rng_key):
         # pad the tiles
         # tiles = jnp.full((self.width, self.height), GW.TILE_WALL, dtype=jnp.int32)
-        reward_map = jax.random.uniform(rng_key, (self.unpadded_width, self.unpadded_height))
+        reward_map = jax.random.uniform(
+            rng_key, (self.unpadded_width, self.unpadded_height)
+        )
         reward_map = jnp.where(reward_map < 0.05, reward_map, 0.0)
         tiles = jnp.where(reward_map == 0, GW.TILE_EMPTY, GW.TILE_TREASURE)
 
@@ -65,9 +66,12 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         map, reward_map = self._generate_map(map_key)
 
-        positions = jax.random.randint(
-            pos_key, (self.num_agents, 2), minval=0, maxval=self.width
-        ) + self.pad_width
+        positions = (
+            jax.random.randint(
+                pos_key, (self.num_agents, 2), minval=0, maxval=self.width
+            )
+            + self.pad_width
+        )
 
         state = TravelingSalesmanState(
             map=map,
@@ -116,7 +120,6 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
             return new_pos
 
-
         new_position = _step_agent(state.agents_pos, action)
 
         unpadded_positions = new_position - self.pad_width
@@ -124,12 +127,14 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         state = state._replace(
             agents_pos=new_position,
             time=state.time + 1,
-            rewards=state.rewards + jnp.mean(rewards)
+            rewards=state.rewards + jnp.mean(rewards),
         )
 
         return state, self.encode_observations(state, action, rewards)
 
-    def encode_observations(self, state: TravelingSalesmanState, actions, rewards) -> TimeStep:
+    def encode_observations(
+        self, state: TravelingSalesmanState, actions, rewards
+    ) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
@@ -152,23 +157,21 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, self._length - 1)
+            terminated=jnp.equal(time, self._length - 1),
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
     def create_logs(self, state: TravelingSalesmanState):
-        return {
-            "rewards": state.rewards
-        }
+        return {"rewards": state.rewards}
 
     def get_render_state(self, state: TravelingSalesmanState) -> GridRenderState:
         tilemap = state.map
 
-        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
+        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
+            GW.AGENT_GENERIC
+        )
 
         return GridRenderState(
             tilemap=tilemap,
@@ -181,4 +184,3 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             view_width=self.view_width,
             view_height=self.view_height,
         )
-

@@ -97,7 +97,9 @@ class TransformerBlock(nnx.Module):
         )
 
         if config.history.type == "rnn":
-            self.history = RnnBlock(hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs)
+            self.history = RnnBlock(
+                hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+            )
         else:
             self.history = AttentionBlock(
                 hidden_features,
@@ -111,7 +113,7 @@ class TransformerBlock(nnx.Module):
                 dtype=dtype,
                 param_dtype=param_dtype,
                 kernel_init=kernel_init,
-                rngs=rngs
+                rngs=rngs,
             )
 
         self.ffn_norm = normalizer(
@@ -150,7 +152,7 @@ class TransformerBlock(nnx.Module):
     def initialize_carry(self, batch_size: int, rngs) -> KVCache:
         return self.history.initialize_carry(batch_size, rngs)
 
-    def __call__(self, x, time_steps, carry = None) -> tuple[jax.Array, KVCache | None]:
+    def __call__(self, x, time_steps, carry=None) -> tuple[jax.Array, KVCache | None]:
         history_input = self.history_norm(x)
         history_output, carry = self.history(history_input, time_steps, carry)
         if self.use_post_attn_norm:
@@ -265,7 +267,11 @@ class TransformerActorCritic(nnx.Module):
                 rngs=rngs,
             )
 
-        value_in_dim = hidden_features if config.value_hidden_dim is None else config.value_hidden_dim
+        value_in_dim = (
+            hidden_features
+            if config.value_hidden_dim is None
+            else config.value_hidden_dim
+        )
         if config.value.type == "hl_gauss":
             self.value_head = HlGaussValue(value_in_dim, config.value, rngs=rngs)
         elif config.value.type == "mse":
@@ -275,7 +281,7 @@ class TransformerActorCritic(nnx.Module):
         return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
 
     def __call__(
-        self, ts: TimeStep, carry = None
+        self, ts: TimeStep, carry=None
     ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
@@ -310,7 +316,7 @@ class TransformerActorCritic(nnx.Module):
         )
 
         prevalue = x
-        if hasattr(self, 'value_mlp'):
+        if hasattr(self, "value_mlp"):
             prevalue = self.value_mlp(prevalue)
             prevalue = nnx.gelu(prevalue)
 
@@ -321,6 +327,6 @@ class TransformerActorCritic(nnx.Module):
 
     def get_value(self, value_rep: jax.Array) -> jax.Array:
         return self.value_head.get_value(value_rep)
-    
+
     def get_value_loss(self, value_rep: jax.Array, targets: jax.Array) -> jax.Array:
         return self.value_head.get_loss(value_rep, targets)

@@ -79,8 +79,7 @@ class NBackMemory(Environment[NBackMemoryState]):
         next_position = state.position + 1
 
         new_state = state._replace(
-            position=next_position,
-            rewards=state.rewards + reward
+            position=next_position, rewards=state.rewards + reward
         )
 
         done = next_position >= self.length
@@ -118,15 +117,11 @@ class NBackMemory(Environment[NBackMemoryState]):
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
     def create_logs(self, state: NBackMemoryState):
         # No cumulative reward tracked; keep interface consistent
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
 
 class NBackMemoryClient:

@@ -64,7 +64,6 @@ def test_impl():
 
     print(jnp.isclose(infer_ys, train_ys)[0] * 1.0)
 
-
     # print(f"test passes: {test_pass.item()}")
 
 

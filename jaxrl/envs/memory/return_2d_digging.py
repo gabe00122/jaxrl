@@ -10,7 +10,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
-import jaxrl.envs.gridworld.constance as GW 
+import jaxrl.envs.gridworld.constance as GW
 
 
 class ReturnDiggingState(NamedTuple):
@@ -24,7 +24,7 @@ class ReturnDiggingState(NamedTuple):
     map: jax.Array
     spawn_pos: jax.Array
     spawn_count: jax.Array
-    
+
     rewards: jax.Array
 
 
@@ -49,22 +49,30 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         self.mapgen_threshold = config.mapgen_threshold
         self.digging_timeout = config.digging_timeout
 
-
     def _generate_map(self, rng_key):
         noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
 
         res = [4, 5, 8, 10]
         amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
-        noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
-        ) * amplitude[0]
+        noise = (
+            generate_perlin_noise_2d(
+                (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
+            )
+            * amplitude[0]
+        )
 
         for i, r in enumerate(res):
             noise_key, rng_key = jax.random.split(rng_key)
-            noise = noise + generate_perlin_noise_2d(
-                (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
-            ) * amplitude[i+1]
-        
+            noise = (
+                noise
+                + generate_perlin_noise_2d(
+                    (self.unpadded_width, self.unpadded_height),
+                    (r, r),
+                    rng_key=noise_key,
+                )
+                * amplitude[i + 1]
+            )
+
         tiles = jnp.where(noise > 0.05, GW.TILE_SOFT_WALL, GW.TILE_EMPTY)
 
         # get the empty tiles for spawning
@@ -155,7 +163,13 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 new_tile = state.map[target_pos[0], target_pos[1]]
 
                 # don't move if we are moving into a wall
-                new_pos = jnp.where(jnp.logical_or(new_tile == GW.TILE_WALL, new_tile == GW.TILE_SOFT_WALL), local_position, target_pos)
+                new_pos = jnp.where(
+                    jnp.logical_or(
+                        new_tile == GW.TILE_WALL, new_tile == GW.TILE_SOFT_WALL
+                    ),
+                    local_position,
+                    target_pos,
+                )
 
                 found_treasure = jnp.all(new_pos == state.treasure_pos)
                 reward = found_treasure.astype(jnp.float32)
@@ -164,22 +178,36 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 new_pos = jnp.where(found_treasure, random_position, new_pos)
 
                 # sets a timeout of the tile is dug
-                timeout = jnp.where(new_tile == GW.TILE_SOFT_WALL, self.digging_timeout, 0)
+                timeout = jnp.where(
+                    new_tile == GW.TILE_SOFT_WALL, self.digging_timeout, 0
+                )
 
                 return new_pos, target_pos, timeout, reward
 
-            return jax.lax.cond(timeout > 0, _step_timeout, _step_move, local_position, timeout, local_action, random_position)
+            return jax.lax.cond(
+                timeout > 0,
+                _step_timeout,
+                _step_move,
+                local_position,
+                timeout,
+                local_action,
+                random_position,
+            )
 
         random_positions = state.spawn_pos[
             jax.random.randint(
                 rng_key, (self._num_agents,), minval=0, maxval=state.spawn_count
             )
         ]
-        new_position, target_pos, timeout, rewards = _step_agent(state.agents_pos, state.agents_timeout, action, random_positions)
+        new_position, target_pos, timeout, rewards = _step_agent(
+            state.agents_pos, state.agents_timeout, action, random_positions
+        )
 
         # dig actions
         target_tiles = state.map[target_pos[:, 0], target_pos[:, 1]]
-        map = state.map.at[target_pos[:, 0], target_pos[:, 1]].set(jnp.where(target_tiles == GW.TILE_SOFT_WALL, GW.TILE_EMPTY, target_tiles))
+        map = state.map.at[target_pos[:, 0], target_pos[:, 1]].set(
+            jnp.where(target_tiles == GW.TILE_SOFT_WALL, GW.TILE_EMPTY, target_tiles)
+        )
         # /dig actions
 
         state = state._replace(
@@ -193,7 +221,9 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         return state, self.encode_observations(state, action, rewards)
 
-    def encode_observations(self, state: ReturnDiggingState, actions, rewards) -> TimeStep:
+    def encode_observations(
+        self, state: ReturnDiggingState, actions, rewards
+    ) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
@@ -218,22 +248,20 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, self._length - 1)
+            terminated=jnp.equal(time, self._length - 1),
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
     def create_logs(self, state: ReturnDiggingState):
-        return {
-            "rewards": state.rewards
-        }
+        return {"rewards": state.rewards}
 
     def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
         tilemap = state.map
-        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(GW.TILE_TREASURE)
+        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(
+            GW.TILE_TREASURE
+        )
 
         return GridRenderState(
             tilemap=tilemap,
@@ -246,4 +274,3 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             view_width=self.view_width,
             view_height=self.view_height,
         )
-

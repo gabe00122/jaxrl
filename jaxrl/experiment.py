@@ -24,7 +24,6 @@ class Experiment:
         meta: ExperimentMeta,
         base_dir: str = "results",
     ) -> None:
-
         self.unique_token = unique_token
         self.config = config
         self.meta = meta
@@ -76,9 +75,12 @@ class Experiment:
 
     @classmethod
     def from_config(
-        cls, unique_token: str, config: Config, base_dir: str = "results", create_directories: bool = True
+        cls,
+        unique_token: str,
+        config: Config,
+        base_dir: str = "results",
+        create_directories: bool = True,
     ) -> "Experiment":
-
         meta = ExperimentMeta(
             start_time=dt.datetime.now(tz=dt.timezone.utc),
             git_hash=get_git_hash(),
@@ -91,32 +93,125 @@ class Experiment:
 
     @classmethod
     def from_config_file(
-        cls, config_file: str, base_dir: str = "results", create_directories: bool = True
+        cls,
+        config_file: str,
+        base_dir: str = "results",
+        create_directories: bool = True,
     ) -> "Experiment":
-
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
-        return cls.from_config(generate_unique_token(), config, base_dir, create_directories=create_directories)
+        return cls.from_config(
+            generate_unique_token(),
+            config,
+            base_dir,
+            create_directories=create_directories,
+        )
 
 
 def generate_unique_token() -> str:
     adjectives = [
-        "quick", "lazy", "sleepy", "noisy", "hungry", "bright", "brave",
-        "calm", "eager", "jolly", "kind", "lively", "nice", "silly",
-        "proud", "witty", "clever", "gentle", "happy", "cautious",
-        "drowsy", "alert", "agile", "bold", "fierce", "placid", "timid",
-        "zany", "curious", "loyal", "funny", "fancy", "breezy", "cozy",
-        "dainty", "epic", "great", "icy", "lucky", "magic", "noble",
-        "odd", "rosy", "shy", "tiny", "vast", "wild", "young", "old", "wise"
+        "quick",
+        "lazy",
+        "sleepy",
+        "noisy",
+        "hungry",
+        "bright",
+        "brave",
+        "calm",
+        "eager",
+        "jolly",
+        "kind",
+        "lively",
+        "nice",
+        "silly",
+        "proud",
+        "witty",
+        "clever",
+        "gentle",
+        "happy",
+        "cautious",
+        "drowsy",
+        "alert",
+        "agile",
+        "bold",
+        "fierce",
+        "placid",
+        "timid",
+        "zany",
+        "curious",
+        "loyal",
+        "funny",
+        "fancy",
+        "breezy",
+        "cozy",
+        "dainty",
+        "epic",
+        "great",
+        "icy",
+        "lucky",
+        "magic",
+        "noble",
+        "odd",
+        "rosy",
+        "shy",
+        "tiny",
+        "vast",
+        "wild",
+        "young",
+        "old",
+        "wise",
     ]
     nouns = [
-        "fox", "dog", "cat", "mouse", "bear", "lion", "tiger", "wolf",
-        "rabbit", "deer", "bird", "fish", "snake", "horse", "cow", "pig",
-        "sheep", "goat", "eagle", "hawk", "owl", "whale", "shark",
-        "dolphin", "frog", "turtle", "lizard", "spider", "badger", "river",
-        "ocean", "mountain", "meadow", "forest", "desert", "golem", "sprite",
-        "wizard", "knight", "dragon", "castle", "planet", "comet", "star",
-        "moon", "sun", "cloud", "storm", "shadow", "spirit"
+        "fox",
+        "dog",
+        "cat",
+        "mouse",
+        "bear",
+        "lion",
+        "tiger",
+        "wolf",
+        "rabbit",
+        "deer",
+        "bird",
+        "fish",
+        "snake",
+        "horse",
+        "cow",
+        "pig",
+        "sheep",
+        "goat",
+        "eagle",
+        "hawk",
+        "owl",
+        "whale",
+        "shark",
+        "dolphin",
+        "frog",
+        "turtle",
+        "lizard",
+        "spider",
+        "badger",
+        "river",
+        "ocean",
+        "mountain",
+        "meadow",
+        "forest",
+        "desert",
+        "golem",
+        "sprite",
+        "wizard",
+        "knight",
+        "dragon",
+        "castle",
+        "planet",
+        "comet",
+        "star",
+        "moon",
+        "sun",
+        "cloud",
+        "storm",
+        "shadow",
+        "spirit",
     ]
     return (
         f"{random.choice(adjectives)}-{random.choice(nouns)}-"

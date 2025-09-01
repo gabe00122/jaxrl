@@ -90,9 +90,7 @@ def evaluate(
     # save the last value
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
-    rollout_state._replace(
-        values=rollout_state.values.at[:, -1].set(value)
-    )
+    rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
 
     rollout_state = rollout.calculate_advantage(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
@@ -101,6 +99,7 @@ def evaluate(
     env_logs = env.create_logs(env_state)
 
     return rollout_state, env_logs, rngs
+
 
 def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
     batch_obs = rollout.obs
@@ -117,7 +116,9 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     batch_last_rewards = rollout.last_rewards
 
     if hypers.normalize_advantage:
-        batch_advantage = (batch_advantage - batch_advantage.mean()) / (batch_advantage.std() + 1e-8)
+        batch_advantage = (batch_advantage - batch_advantage.mean()) / (
+            batch_advantage.std() + 1e-8
+        )
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
@@ -168,6 +169,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     return total_loss, logs
 
+
 def train(
     optimizer: nnx.Optimizer,
     rngs: nnx.Rngs,
@@ -198,19 +200,25 @@ def train(
         optimizer, rollout_state, logs, rngs = x
 
         minibatch_rng = rngs.shuffle()
-        minibatch_rollout_state = rollout.create_minibatches(rollout_state, hypers.minibatch_count, minibatch_rng)
-        optimizer, logs = nnx.scan(_minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry)((optimizer, logs), minibatch_rollout_state)
+        minibatch_rollout_state = rollout.create_minibatches(
+            rollout_state, hypers.minibatch_count, minibatch_rng
+        )
+        optimizer, logs = nnx.scan(
+            _minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry
+        )((optimizer, logs), minibatch_rollout_state)
 
         return optimizer, rollout_state, logs, rngs
 
     def _global_step(i, x):
         optimizer, logs, env_logs, rngs = x
-        rollout_state, env_log_update, rngs = evaluate(optimizer.model, rollout, rngs, env, hypers)
+        rollout_state, env_log_update, rngs = evaluate(
+            optimizer.model, rollout, rngs, env, hypers
+        )
         optimizer, rollout_state, logs, rngs = nnx.fori_loop(
             0,
             hypers.epoch_count,
             _epoch_step,
-            init_val=(optimizer, rollout_state, logs, rngs)
+            init_val=(optimizer, rollout_state, logs, rngs),
         )
 
         env_logs = jax.tree.map(lambda x, y: x + y, env_logs, env_log_update)
@@ -221,10 +229,17 @@ def train(
     env_logs = env.create_placeholder_logs()
 
     optimizer, logs, env_logs, rngs = nnx.fori_loop(
-        0, config.updates_per_jit, _global_step, init_val=(optimizer, logs, env_logs, rngs)
+        0,
+        config.updates_per_jit,
+        _global_step,
+        init_val=(optimizer, logs, env_logs, rngs),
     )
 
-    logs = jax.tree.map(lambda x: x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count), logs)
+    logs = jax.tree.map(
+        lambda x: x
+        / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count),
+        logs,
+    )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
     return optimizer, rngs, {"algo": logs._asdict(), "env": env_logs}
@@ -235,14 +250,13 @@ def replicate_model(optimizer, sharding):
     state = jax.device_put(state, sharding)
     nnx.update(optimizer, state)
 
+
 def block_all(xs):
-  return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
+    return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 
 def train_run(
-    experiment: Experiment,
-    trial: optuna.Trial | None = None,
-    profile: bool = False
+    experiment: Experiment, trial: optuna.Trial | None = None, profile: bool = False
 ):
     console = Console()
     # mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
@@ -254,7 +268,9 @@ def train_run(
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env = create_env(experiment.config.environment, max_steps, experiment.config.num_envs)
+    env = create_env(
+        experiment.config.environment, max_steps, experiment.config.num_envs
+    )
 
     batch_size = env.num_agents
 
@@ -275,9 +291,9 @@ def train_run(
             experiment.config.learner.optimizer,
             experiment.config.update_steps
             * experiment.config.learner.trainer.minibatch_count
-            * experiment.config.learner.trainer.epoch_count
+            * experiment.config.learner.trainer.epoch_count,
         ),
-        wrt=nnx.Param
+        wrt=nnx.Param,
     )
 
     # replicate_model(optimizer, replicate_sharding)
@@ -304,15 +320,18 @@ def train_run(
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+        optimizer, rngs, logs = jitted_train(
+            optimizer, rngs, rollout, env, experiment.config
+        )
 
         if profile and i >= 4:
             with jax.profiler.trace("/tmp/jax-trace"):
-                optimizer, rngs, logs = jitted_train(optimizer, rngs, rollout, env, experiment.config)
+                optimizer, rngs, logs = jitted_train(
+                    optimizer, rngs, rollout, env, experiment.config
+                )
                 block_all(nnx.state(optimizer))
 
             break
-
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs, i)
@@ -320,8 +339,12 @@ def train_run(
         stop_time = time.time()
 
         delta_time = stop_time - start_time
-        console.print(f"Steps per second: {format_count(int(env_steps_per_update / delta_time))}")
-        console.print(f"Updates per second: {experiment.config.updates_per_jit / delta_time}")
+        console.print(
+            f"Steps per second: {format_count(int(env_steps_per_update / delta_time))}"
+        )
+        console.print(
+            f"Updates per second: {experiment.config.updates_per_jit / delta_time}"
+        )
 
         if trial:
             trial.report(logs.rewards.item(), i)

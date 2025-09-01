@@ -13,7 +13,7 @@ class SpriteSheet:
         self.sheet = pygame.image.load(filename).convert()
         self.tile_size = 12
         self.tile_pad = 1
-    
+
     def image_at(self, rectangle, colorkey, target_size):
         rect = pygame.Rect(rectangle)
         image = pygame.Surface(rect.size).convert()
@@ -22,15 +22,17 @@ class SpriteSheet:
             if colorkey == -1:
                 colorkey = image.get_at((0, 0))
             image.set_colorkey(colorkey, pygame.RLEACCEL)
-        
+
         image = pygame.transform.scale(image, (target_size, target_size))
         return image
 
     def image_at_tile(self, x: int, y: int, target_size: int):
         px = x * (self.tile_size + self.tile_pad) + self.tile_pad
         py = y * (self.tile_size + self.tile_pad) + self.tile_pad
-        
-        return self.image_at((px, py, self.tile_size, self.tile_size), None, target_size)
+
+        return self.image_at(
+            (px, py, self.tile_size, self.tile_size), None, target_size
+        )
 
 
 class GridRenderState(NamedTuple):
@@ -60,15 +62,18 @@ tilemap = {
 
 
 class GridworldRenderer:
-    def __init__(self, screen_width: int = 960, screen_height: int = 960, fps: int = 10):
-        
+    def __init__(
+        self, screen_width: int = 960, screen_height: int = 960, fps: int = 10
+    ):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.fps = fps
 
         flags = pygame.SRCALPHA
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        self.vision = pygame.Surface((self.screen_width, self.screen_height), flags=flags)
+        self.vision = pygame.Surface(
+            (self.screen_width, self.screen_height), flags=flags
+        )
         self.clock = pygame.time.Clock()
 
         self.frames: list[np.ndarray] = []
@@ -76,24 +81,47 @@ class GridworldRenderer:
         self._focused_agent = None
 
         self._spritesheet = SpriteSheet("./assets/urizen_onebit_tileset__v2d0.png")
-        self._tilemap = None #{name: self._spritesheet.image_at_tile(x, y) for name, (x, y) in tilemap.items()}
+        self._tilemap = None  # {name: self._spritesheet.image_at_tile(x, y) for name, (x, y) in tilemap.items()}
 
     def _ensure_tile_size(self, unpadded_width: int):
         # Compute tile size once per session based on the first env width
         if self._tile_size is None:
             self._tile_size = max(1, self.screen_width // max(1, int(unpadded_width)))
-            self._tilemap = {name: self._spritesheet.image_at_tile(x, y, self._tile_size) for name, (x, y) in tilemap.items()}
+            self._tilemap = {
+                name: self._spritesheet.image_at_tile(x, y, self._tile_size)
+                for name, (x, y) in tilemap.items()
+            }
 
-
-    def _tile_to_screen(self, x: int, y: int, pad_width: int, height: int, pad_height: int):
+    def _tile_to_screen(
+        self, x: int, y: int, pad_width: int, height: int, pad_height: int
+    ):
         return x - pad_width, (height - 1 - y) - pad_height
 
-    def _draw_tile(self, image, x, y, pad_width: int, pad_height: int, total_height: int):
+    def _draw_tile(
+        self, image, x, y, pad_width: int, pad_height: int, total_height: int
+    ):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
-        self.screen.blit(image, (x * self._tile_size, y * self._tile_size, self._tile_size, self._tile_size))
+        self.screen.blit(
+            image,
+            (
+                x * self._tile_size,
+                y * self._tile_size,
+                self._tile_size,
+                self._tile_size,
+            ),
+        )
 
-
-    def _draw_vision(self, color, x, y, width: int, height: int, pad_width: int, pad_height: int, total_height: int):
+    def _draw_vision(
+        self,
+        color,
+        x,
+        y,
+        width: int,
+        height: int,
+        pad_width: int,
+        pad_height: int,
+        total_height: int,
+    ):
         sx, sy = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
 
         half_w = width // 2
@@ -130,11 +158,17 @@ class GridworldRenderer:
                 ty = rs.pad_height + y
                 tile_type = tiles[tx][ty]
                 image = self._tilemap[tile_type]
-                self._draw_tile(image, tx, ty, rs.pad_width, rs.pad_height, total_height)
+                self._draw_tile(
+                    image, tx, ty, rs.pad_width, rs.pad_height, total_height
+                )
 
         # Draw agents
         agent_pos = rs.agent_positions.tolist()
-        agent_types = rs.agent_types.tolist() if rs.agent_types is not None else [GW.AGENT_GENERIC] * len(agent_pos)
+        agent_types = (
+            rs.agent_types.tolist()
+            if rs.agent_types is not None
+            else [GW.AGENT_GENERIC] * len(agent_pos)
+        )
 
         for i, ((x, y), t) in enumerate(zip(agent_pos, agent_types)):
             image = self._tilemap[t]
@@ -144,7 +178,16 @@ class GridworldRenderer:
             if self._focused_agent is None or i == self._focused_agent:
                 vw = max(1, int(rs.view_width))
                 vh = max(1, int(rs.view_height))
-                self._draw_vision((0, 0, 0, 0), x, y, vw, vh, rs.pad_width, rs.pad_height, total_height)
+                self._draw_vision(
+                    (0, 0, 0, 0),
+                    x,
+                    y,
+                    vw,
+                    vh,
+                    rs.pad_width,
+                    rs.pad_height,
+                    total_height,
+                )
 
         self.clock.tick(self.fps)
         self.screen.blit(self.vision, (0, 0))
@@ -163,8 +206,11 @@ class GridworldRenderer:
 
 class GridworldClient:
     """EnvironmentClient that renders via GridworldRenderer using per-env adapters."""
+
     def __init__(self, env):
-        assert hasattr(env, "get_render_state"), "Env must implement get_render_state(state)"
+        assert hasattr(env, "get_render_state"), (
+            "Env must implement get_render_state(state)"
+        )
         self.env = env
         self.renderer = GridworldRenderer()
 
@@ -174,4 +220,3 @@ class GridworldClient:
 
     def save_video(self):
         self.renderer.save_video()
-

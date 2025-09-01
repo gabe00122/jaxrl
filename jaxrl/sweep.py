@@ -3,7 +3,17 @@ import optuna
 from rich.console import Console
 import typer
 
-from jaxrl.config import Config, GridCnnObsEncoderConfig, LearnerConfig, LoggerConfig, OptimizerConfig, PPOConfig, ReturnConfig, TransformerActorCriticConfig, AttentionConfig
+from jaxrl.config import (
+    Config,
+    GridCnnObsEncoderConfig,
+    LearnerConfig,
+    LoggerConfig,
+    OptimizerConfig,
+    PPOConfig,
+    ReturnConfig,
+    TransformerActorCriticConfig,
+    AttentionConfig,
+)
 from jaxrl.experiment import Experiment
 from jaxrl.hl_gauss import HlGaussConfig
 from jaxrl.transformer.train import train_run
@@ -16,14 +26,14 @@ def objective(trial: optuna.Trial):
         seed=randint(0, 100000),
         num_envs=256,
         max_env_steps=512,
-        update_steps=1800*2,
+        update_steps=1800 * 2,
         updates_per_jit=10,
         environment=ReturnConfig(num_agents=16),
         hl_gauss=HlGaussConfig(
             min_value=-10.0,
             max_value=10.0,
             n_logits=51,
-            sigma=trial.suggest_float("sigma", 0.05, 0.15)
+            sigma=trial.suggest_float("sigma", 0.05, 0.15),
         ),
         learner=LearnerConfig(
             model=TransformerActorCriticConfig(
@@ -60,8 +70,12 @@ def objective(trial: optuna.Trial):
                 minibatch_count=16,
                 vf_coef=trial.suggest_float("vf_coef", 0.001, 1.0),
                 obs_coef=trial.suggest_float("obs_coef", 0.000, 0.2),
-                entropy_coef=trial.suggest_float("entropy_coef", 0.00005 / 2, 0.00005 * 2),
-                vf_clip=trial.suggest_float("vf_clip", 0.2717602880463028 / 2, 0.2717602880463028 * 2),
+                entropy_coef=trial.suggest_float(
+                    "entropy_coef", 0.00005 / 2, 0.00005 * 2
+                ),
+                vf_clip=trial.suggest_float(
+                    "vf_clip", 0.2717602880463028 / 2, 0.2717602880463028 * 2
+                ),
                 discount=trial.suggest_float("discount", 0.96, 0.99),
                 gae_lambda=trial.suggest_float("gae_lambda", 0.90, 0.99),
             ),
@@ -76,7 +90,9 @@ def objective(trial: optuna.Trial):
         trial=trial,
     )
 
+
 app = typer.Typer()
+
 
 @app.command()
 def sweep():
@@ -120,5 +136,5 @@ def sweep():
         console.print(f"    {key}: {value}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sweep()

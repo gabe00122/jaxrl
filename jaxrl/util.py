@@ -78,9 +78,10 @@ def _normalise_json_ordered(data: dict[str, Any], separator: str) -> dict[str, A
     return {**top_dict_, **nested_dict_}
 
 
-def json_normalize[T: (
-    dict[str, Any] | list[dict[str, Any]]
-)](ds: T, sep: str = "/",) -> T:
+def json_normalize[T: (dict[str, Any] | list[dict[str, Any]])](
+    ds: T,
+    sep: str = "/",
+) -> T:
     if isinstance(ds, tuple):
         ds = ds._asdict()
 
@@ -101,6 +102,7 @@ def count_parameters(model: nnx.Module) -> str:
     total_params = sum([x.size for x in jax.tree_util.tree_leaves(params)])
     return format_count(total_params)
 
+
 def format_count(n: int | float) -> str:
     if not isinstance(n, (int, float)):
         raise TypeError("Input must be a number.")
@@ -110,10 +112,10 @@ def format_count(n: int | float) -> str:
         return str(n)
     elif n < 1_000_000:
         # Format for thousands (K).
-        return f"{n/1000:.2f}K"
+        return f"{n / 1000:.2f}K"
     elif n < 1_000_000_000:
         # Format for millions (M).
-        return f"{n/1_000_000:.2f}M"
+        return f"{n / 1_000_000:.2f}M"
     else:
         # Format for billions (B).
-        return f"{n/1_000_000_000:.2f}B"
+        return f"{n / 1_000_000_000:.2f}B"

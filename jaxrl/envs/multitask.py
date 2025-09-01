@@ -16,7 +16,6 @@ class MultiTaskWrapper(Environment):
         self._envs = envs
         self._env_names = env_names
 
-
     def reset(self, rng_key: jax.Array):
         rng_keys = jax.random.split(rng_key, len(self._envs))
 
@@ -27,7 +26,7 @@ class MultiTaskWrapper(Environment):
             s, t = env.reset(rng_keys[i])
             states.append(s)
             timesteps.append(t)
-        
+
         return tuple(states), _stack_pytree(timesteps)
 
     def step(self, states, actions: jax.Array, rng_key: jax.Array):
@@ -44,7 +43,7 @@ class MultiTaskWrapper(Environment):
 
             state_out.append(s)
             timesteps.append(t)
-        
+
         return tuple(state_out), _stack_pytree(timesteps)
 
     @cached_property
@@ -70,9 +69,13 @@ class MultiTaskWrapper(Environment):
         return sum([env.num_agents for env in self._envs])
 
     def create_placeholder_logs(self):
-        return { name: env.create_placeholder_logs() for name, env in zip(self._env_names, self._envs) }
+        return {
+            name: env.create_placeholder_logs()
+            for name, env in zip(self._env_names, self._envs)
+        }
 
-    
     def create_logs(self, state):
-        return { name: env.create_logs(s) for name, env, s in zip(self._env_names, self._envs, state) }
-
+        return {
+            name: env.create_logs(s)
+            for name, env, s in zip(self._env_names, self._envs, state)
+        }
