@@ -95,11 +95,6 @@ class FlattenedObsEncoderConfig(BaseModel):
     obs_type: Literal["grid_flattened"] = "grid_flattened"
 
 
-class ResCnnObsEncoderConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    obs_type: Literal["res_cnn"] = "res_cnn"
-
-
 class LinearObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["linear"] = "linear"
@@ -160,7 +155,7 @@ class HlGaussConfig(BaseModel):
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig | ResCnnObsEncoderConfig | FlattenedObsEncoderConfig = Field(
+    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig | FlattenedObsEncoderConfig = Field(
         discriminator="obs_type"
     )
     hidden_features: int

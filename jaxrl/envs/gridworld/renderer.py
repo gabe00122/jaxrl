@@ -83,16 +83,16 @@ class GridworldRenderer:
     def _tile_to_screen(self, x: int, y: int, pad_width: int, height: int, pad_height: int):
         return x - pad_width, (height - y + 1) - pad_height
 
-    def _draw_tile2(self, image, x, y, pad_width: int, pad_height: int, total_height: int):
+    def _draw_tile(self, image, x, y, pad_width: int, pad_height: int, total_height: int):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
         self.screen.blit(image, (x * self._tile_size, y * self._tile_size, self._tile_size,self._tile_size))
 
 
-    def _draw_tile(self, surface, color, x, y, width: int, height: int, pad_width: int, pad_height: int, total_height: int):
+    def _draw_vision(self, color, x, y, width: int, height: int, pad_width: int, pad_height: int, total_height: int):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
         half_width = width // 2
         half_height = height // 2
-        surface.fill(
+        self.vision.fill(
             color,
             (
                 (x - half_width) * self._tile_size,
@@ -122,7 +122,7 @@ class GridworldRenderer:
                 ty = rs.pad_height + y
                 tile_type = tiles[tx][ty]
                 image = self.tilemap[tile_type]
-                self._draw_tile2(image, tx, ty, rs.pad_width, rs.pad_height, total_height)
+                self._draw_tile(image, tx, ty, rs.pad_width, rs.pad_height, total_height)
 
         # Draw agents
         agent_pos = rs.agent_positions.tolist()
@@ -130,13 +130,13 @@ class GridworldRenderer:
 
         for i, ((x, y), t) in enumerate(zip(agent_pos, agent_types)):
             image = self.tilemap[t]
-            self._draw_tile2(image, x, y, rs.pad_width, rs.pad_height, total_height)
+            self._draw_tile(image, x, y, rs.pad_width, rs.pad_height, total_height)
 
             # Vision highlight
             if self._focused_agent is None or i == self._focused_agent:
                 vw = max(1, int(rs.view_width))
                 vh = max(1, int(rs.view_height))
-                self._draw_tile(self.vision, (0, 0, 0, 0), x, y, vw, vh, rs.pad_width, rs.pad_height, total_height)
+                self._draw_vision((0, 0, 0, 0), x, y, vw, vh, rs.pad_width, rs.pad_height, total_height)
 
         self.clock.tick(self.fps)
         self.screen.blit(self.vision, (0, 0))
