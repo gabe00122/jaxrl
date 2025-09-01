@@ -67,6 +67,7 @@ class PrisonersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["prisoners"] = "prisoners"
 
+
 class ScoutsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["scouts"] = "scouts"
@@ -88,7 +89,16 @@ class CraftaxConfig(BaseModel):
     env_type: Literal["craftax"] = "craftax"
 
 
-type EnvironmentConfig = NBackConfig | ReturnConfig | ReturnDiggingConfig | ExploreConfig | TravelingSalesmanConfig | ScoutsConfig | PrisonersConfig | CraftaxConfig
+type EnvironmentConfig = (
+    NBackConfig
+    | ReturnConfig
+    | ReturnDiggingConfig
+    | ExploreConfig
+    | TravelingSalesmanConfig
+    | ScoutsConfig
+    | PrisonersConfig
+    | CraftaxConfig
+)
 
 
 class MultiTaskEnvConfig(BaseModel):
@@ -114,6 +124,7 @@ class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
 
+
 class FlattenedObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_flattened"] = "grid_flattened"
@@ -122,6 +133,7 @@ class FlattenedObsEncoderConfig(BaseModel):
 class LinearObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["linear"] = "linear"
+
 
 class AttentionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -156,7 +168,7 @@ class LayerConfig(BaseModel):
 
     feed_forward: FeedForwardConfig
     history: AttentionConfig | RnnConfig = Field(discriminator="type")
-    
+
     use_post_attn_norm: bool = False
     use_post_ffw_norm: bool = False
 
@@ -179,9 +191,9 @@ class HlGaussConfig(BaseModel):
 class TransformerActorCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    obs_encoder: LinearObsEncoderConfig | GridCnnObsEncoderConfig | FlattenedObsEncoderConfig = Field(
-        discriminator="obs_type"
-    )
+    obs_encoder: (
+        LinearObsEncoderConfig | GridCnnObsEncoderConfig | FlattenedObsEncoderConfig
+    ) = Field(discriminator="obs_type")
     hidden_features: int
 
     layer: LayerConfig

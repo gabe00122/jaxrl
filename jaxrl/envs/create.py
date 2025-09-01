@@ -13,13 +13,17 @@ from jaxrl.envs.trust.prisoners import PrisonersEnv
 from jaxrl.envs.vector import VectorWrapper
 
 
-def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec_count: int = 1, selector: str | None = None) -> Environment:
+def create_env(
+    env_config: EnvironmentConfig | MultiTaskConfig,
+    length: int,
+    vec_count: int = 1,
+    selector: str | None = None,
+) -> Environment:
     if env_config.env_type == "multi" and selector is not None:
         for env_def in env_config.envs:
             if env_def.name == selector:
                 return create_env(env_def.env, length, vec_count=vec_count)
         raise ValueError("Could not find environment for selector")
-
 
     match env_config.env_type:
         case "multi":
@@ -46,14 +50,14 @@ def create_env(env_config: EnvironmentConfig | MultiTaskConfig, length: int, vec
             env = CraftaxEnvironment()
         case _:
             raise ValueError(f"Unknown environment type: {env_config.env_type}")
-    
+
     if vec_count > 1:
         env = VectorWrapper(env, vec_count)
-    
+
     return env
 
 
 def create_client[State](env: Environment[State]) -> EnvironmentClient[State]:
-        if isinstance(env, (ReturnEnv, ReturnDiggingEnv, ScoutsEnv)):
-            # Use the shared gridworld renderer for all gridworld envs
-            return GridworldClient(env)
+    if isinstance(env, (ReturnEnv, ReturnDiggingEnv, ScoutsEnv)):
+        # Use the shared gridworld renderer for all gridworld envs
+        return GridworldClient(env)

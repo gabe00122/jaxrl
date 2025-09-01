@@ -108,17 +108,21 @@ class Rollout:
             values=state.values.at[:, step].set(value),
             rewards=state.rewards.at[:, step].set(next_timestep.last_reward),
             terminated=state.terminated.at[:, step].set(timestep.terminated),
-            next_terminated=state.next_terminated.at[:, step].set(next_timestep.terminated),
+            next_terminated=state.next_terminated.at[:, step].set(
+                next_timestep.terminated
+            ),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
             last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
         )
-    
-    def calculate_advantage(self, state: RolloutState, discount: float, gae_lambda: float) -> RolloutState:
+
+    def calculate_advantage(
+        self, state: RolloutState, discount: float, gae_lambda: float
+    ) -> RolloutState:
         def _body(acc, xs):
             rewards, discount, v_tp1 = xs
-            acc = rewards + discount * ((1-gae_lambda) * v_tp1 + gae_lambda * acc)
+            acc = rewards + discount * ((1 - gae_lambda) * v_tp1 + gae_lambda * acc)
             return acc, acc
-        
+
         # swap to time major
         rewards = jnp.swapaxes(state.rewards, 0, 1)
         terminated = jnp.swapaxes(state.next_terminated, 0, 1)
@@ -128,7 +132,7 @@ class Rollout:
             _body,
             values[-1],
             (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
-            reverse=True
+            reverse=True,
         )
         advantage = targets - values[:-1]
 
@@ -144,10 +148,12 @@ class Rollout:
         indecies = jax.random.permutation(rng_key, self.batch_size)
         return jax.tree.map(lambda x: x[indecies], state)
 
-    def create_minibatches(self, state: RolloutState, minibatches: int, rng_key: jax.Array) -> RolloutState:
+    def create_minibatches(
+        self, state: RolloutState, minibatches: int, rng_key: jax.Array
+    ) -> RolloutState:
         if minibatches > 1:
             state = self._shuffle(state, rng_key)
 
-        return jax.tree.map(lambda x: rearrange(x, "(m b) ... -> m b ...", m=minibatches), state)
-
-
+        return jax.tree.map(
+            lambda x: rearrange(x, "(m b) ... -> m b ...", m=minibatches), state
+        )

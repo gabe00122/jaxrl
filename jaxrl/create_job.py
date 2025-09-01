@@ -16,7 +16,11 @@ class TPUSettings(NamedTuple):
 
 @app.command()
 def queue_job(
-    tpu: str, config_file: str, node: str = "node-1", queue: bool = False, preemptible: bool = False
+    tpu: str,
+    config_file: str,
+    node: str = "node-1",
+    queue: bool = False,
+    preemptible: bool = False,
 ):
     wandb_key = os.environ["WANDB_API_KEY"]
     git_hash = get_git_hash()

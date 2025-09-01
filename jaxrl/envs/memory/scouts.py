@@ -13,18 +13,17 @@ from jaxrl.envs.gridworld.renderer import GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
-
 class ScoutsState(NamedTuple):
-    scout_pos: jax.Array       # n length (x, y)
+    scout_pos: jax.Array  # n length (x, y)
     harvester_pos: jax.Array
     harvester_time: jax.Array  # n length ()
 
-    time: jax.Array             # ()
+    time: jax.Array  # ()
 
-    map: jax.Array              # (w, h) tile type id
-    spawn_pos: jax.Array        # n length (x, y) spawnable positions, padded with -1
-    spawn_count: jax.Array      # () size of spawn_pos
-    
+    map: jax.Array  # (w, h) tile type id
+    spawn_pos: jax.Array  # n length (x, y) spawnable positions, padded with -1
+    spawn_count: jax.Array  # () size of spawn_pos
+
     rewards: jax.Array
 
 
@@ -57,15 +56,24 @@ class ScoutsEnv(Environment[ScoutsState]):
         noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
 
         amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
-        noise = generate_perlin_noise_2d(
-            (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
-        ) * amplitude[0]
+        noise = (
+            generate_perlin_noise_2d(
+                (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
+            )
+            * amplitude[0]
+        )
 
         for i, r in enumerate(res):
             noise_key, rng_key = jax.random.split(rng_key)
-            noise = noise + generate_perlin_noise_2d(
-                (self.unpadded_width, self.unpadded_height), (r, r), rng_key=noise_key
-            ) * amplitude[i+1]
+            noise = (
+                noise
+                + generate_perlin_noise_2d(
+                    (self.unpadded_width, self.unpadded_height),
+                    (r, r),
+                    rng_key=noise_key,
+                )
+                * amplitude[i + 1]
+            )
 
         tiles = jnp.where(noise > 0.05, GW.TILE_WALL, GW.TILE_EMPTY)
 
@@ -100,16 +108,20 @@ class ScoutsEnv(Environment[ScoutsState]):
 
         map, spawn_pos, spawn_count = self._generate_map(map_key)
 
-        scout_pos = spawn_pos[jax.random.randint(
-            scout_key, (self._num_scouts,), minval=0, maxval=spawn_count
-        )]
+        scout_pos = spawn_pos[
+            jax.random.randint(
+                scout_key, (self._num_scouts,), minval=0, maxval=spawn_count
+            )
+        ]
         # harvester_pos = spawn_pos[jax.random.randint(
         #     harvester_key, (self._num_harvesters,), minval=0, maxval=spawn_count
         # )]
         harvester_pos = scout_pos
-        treasure_pos = spawn_pos[jax.random.randint(
-            treasure_key, (self._num_treasures,), minval=0, maxval=spawn_count
-        )]
+        treasure_pos = spawn_pos[
+            jax.random.randint(
+                treasure_key, (self._num_treasures,), minval=0, maxval=spawn_count
+            )
+        ]
 
         map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(GW.TILE_TREASURE)
 
@@ -152,8 +164,8 @@ class ScoutsEnv(Environment[ScoutsState]):
     def step(
         self, state: ScoutsState, action: jax.Array, rng_key: jax.Array
     ) -> tuple[ScoutsState, TimeStep]:
-        seeker_actions = action[:self._num_scouts]
-        harvester_actions = action[self._num_scouts:]
+        seeker_actions = action[: self._num_scouts]
+        harvester_actions = action[self._num_scouts :]
 
         @partial(jax.vmap, in_axes=(0, 0), out_axes=(0, 0))
         def _step_scouter(local_position, local_action):
@@ -182,23 +194,43 @@ class ScoutsEnv(Environment[ScoutsState]):
                 new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
                 reward = (new_tile == GW.TILE_TREASURE).astype(jnp.float32)
-                time = self.harvesters_move_every #(new_tile == TILE_TREASURE).astype(jnp.int32) * 20
+                time = (
+                    self.harvesters_move_every
+                )  # (new_tile == TILE_TREASURE).astype(jnp.int32) * 20
 
                 return new_pos, reward, time
 
-            return jax.lax.cond(time > 0, step_time, step_move, local_position, local_action, time)
+            return jax.lax.cond(
+                time > 0, step_time, step_move, local_position, local_action, time
+            )
 
         map = state.map
-        new_harvester_positions, harvester_rewards, harvester_time = _step_harvester(state.harvester_pos, harvester_actions, state.harvester_time)
+        new_harvester_positions, harvester_rewards, harvester_time = _step_harvester(
+            state.harvester_pos, harvester_actions, state.harvester_time
+        )
 
         # update unopened treasure to opened treasure
-        new_harvester_tile = map[new_harvester_positions[:, 0], new_harvester_positions[:, 1]]
-        map = map.at[new_harvester_positions[:, 0], new_harvester_positions[:, 1]].set(jnp.where(new_harvester_tile == GW.TILE_TREASURE, GW.TILE_TREASURE_OPEN, new_harvester_tile))
+        new_harvester_tile = map[
+            new_harvester_positions[:, 0], new_harvester_positions[:, 1]
+        ]
+        map = map.at[new_harvester_positions[:, 0], new_harvester_positions[:, 1]].set(
+            jnp.where(
+                new_harvester_tile == GW.TILE_TREASURE,
+                GW.TILE_TREASURE_OPEN,
+                new_harvester_tile,
+            )
+        )
 
         # update scounters
-        new_scout_positions, scout_rewards = _step_scouter(state.scout_pos, seeker_actions)
+        new_scout_positions, scout_rewards = _step_scouter(
+            state.scout_pos, seeker_actions
+        )
         new_scout_tile = map[new_scout_positions[:, 0], new_scout_positions[:, 1]]
-        map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(jnp.where(new_scout_tile == GW.TILE_TREASURE_OPEN, GW.TILE_EMPTY, new_scout_tile))
+        map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(
+            jnp.where(
+                new_scout_tile == GW.TILE_TREASURE_OPEN, GW.TILE_EMPTY, new_scout_tile
+            )
+        )
 
         # for each treasure that was found create a new one
         # random_positions = state.spawn_pos[jax.random.randint(
@@ -233,8 +265,12 @@ class ScoutsEnv(Environment[ScoutsState]):
                 (self.view_width, self.view_height),
             )
 
-        map = state.map.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(GW.AGENT_SCOUT)
-        map = map.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(GW.AGENT_HARVESTER)
+        map = state.map.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(
+            GW.AGENT_SCOUT
+        )
+        map = map.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(
+            GW.AGENT_HARVESTER
+        )
 
         agents_pos = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
 
@@ -248,16 +284,20 @@ class ScoutsEnv(Environment[ScoutsState]):
             last_action=actions,
             last_reward=rewards,
             action_mask=None,
-            terminated=jnp.equal(time, self._length - 1)
+            terminated=jnp.equal(time, self._length - 1),
         )
 
     # Shared renderer adapter
     def get_render_state(self, state: ScoutsState) -> GridRenderState:
-        agent_positions = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
+        agent_positions = jnp.concatenate(
+            (state.scout_pos, state.harvester_pos), axis=0
+        )
         agent_types = jnp.concatenate(
             (
                 jnp.full((state.scout_pos.shape[0],), GW.AGENT_SCOUT, dtype=jnp.int32),
-                jnp.full((state.harvester_pos.shape[0],), GW.AGENT_HARVESTER, dtype=jnp.int32),
+                jnp.full(
+                    (state.harvester_pos.shape[0],), GW.AGENT_HARVESTER, dtype=jnp.int32
+                ),
             ),
             axis=0,
         )
@@ -275,11 +315,7 @@ class ScoutsEnv(Environment[ScoutsState]):
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0)}
 
     def create_logs(self, state: ScoutsState):
-        return {
-            "rewards": state.rewards
-        }
+        return {"rewards": state.rewards}

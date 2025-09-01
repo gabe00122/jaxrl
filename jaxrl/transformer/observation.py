@@ -2,7 +2,11 @@ import jax
 from flax import nnx
 from einops import rearrange
 
-from jaxrl.config import FlattenedObsEncoderConfig, GridCnnObsEncoderConfig, LinearObsEncoderConfig
+from jaxrl.config import (
+    FlattenedObsEncoderConfig,
+    GridCnnObsEncoderConfig,
+    LinearObsEncoderConfig,
+)
 from jaxrl.envs.specs import ObservationSpec
 
 
@@ -40,9 +44,9 @@ class GridCnnObsEncoder(nnx.Module):
         params_dtype,
         rngs: nnx.Rngs,
     ) -> None:
-        assert (
-            obs_spec.max_value is not None
-        ), "max_value must be specified in the observation spec"
+        assert obs_spec.max_value is not None, (
+            "max_value must be specified in the observation spec"
+        )
 
         self.params_dtype = params_dtype
         self.num_classes = obs_spec.max_value
@@ -100,14 +104,14 @@ class FlattenedObsEncoder(nnx.Module):
         params_dtype,
         rngs: nnx.Rngs,
     ) -> None:
-        assert (
-            obs_spec.max_value is not None
-        ), "max_value must be specified in the observation spec"
+        assert obs_spec.max_value is not None, (
+            "max_value must be specified in the observation spec"
+        )
 
         embed_features = 4
 
         self.params_dtype = params_dtype
-        self.num_classes = 6 #obs_spec.max_value
+        self.num_classes = 6  # obs_spec.max_value
         in_features = embed_features * obs_spec.shape[0] * obs_spec.shape[1]
 
         self.embedding = nnx.Linear(
@@ -145,9 +149,9 @@ class GridCnnObsDecoder(nnx.Module):
         params_dtype,
         rngs: nnx.Rngs,
     ) -> None:
-        assert (
-            obs_spec.max_value is not None
-        ), "max_value must be specified in the observation spec"
+        assert obs_spec.max_value is not None, (
+            "max_value must be specified in the observation spec"
+        )
 
         self.dtype = dtype
         self.num_classes = obs_spec.max_value
@@ -180,9 +184,10 @@ class GridCnnObsDecoder(nnx.Module):
         return x
 
 
-
 def create_obs_encoder(
-    config: LinearObsEncoderConfig | GridCnnObsEncoderConfig | FlattenedObsEncoderConfig,
+    config: LinearObsEncoderConfig
+    | GridCnnObsEncoderConfig
+    | FlattenedObsEncoderConfig,
     obs_spec: ObservationSpec,
     output_size: int,
     *,

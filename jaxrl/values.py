@@ -9,8 +9,11 @@ import optax
 
 from jaxrl.config import HlGaussConfig
 
+
 def calculate_supports(config: HlGaussConfig):
-    support = jnp.linspace(config.min, config.max, config.n_logits + 1, dtype=jnp.float32)
+    support = jnp.linspace(
+        config.min, config.max, config.n_logits + 1, dtype=jnp.float32
+    )
     centers = (support[:-1] + support[1:]) / 2
     support = support[None, :]
 
@@ -18,7 +21,9 @@ def calculate_supports(config: HlGaussConfig):
 
 
 class HlGaussValue(nnx.Module):
-    def __init__(self, in_features: int, hl_gauss_config: HlGaussConfig, *, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self, in_features: int, hl_gauss_config: HlGaussConfig, *, rngs: nnx.Rngs
+    ) -> None:
         self._min = hl_gauss_config.min
         self._max = hl_gauss_config.max
         self._sigma = hl_gauss_config.sigma
@@ -53,11 +58,11 @@ class HlGaussValue(nnx.Module):
 class MseValue(nnx.Module):
     def __init__(self, in_features: int, *, rngs: nnx.Rngs) -> None:
         self.dense = nnx.Linear(in_features, 1, rngs=rngs)
-    
+
     def __call__(self, x) -> Any:
         x = self.dense(x)
         return x.squeeze(axis=-1)
-    
+
     def get_value(self, value):
         return value
 

@@ -1,4 +1,3 @@
-
 import pygame
 from jax import numpy as jnp
 from flax import nnx
@@ -43,21 +42,31 @@ def load_policy(experiment: Experiment, env, max_steps, load: bool, rngs: nnx.Rn
     if load:
         with Checkpointer(experiment.checkpoints_url) as checkpointer:
             model = checkpointer.restore_latest(model)
-    
+
     return model
 
 
-def play_from_run(run_name: str, human_control: bool, seed: int, selector: str | None = None):
+def play_from_run(
+    run_name: str, human_control: bool, seed: int, selector: str | None = None
+):
     experiment = Experiment.load(run_name, "results")
     play(experiment, human_control, seed, selector, True)
 
 
-def play_from_config(config_name: str, human_control: bool, seed: int, selector: str | None = None):
+def play_from_config(
+    config_name: str, human_control: bool, seed: int, selector: str | None = None
+):
     experiment = Experiment.from_config_file(config_name, "", create_directories=False)
     play(experiment, human_control, seed, selector, False)
 
 
-def play(experiment, human_control: bool, seed: int, selector: str | None = None, load: bool = True):
+def play(
+    experiment,
+    human_control: bool,
+    seed: int,
+    selector: str | None = None,
+    load: bool = True,
+):
     max_steps = experiment.config.max_env_steps
 
     env = create_env(experiment.config.environment, max_steps, selector=selector)
@@ -78,7 +87,6 @@ def play(experiment, human_control: bool, seed: int, selector: str | None = None
 
         return actions, kv_cache
 
-
     @nnx.jit
     def step(env_state, actions, rngs):
         env_key = rngs.env()
@@ -95,7 +103,7 @@ def play(experiment, human_control: bool, seed: int, selector: str | None = None
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        
+
         human_action = get_action_from_keypress()
         if human_action is not None or not human_control:
             actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
@@ -106,4 +114,3 @@ def play(experiment, human_control: bool, seed: int, selector: str | None = None
             print(timestep.last_reward[0].item())
 
         client.render(env_state, timestep)
-
