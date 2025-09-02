@@ -69,28 +69,26 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         self._num_agents = config.num_agents
         self._config = config
 
-        self.unpadded_width = config.width
-        self.unpadded_height = config.height
+        self.width = config.width
+        self.height = config.height
 
         self.view_width = config.view_width
         self.view_height = config.view_height
         self.pad_width = self.view_width // 2
         self.pad_height = self.view_height // 2
 
-        self.width = self.unpadded_width + self.pad_width
-        self.height = self.unpadded_height + self.pad_height
 
     def _random_positions(self, rng_key: jax.Array, count: int, replace: bool = True, pad: bool = True) -> Position:
         # This function assumes an empty map and does not account for walls
         indices = jax.random.choice(
             rng_key,
-            self.unpadded_width * self.unpadded_height,
+            self.width * self.height,
             (count,),
             replace=replace
         )
 
-        x = indices % self.unpadded_width
-        y = indices // self.unpadded_height
+        x = indices % self.width
+        y = indices // self.width
 
         if pad:
             x = x + self.pad_width
@@ -111,7 +109,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         )
 
     def _generate_map(self, rng_key):
-        tiles = jnp.zeros((self.unpadded_width, self.unpadded_height), dtype=jnp.int32)
+        tiles = jnp.zeros((self.width, self.height), dtype=jnp.int32)
 
         flag_pos = self._random_positions(rng_key, self._config.num_flags, replace=False, pad=False)
 
@@ -134,7 +132,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         state = TravelingSalesmanState(
             agents_pos=agent_pos,
-            flag_available=jnp.full((self.num_agents, self._config.num_flags), True, dtype=jnp.bool),
+            flag_available=jnp.full((self.num_agents, self._config.num_flags), True, dtype=jnp.bool_),
             map=map,
             flag_index_map=flag_index_map,
             time=jnp.int32(0),
@@ -193,7 +191,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
                 flag_available = jax.lax.cond(
                     is_all_taken,
-                    lambda _: jnp.full((self._config.num_flags,), True, dtype=jnp.bool),
+                    lambda _: jnp.full((self._config.num_flags,), True, dtype=jnp.bool_),
                     lambda avail: avail,
                     flag_available
                 )
@@ -268,8 +266,8 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             tilemap=tilemap,
             pad_width=self.pad_width,
             pad_height=self.pad_height,
-            unpadded_width=self.unpadded_width,
-            unpadded_height=self.unpadded_height,
+            unpadded_width=self.width,
+            unpadded_height=self.height,
             agent_positions=agent_pos,#state.agents_pos,
             agent_types=None,
             view_width=self.view_width,

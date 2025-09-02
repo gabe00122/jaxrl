@@ -134,7 +134,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             treasure_pos=treasure_pos,
             agents_pos=agents_pos,
             agents_timeout=jnp.zeros((self.num_agents,), dtype=jnp.int32),
-            found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool),
+            found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool_),
             time=jnp.int32(0),
             rewards=jnp.float32(0.0),
         )

@@ -50,7 +50,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         state = CraftaxWrapperState(cstate, time, jnp.float32(0.0))
 
         return state, self._encode_timestep(
-            obs, jnp.array(False, dtype=jnp.bool), actions, rewards, time
+            obs, jnp.array(False, dtype=jnp.bool_), actions, rewards, time
         )
 
     @cached_property

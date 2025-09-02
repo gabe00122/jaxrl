@@ -52,7 +52,7 @@ class Rollout:
             ),
             action_mask=jnp.ones(
                 (self.batch_size, self.trajectory_length, self.action_spec.num_actions),
-                dtype=jnp.bool,
+                dtype=jnp.bool_,
             ),
             actions=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=index_type
@@ -61,10 +61,10 @@ class Rollout:
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
             terminated=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.bool
+                (self.batch_size, self.trajectory_length), dtype=jnp.bool_
             ),
             next_terminated=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.bool
+                (self.batch_size, self.trajectory_length), dtype=jnp.bool_
             ),
             log_prob=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
