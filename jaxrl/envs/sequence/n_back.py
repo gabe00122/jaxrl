@@ -105,7 +105,7 @@ class NBackMemory(Environment[NBackMemoryState]):
         current_value = state.data[state.position]
 
         obs = jax.nn.one_hot(current_value, self.max_value, dtype=jnp.float32)
-        action_mask = jnp.ones((2,), dtype=jnp.bool)
+        action_mask = jnp.ones((2,), dtype=jnp.bool_)
 
         return TimeStep(
             action_mask=action_mask[None, ...],
