@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from jaxrl.envs.gridworld.king_hill import KingHillConfig, KingHillEnv
 from jaxrl.envs.sequence.n_back import NBackConfig
 from jaxrl.envs.gridworld.grid_return import ReturnDiggingConfig
 from jaxrl.envs.gridworld.explore import ExploreConfig
@@ -32,6 +33,7 @@ type EnvironmentConfig = (
     | ExploreConfig
     | TravelingSalesmanConfig
     | ScoutsConfig
+    | KingHillConfig
     | PrisonersConfig
     | CraftaxConfig
 )
@@ -87,6 +89,8 @@ def create_env(
             env = ExploreEnv(env_config, length)
         case "traveling_salesman":
             env = TravelingSalesmanEnv(env_config, length)
+        case "king_hill":
+            env = KingHillEnv(env_config, length)
         case "craftax":
             env = CraftaxEnvironment()
         case _:

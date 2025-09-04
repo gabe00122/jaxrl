@@ -1,25 +1,57 @@
 from jax import numpy as jnp
 
-NUM_TYPES = 7
+NUM_TYPES = 29
 
 # Unified tile ids across gridworld environments
-TILE_EMPTY = 0
-TILE_WALL = 1
-TILE_SOFT_WALL = 2
-TILE_TREASURE = 3
-TILE_TREASURE_OPEN = 4
+TILE_EMPTY = 0              # empty space
+TILE_WALL = 1               # permanent wall
+TILE_DESTRUCTIBLE_WALL = 2  # destructible
+TILE_FLAG = 3               # typical goal tile
+TILE_FLAG_UNLOCKED = 4      # used for the scouting environment where the the flag gets made available for taking
 
-AGENT_GENERIC = 5
-AGENT_SCOUT = 6
-AGENT_HARVESTER = 7
+TILE_FLAG_BLUE_TEAM = 5
+TILE_FLAG_RED_TEAM = 6
+
+# agents are observed like tiles
+AGENT_GENERIC = 7           # typical agent
+AGENT_SCOUT = 8             # scout agent (scout env)
+AGENT_HARVESTER = 9         # harvester agent (scout env)
+
+AGENT_RED_KNIGHT_UP    = 10
+AGENT_RED_KNIGHT_RIGHT = 11
+AGENT_RED_KNIGHT_DOWN  = 12
+AGENT_RED_KNIGHT_LEFT  = 13
+
+AGENT_RED_ARCHER_UP    = 14
+AGENT_RED_ARCHER_RIGHT = 15
+AGENT_RED_ARCHER_DOWN  = 16
+AGENT_RED_ARCHER_LEFT  = 17
+
+AGENT_BLUE_KNIGHT_UP    = 18
+AGENT_BLUE_KNIGHT_RIGHT = 19
+AGENT_BLUE_KNIGHT_DOWN  = 20
+AGENT_BLUE_KNIGHT_LEFT  = 21
+
+AGENT_BLUE_ARCHER_UP    = 22
+AGENT_BLUE_ARCHER_RIGHT = 23
+AGENT_BLUE_ARCHER_DOWN  = 24
+AGENT_BLUE_ARCHER_LEFT  = 25
+
+
+TILE_DECOR_1 = 26
+TILE_DECOR_2 = 27
+TILE_DECOR_3 = 28
+TILE_DECOR_4 = 29
+
 
 # Actions
-NUM_ACTIONS = 4
+NUM_ACTIONS = 5
 
 MOVE_UP = 0
 MOVE_RIGHT = 1
 MOVE_DOWN = 2
 MOVE_LEFT = 3
+PRIMARY_ACTION = 4
 
 
 DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)

@@ -109,14 +109,14 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         )
 
     def _generate_map(self, rng_key):
-        tiles = jnp.zeros((self.width, self.height), dtype=jnp.int32)
+        tiles = jnp.zeros((self.width, self.height), dtype=jnp.int8)
 
         flag_pos = self._random_positions(rng_key, self._config.num_flags, replace=False, pad=False)
 
-        tiles = tiles.at[flag_pos.x, flag_pos.y].set(GW.TILE_TREASURE)
+        tiles = tiles.at[flag_pos.x, flag_pos.y].set(GW.TILE_FLAG)
 
         flag_index_map = jnp.full_like(tiles, 0)
-        flag_index_map = flag_index_map.at[flag_pos.x, flag_pos.y].set(jnp.arange(self._config.num_flags, dtype=jnp.int32))
+        flag_index_map = flag_index_map.at[flag_pos.x, flag_pos.y].set(jnp.arange(self._config.num_flags, dtype=jnp.int8))
 
         tiles = self._pad_tiles(tiles, GW.TILE_WALL)
         flag_index_map = self._pad_tiles(flag_index_map, 0)
@@ -180,7 +180,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             current_flag_available = flag_available[flag_index]
 
             found_flag = jnp.logical_and(
-                state.map[new_pos.x, new_pos.y] == GW.TILE_TREASURE,
+                state.map[new_pos.x, new_pos.y] == GW.TILE_FLAG,
                 current_flag_available
             )
 

@@ -52,12 +52,18 @@ class GridRenderState(NamedTuple):
 tilemap = {
     GW.TILE_EMPTY: (17, 0),
     GW.TILE_WALL: (0, 0),
-    GW.TILE_SOFT_WALL: (0, 0),
-    GW.TILE_TREASURE: (29, 23),
-    GW.TILE_TREASURE_OPEN: (29, 23),
+    GW.TILE_DESTRUCTIBLE_WALL: (0, 0),
+    GW.TILE_FLAG: (29, 23),
+    GW.TILE_FLAG_UNLOCKED: (29, 23),
     GW.AGENT_GENERIC: (104, 0),
     GW.AGENT_HARVESTER: (104, 0),
+    GW.AGENT_RED_KNIGHT_RIGHT: (104, 11),
+    GW.AGENT_BLUE_KNIGHT_RIGHT: (104, 5),
     GW.AGENT_SCOUT: (104, 0),
+    GW.TILE_DECOR_1: (15, 5),
+    GW.TILE_DECOR_2: (16, 5),
+    GW.TILE_DECOR_3: (17, 5),
+    GW.TILE_DECOR_4: (14, 5)
 }
 
 

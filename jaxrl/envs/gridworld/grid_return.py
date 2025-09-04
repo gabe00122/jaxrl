@@ -88,13 +88,13 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 * amplitude[i + 1]
             )
 
-        tiles = jnp.where(noise > 0.05, GW.TILE_SOFT_WALL, GW.TILE_EMPTY)
+        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_DESTRUCTIBLE_WALL), jnp.int8(GW.TILE_EMPTY))
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
             tiles == GW.TILE_EMPTY,
             size=self.unpadded_width * self.unpadded_height,
-            fill_value=-1,
+            fill_value=jnp.int8(-1),
         )
         spawn_count = jnp.sum(tiles == GW.TILE_EMPTY)
 
@@ -180,7 +180,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 # don't move if we are moving into a wall
                 new_pos = jnp.where(
                     jnp.logical_or(
-                        new_tile == GW.TILE_WALL, new_tile == GW.TILE_SOFT_WALL
+                        new_tile == GW.TILE_WALL, new_tile == GW.TILE_DESTRUCTIBLE_WALL
                     ),
                     local_position,
                     target_pos,
@@ -194,7 +194,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
                 # sets a timeout of the tile is dug
                 timeout = jnp.where(
-                    new_tile == GW.TILE_SOFT_WALL, self.digging_timeout, 0
+                    new_tile == GW.TILE_DESTRUCTIBLE_WALL, self.digging_timeout, 0
                 )
 
                 return new_pos, target_pos, timeout, reward
@@ -221,7 +221,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         # dig actions
         target_tiles = state.map[target_pos[:, 0], target_pos[:, 1]]
         map = state.map.at[target_pos[:, 0], target_pos[:, 1]].set(
-            jnp.where(target_tiles == GW.TILE_SOFT_WALL, GW.TILE_EMPTY, target_tiles)
+            jnp.where(target_tiles == GW.TILE_DESTRUCTIBLE_WALL, GW.TILE_EMPTY, target_tiles)
         )
         # /dig actions
 
@@ -251,7 +251,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             GW.AGENT_GENERIC
         )
         tiles = tiles.at[state.treasure_pos[0], state.treasure_pos[1]].set(
-            GW.TILE_TREASURE
+            GW.TILE_FLAG
         )
         view = _encode_view(tiles, state.agents_pos)
 
@@ -275,7 +275,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
     def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
         tilemap = state.map
         tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(
-            GW.TILE_TREASURE
+            GW.TILE_FLAG
         )
 
         return GridRenderState(
