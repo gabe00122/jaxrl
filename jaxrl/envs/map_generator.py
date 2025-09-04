@@ -1,5 +1,6 @@
 from jax import numpy as jnp, random
-
+import jax
+import jaxrl.envs.gridworld.constance as GW
 
 def interpolant(t):
     return t * t * t * (t * (t * 6 - 15) + 10)
@@ -54,3 +55,40 @@ def generate_perlin_noise_2d(
     n0 = n00 * (1 - t[:, :, 0]) + t[:, :, 0] * n10
     n1 = n01 * (1 - t[:, :, 0]) + t[:, :, 0] * n11
     return jnp.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
+
+
+def fractal_noise(width: int, height: int, res: list[int], rng_key: jax.Array):
+    keys = jax.random.split(rng_key, len(res) + 1)
+    amplitude_key = keys[0]
+    noise_keys = keys[1:]
+
+    amplitudes = jax.random.dirichlet(amplitude_key, jnp.ones((len(res),)))
+    noise = None
+
+    for i, r in enumerate(res):
+        new_noise = generate_perlin_noise_2d((width, height), (r, r), rng_key=noise_keys[i]) * amplitudes[i]
+        if noise is not None:
+            noise = noise + new_noise
+        else:
+            noise = new_noise
+    
+    return noise
+
+
+def choose_positions(tiles: jax.Array, n: int, rng_key: jax.Array):
+    """
+    Chooses 'n' non-repeating empty tile position
+    """
+    width, height = tiles.shape
+    size = width * height
+
+    available_tiles = (tiles == GW.TILE_EMPTY).flatten()
+
+    prob_mask = available_tiles / jnp.sum(available_tiles)
+
+    choice_indices = jax.random.choice(rng_key, size, (n,), replace=False, p=prob_mask)
+
+    choice_x = choice_indices // height
+    choice_y = choice_indices % height
+
+    return choice_x, choice_y

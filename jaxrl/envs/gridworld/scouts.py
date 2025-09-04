@@ -91,13 +91,13 @@ class ScoutsEnv(Environment[ScoutsState]):
                 * amplitude[i + 1]
             )
 
-        tiles = jnp.where(noise > 0.05, GW.TILE_WALL, GW.TILE_EMPTY)
+        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_WALL), jnp.int8(GW.TILE_EMPTY))
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
             tiles == GW.TILE_EMPTY,
             size=self.unpadded_width * self.unpadded_height,
-            fill_value=-1,
+            fill_value=jnp.int8(-1),
         )
         spawn_count = jnp.sum(tiles == GW.TILE_EMPTY)
 
@@ -139,7 +139,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             )
         ]
 
-        map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(GW.TILE_TREASURE)
+        map = map.at[treasure_pos[:, 0], treasure_pos[:, 1]].set(GW.TILE_FLAG)
 
         state = ScoutsState(
             map=map,
@@ -192,7 +192,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             # don't move if we are moving into a wall
             new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-            reward = (new_tile == GW.TILE_TREASURE_OPEN).astype(jnp.float32)
+            reward = (new_tile == GW.TILE_FLAG_UNLOCKED).astype(jnp.float32)
 
             return new_pos, reward
 
@@ -209,7 +209,7 @@ class ScoutsEnv(Environment[ScoutsState]):
                 # don't move if we are moving into a wall
                 new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-                reward = (new_tile == GW.TILE_TREASURE).astype(jnp.float32)
+                reward = (new_tile == GW.TILE_FLAG).astype(jnp.float32)
                 time = (
                     self.harvesters_move_every
                 )  # (new_tile == TILE_TREASURE).astype(jnp.int32) * 20
@@ -231,8 +231,8 @@ class ScoutsEnv(Environment[ScoutsState]):
         ]
         map = map.at[new_harvester_positions[:, 0], new_harvester_positions[:, 1]].set(
             jnp.where(
-                new_harvester_tile == GW.TILE_TREASURE,
-                GW.TILE_TREASURE_OPEN,
+                new_harvester_tile == GW.TILE_FLAG,
+                GW.TILE_FLAG_UNLOCKED,
                 new_harvester_tile,
             )
         )
@@ -244,7 +244,7 @@ class ScoutsEnv(Environment[ScoutsState]):
         new_scout_tile = map[new_scout_positions[:, 0], new_scout_positions[:, 1]]
         map = map.at[new_scout_positions[:, 0], new_scout_positions[:, 1]].set(
             jnp.where(
-                new_scout_tile == GW.TILE_TREASURE_OPEN, GW.TILE_EMPTY, new_scout_tile
+                new_scout_tile == GW.TILE_FLAG_UNLOCKED, GW.TILE_EMPTY, new_scout_tile
             )
         )
 

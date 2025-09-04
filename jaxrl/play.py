@@ -114,6 +114,6 @@ def play(
             # client.record_frame()
             time += 1
 
-        client.render(env_state, timestep)
+        client.render_pov(env_state, timestep, 0)
 
     # client.save_video("videos/agent_pov.mp4")

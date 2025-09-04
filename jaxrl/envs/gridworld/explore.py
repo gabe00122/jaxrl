@@ -60,7 +60,7 @@ class ExploreEnv(Environment[ExploreState]):
         reward_map = jnp.where(reward_map < 0.01, reward_map, 0.0) * 20
         reward_map = reward_map * reward_map
 
-        tiles = jnp.where(reward_map == 0, GW.TILE_EMPTY, GW.TILE_TREASURE)
+        tiles = jnp.where(reward_map == 0, GW.TILE_EMPTY, GW.TILE_FLAG)
 
         tiles = jnp.pad(
             tiles,
