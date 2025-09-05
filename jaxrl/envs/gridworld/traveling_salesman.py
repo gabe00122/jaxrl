@@ -195,7 +195,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
                     lambda avail: avail,
                     flag_available
                 )
-                reward = jnp.array(1.0)
+                reward = jnp.array(1.0/3)
 
                 return reward, flag_available
 
