@@ -95,7 +95,9 @@ def main(
         return env.reset(key)
 
     @nnx.jit
-    def rollout_jit(state, rng_key):
+    def rollout_jit(rng_key):
+        state, ts = reset_jit(rng_key)
+
         def body(carry, _):
             state, rng = carry
             rng, akey, skey = jax.random.split(rng, 3)
@@ -106,12 +108,9 @@ def main(
         (state, rng_key), last_ts = jax.lax.scan(body, (state, rng_key), None, length=max_steps)
         return state, last_ts
 
-    # Warmup JIT: reset + one rollout a few times
-    state, ts = reset_jit(rngs.env())
-    block_all((state, ts))
 
     for _ in range(max(1, warmup)):
-        state, ts = rollout_jit(state, rngs.env())
+        state, ts = rollout_jit(rngs.env())
         block_all((state, ts))
 
     # Timed iterations
@@ -119,7 +118,7 @@ def main(
     total_env_steps = max_steps * num_agents
     for _ in range(iters):
         t0 = time.perf_counter()
-        state, ts = rollout_jit(state, rngs.env())
+        state, ts = rollout_jit(rngs.env())
         # Ensure execution completes before stopping timer
         block_all((state, ts))
         t1 = time.perf_counter()
