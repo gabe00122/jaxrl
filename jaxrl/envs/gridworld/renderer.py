@@ -52,7 +52,7 @@ class GridRenderState(NamedTuple):
 tilemap = {
     GW.TILE_EMPTY: (17, 0),
     GW.TILE_WALL: (20, 3),
-    GW.TILE_DESTRUCTIBLE_WALL: (0, 0),
+    GW.TILE_DESTRUCTIBLE_WALL: (20, 3),
     GW.TILE_FLAG: (29, 23),
     GW.TILE_FLAG_UNLOCKED: (29, 23),
     GW.AGENT_GENERIC: (104, 0),
