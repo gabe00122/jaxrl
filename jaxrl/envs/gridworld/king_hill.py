@@ -4,11 +4,12 @@ from typing import NamedTuple, Literal
 import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
+from wandb import agent
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
-from jaxrl.envs.gridworld.util import Position, unique_mask
+from jaxrl.envs.gridworld.util import unique_mask
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -26,7 +27,11 @@ class KingHillConfig(BaseModel):
 
 
 class KingHillState(NamedTuple):
-    agents_pos: Position
+    agents_start_pos: jax.Array
+    agents_pos: jax.Array # (n, 2)
+    agent_direction: jax.Array # (n,) top, right, down, left
+    control_point_pos: jax.Array # (n, 2)
+    control_point_team: jax.Array
 
     time: jax.Array
     map: jax.Array
@@ -66,7 +71,7 @@ class KingHillEnv(Environment[KingHillState]):
 
     def _generate_map(self, rng_key):
         tile_ids = jnp.array([GW.TILE_EMPTY, GW.TILE_DECOR_1, GW.TILE_DECOR_2, GW.TILE_DECOR_3, GW.TILE_DECOR_4])
-        tile_probs = jnp.array([0.85, 0.05, 0.05, 0.025, 0.025])
+        tile_probs = jnp.array([0.90, 0.04, 0.04, 0.015, 0.005])
         # tiles = jnp.zeros((self.width, self.height), dtype=jnp.int8)
         tiles = jax.random.choice(rng_key, tile_ids, (self.width, self.height), p=tile_probs)
 
@@ -80,16 +85,22 @@ class KingHillEnv(Environment[KingHillState]):
         map = self._generate_map(map_key)
 
         # place objective
+        control_point_pos = jnp.array([[self.padded_width // 2, self.padded_height // 2]], jnp.int32)
         map = map.at[self.padded_width // 2, self.padded_height // 2].set(GW.TILE_FLAG)
-        #
+        
 
-        agent_pos = Position(data=jnp.array([
-            [0, 1, 2, 3],
-            [0, 0, 0, 0]
-        ]) + jnp.array([[self.pad_width], [self.pad_height]]))
+        xs = jnp.arange(self.num_agents // 2, dtype=jnp.int32) + (self.width // 2 - self.num_agents // 2) + self.pad_width
+        ys = jnp.zeros((self.num_agents // 2,), dtype=jnp.int32) + self.pad_height
+        red_agent_pos = jnp.stack((xs, ys), axis=-1)
+        blue_agent_pos = jnp.stack((xs, ys + self.height - 1), axis=-1)
+        agent_pos = jnp.concatenate((red_agent_pos, blue_agent_pos), axis=0)
 
         state = KingHillState(
+            agents_start_pos=agent_pos,
             agents_pos=agent_pos,
+            agent_direction=jnp.zeros((self.num_agents,), jnp.int32),
+            control_point_pos=control_point_pos,
+            control_point_team=jnp.array([0], jnp.int32), # team index that controls the point
             map=map,
             time=jnp.int32(0),
             rewards=jnp.float32(0.0),
@@ -122,30 +133,106 @@ class KingHillEnv(Environment[KingHillState]):
 
     
     def calculate_movement(self, state: KingHillState, action: jax.Array):
-        proposed_position = jnp.where(action < 4, state.agents_pos.move(action).data, state.agents_pos.data)
-        proposed_tiles = state.map[proposed_position[0], proposed_position[1]]
+        # block current positions
+        map = state.map
+        # without there's a potentially exploitable issue where agents can stack on the same tile by attempting to move into a wall while another agent moves on top of them
+        map = map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.TILE_WALL) # kind of slow but prevents certain types of movement like swapping positions by making current agent positions non-passable
+        # block current positions
+
+        proposed_position = jnp.where((action < 4)[:, None], state.agents_pos + GW.DIRECTIONS[action], state.agents_pos)
+        proposed_tiles = map[proposed_position[:, 0], proposed_position[:, 1]]
         
         # only move to positions with no blocking tile or agent
-        proposed_position = jnp.where(proposed_tiles != GW.TILE_WALL, proposed_position, state.agents_pos.data)
+        proposed_position = jnp.where((proposed_tiles != GW.TILE_WALL)[:, None], proposed_position, state.agents_pos)
         
-        position_keys = proposed_position[0] * self.height + proposed_position[1]
+        position_keys = proposed_position[:, 0] * self.height + proposed_position[:, 1]
         unique_dest_mask = unique_mask(position_keys)
 
         # only move to destinations that are unique
-        proposed_position = jnp.where(unique_dest_mask, proposed_position, state.agents_pos.data)
+        proposed_position = jnp.where(unique_dest_mask[:, None], proposed_position, state.agents_pos)
 
-        return Position(data=proposed_position)
+        return proposed_position
 
+    def _calculate_flag_captures(self, state: KingHillState):
+        red_team = state.agents_pos[:self.num_agents//2]
+        blue_team = state.agents_pos[self.num_agents//2:]
+
+        def get_overlaps(flags: jax.Array, team: jax.Array):
+            eq = (flags[:, None, :] == team[None, :, :])
+            print(eq)
+
+            # All coords must match -> (N, M)
+            matches = jnp.all(eq, axis=-1)
+
+            # Any match for each a -> (N,)
+            return jnp.any(matches, axis=1)
+
+        red_overlaps = get_overlaps(state.control_point_pos, red_team)
+        blue_overlaps = get_overlaps(state.control_point_pos, blue_team)
+
+
+        flag_control = jnp.where(red_overlaps, 1, state.control_point_team)
+        flag_control = jnp.where(blue_overlaps, 2, flag_control)
+
+        return flag_control
+    
+    def _calculate_directions(self, state: KingHillState, action: jax.Array) -> jax.Array:
+        return jnp.where(action < 4, action, state.agent_direction)
+    
+    def _indices_to_mask(self, indices: jax.Array, size: int) -> jax.Array:
+        one_hot = jax.nn.one_hot(indices, size, dtype=jnp.bool_)
+        mask = jnp.any(one_hot, axis=0)
+        return mask
+
+    
+    def _calculate_attacks(self, state: KingHillState, action: jax.Array):
+        attack_mask = action == GW.PRIMARY_ACTION
+        attack_target = state.agents_pos + GW.DIRECTIONS[state.agent_direction]
+        # might need attacks to extend two tiles because you could body block by trying to move to the same location
+
+        agent_id_map = jnp.full((self.width, self.height), -1, jnp.int32)
+        agent_id_map = agent_id_map.at[state.agents_pos[:, 0] - self.pad_width, state.agents_pos[:, 1] - self.pad_height].set(jnp.arange(self.num_agents))
+
+        target_agent_indices = agent_id_map[attack_target[:, 0] - self.pad_width, attack_target[:, 1] - self.pad_height]
+        target_agent_indices = jnp.where(attack_mask, target_agent_indices, -1)
+
+        target_agent_mask = self._indices_to_mask(target_agent_indices, self.num_agents)
+
+        # respawn
+        state = state._replace(
+            agents_pos=jnp.where(target_agent_mask[:, None], state.agents_start_pos, state.agents_pos)
+        )
+
+        return state
+
+
+    def _repeat_for_team(self, red_item, blue_item):
+        team_size = self.num_agents // 2
+
+        red_reward = jnp.repeat(red_item[None], team_size)
+        blue_reward = jnp.repeat(blue_item[None], team_size)
+
+        return jnp.concatenate((red_reward, blue_reward))
 
     def step(
         self, state: KingHillState, action: jax.Array, rng_key: jax.Array
     ) -> tuple[KingHillState, TimeStep]:
-        new_position = self.calculate_movement(state, action)
+        state = self._calculate_attacks(state, action)
 
-        rewards = jnp.zeros((4,))
+        new_position = self.calculate_movement(state, action)
+        new_directions = self._calculate_directions(state, action)
+
+        # flag control
+        state = state._replace(agents_pos=new_position, agent_direction=new_directions)
+        flag_control = self._calculate_flag_captures(state)
+
+        rewards = 20.0 * self._repeat_for_team(
+            jnp.sum(flag_control == 1),
+            jnp.sum(flag_control == 2),
+        ) / 512
 
         state = state._replace(
-            agents_pos=new_position,
+            control_point_team=flag_control,
             time=state.time + 1,
             rewards=state.rewards + jnp.mean(rewards),
         )
@@ -155,16 +242,17 @@ class KingHillEnv(Environment[KingHillState]):
     def encode_observations(
         self, state: KingHillState, actions, rewards
     ) -> TimeStep:
-        @partial(jax.vmap, in_axes=(None, 1))
+        @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions.x - self.view_width // 2, positions.y - self.view_height // 2),
+                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
                 (self.view_width, self.view_height),
             )
 
-        tiles = state.map.at[state.agents_pos.x, state.agents_pos.y].set(
-            GW.AGENT_GENERIC
+        # todo this needs to be team specific
+        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
+            self._repeat_for_team(jnp.array(GW.AGENT_RED_KNIGHT_RIGHT, jnp.int8), jnp.array(GW.AGENT_BLUE_KNIGHT_RIGHT, jnp.int8))
         )
 
         view = _encode_view(tiles, state.agents_pos)
@@ -189,13 +277,13 @@ class KingHillEnv(Environment[KingHillState]):
     def get_render_state(self, state: KingHillState) -> GridRenderState:
         tilemap = state.map
 
-        tilemap = tilemap.at[state.agents_pos.x, state.agents_pos.y].set(
+        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             GW.AGENT_GENERIC
         )
 
-        x = state.agents_pos.x[:, None]
-        y = state.agents_pos.y[:, None]
-        agent_pos = jnp.concatenate((x, y), axis=-1)
+        # x = state.agents_pos.x[:, None]
+        # y = state.agents_pos.y[:, None]
+        # agent_pos = jnp.concatenate((x, y), axis=-1)
 
         return GridRenderState(
             tilemap=tilemap,
@@ -203,8 +291,8 @@ class KingHillEnv(Environment[KingHillState]):
             pad_height=self.pad_height,
             unpadded_width=self.width,
             unpadded_height=self.height,
-            agent_positions=agent_pos,#state.agents_pos,
-            agent_types=jnp.array([GW.AGENT_RED_KNIGHT_RIGHT, GW.AGENT_RED_KNIGHT_RIGHT, GW.AGENT_BLUE_KNIGHT_RIGHT, GW.AGENT_BLUE_KNIGHT_RIGHT]),
+            agent_positions=state.agents_pos,
+            agent_types=jnp.array(([GW.AGENT_RED_KNIGHT_RIGHT] * (self.num_agents//2)) + ([GW.AGENT_BLUE_KNIGHT_RIGHT] * (self.num_agents//2))),
             view_width=self.view_width,
             view_height=self.view_height,
         )

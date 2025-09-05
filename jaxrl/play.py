@@ -3,7 +3,7 @@ import pygame
 from jax import numpy as jnp
 from flax import nnx
 
-
+import jaxrl.envs.gridworld.constance as GW
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.env_config import create_env
 from jaxrl.envs.gridworld.renderer import GridworldClient
@@ -15,14 +15,18 @@ from jaxrl.train import add_seq_dim
 def get_action_from_keypress():
     keys = pygame.key.get_pressed()
 
-    if keys[pygame.K_w]:
-        return 0
-    elif keys[pygame.K_s]:
-        return 2
-    elif keys[pygame.K_a]:
-        return 3
-    elif keys[pygame.K_d]:
-        return 1
+    if keys[pygame.K_w] or keys[pygame.K_UP]:
+        return GW.MOVE_UP
+    elif keys[pygame.K_s] or keys[pygame.K_RIGHT]:
+        return GW.MOVE_DOWN
+    elif keys[pygame.K_a] or keys[pygame.K_DOWN]:
+        return GW.MOVE_LEFT
+    elif keys[pygame.K_d] or keys[pygame.K_LEFT]:
+        return GW.MOVE_RIGHT
+    elif keys[pygame.K_PERIOD]:
+        return GW.STAY
+    elif keys[pygame.K_SPACE]:
+        return GW.PRIMARY_ACTION
 
     return None
 

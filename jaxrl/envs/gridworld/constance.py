@@ -45,13 +45,14 @@ TILE_DECOR_4 = 29
 
 
 # Actions
-NUM_ACTIONS = 5
+NUM_ACTIONS = 6
 
 MOVE_UP = 0
 MOVE_RIGHT = 1
 MOVE_DOWN = 2
 MOVE_LEFT = 3
-PRIMARY_ACTION = 4
+STAY = 4
+PRIMARY_ACTION = 5
 
 
 DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
