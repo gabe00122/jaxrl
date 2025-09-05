@@ -6,6 +6,7 @@ from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 from wandb import agent
 from jaxrl.envs.environment import Environment
+from jaxrl.envs.map_generator import generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
@@ -25,13 +26,17 @@ class KingHillConfig(BaseModel):
     view_width: int = 5
     view_height: int = 5
 
+    dig_timeout: int = 10
+
 
 class KingHillState(NamedTuple):
     agents_start_pos: jax.Array
     agents_pos: jax.Array # (n, 2)
     agent_direction: jax.Array # (n,) top, right, down, left
+    agents_timeouts: jax.Array
+
     control_point_pos: jax.Array # (n, 2)
-    control_point_team: jax.Array
+    control_point_team: jax.Array # (n,) neutral, red, blue
 
     time: jax.Array
     map: jax.Array
@@ -70,10 +75,18 @@ class KingHillEnv(Environment[KingHillState]):
         )
 
     def _generate_map(self, rng_key):
+        decor_key, wall_key = jax.random.split(rng_key)
+
         tile_ids = jnp.array([GW.TILE_EMPTY, GW.TILE_DECOR_1, GW.TILE_DECOR_2, GW.TILE_DECOR_3, GW.TILE_DECOR_4])
         tile_probs = jnp.array([0.90, 0.04, 0.04, 0.015, 0.005])
         # tiles = jnp.zeros((self.width, self.height), dtype=jnp.int8)
-        tiles = jax.random.choice(rng_key, tile_ids, (self.width, self.height), p=tile_probs)
+        tiles = jax.random.choice(decor_key, tile_ids, (self.width, self.height), p=tile_probs)
+
+        noise = generate_perlin_noise_2d((self.width, self.height), (10, 10), rng_key=wall_key) > 0.25
+        noise = noise.at[:, 0].set(False) # clear the starting edges so agents are not stuck in the walls
+        noise = noise.at[:, self.height-1].set(False)
+
+        tiles = jnp.where(noise, GW.TILE_DESTRUCTIBLE_WALL, tiles)
 
         tiles = self._pad_tiles(tiles, GW.TILE_WALL)
 
@@ -89,7 +102,7 @@ class KingHillEnv(Environment[KingHillState]):
         map = map.at[self.padded_width // 2, self.padded_height // 2].set(GW.TILE_FLAG)
         
 
-        xs = jnp.arange(self.num_agents // 2, dtype=jnp.int32) + (self.width // 2 - self.num_agents // 2) + self.pad_width
+        xs = jnp.arange(self.num_agents // 2, dtype=jnp.int32) + (self.width // 2 - self.num_agents // 4) + self.pad_width
         ys = jnp.zeros((self.num_agents // 2,), dtype=jnp.int32) + self.pad_height
         red_agent_pos = jnp.stack((xs, ys), axis=-1)
         blue_agent_pos = jnp.stack((xs, ys + self.height - 1), axis=-1)
@@ -99,6 +112,7 @@ class KingHillEnv(Environment[KingHillState]):
             agents_start_pos=agent_pos,
             agents_pos=agent_pos,
             agent_direction=jnp.zeros((self.num_agents,), jnp.int32),
+            agents_timeouts=jnp.zeros((self.num_agents,), jnp.int32),
             control_point_pos=control_point_pos,
             control_point_team=jnp.array([0], jnp.int32), # team index that controls the point
             map=map,
@@ -143,7 +157,7 @@ class KingHillEnv(Environment[KingHillState]):
         proposed_tiles = map[proposed_position[:, 0], proposed_position[:, 1]]
         
         # only move to positions with no blocking tile or agent
-        proposed_position = jnp.where((proposed_tiles != GW.TILE_WALL)[:, None], proposed_position, state.agents_pos)
+        proposed_position = jnp.where((jnp.logical_and(proposed_tiles != GW.TILE_WALL, proposed_tiles != GW.TILE_DESTRUCTIBLE_WALL))[:, None], proposed_position, state.agents_pos)
         
         position_keys = proposed_position[:, 0] * self.height + proposed_position[:, 1]
         unique_dest_mask = unique_mask(position_keys)
@@ -185,15 +199,14 @@ class KingHillEnv(Environment[KingHillState]):
         return mask
 
     
-    def _calculate_attacks(self, state: KingHillState, action: jax.Array):
+    def _calculate_attacks(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array):
         attack_mask = action == GW.PRIMARY_ACTION
-        attack_target = state.agents_pos + GW.DIRECTIONS[state.agent_direction]
         # might need attacks to extend two tiles because you could body block by trying to move to the same location
 
         agent_id_map = jnp.full((self.width, self.height), -1, jnp.int32)
         agent_id_map = agent_id_map.at[state.agents_pos[:, 0] - self.pad_width, state.agents_pos[:, 1] - self.pad_height].set(jnp.arange(self.num_agents))
 
-        target_agent_indices = agent_id_map[attack_target[:, 0] - self.pad_width, attack_target[:, 1] - self.pad_height]
+        target_agent_indices = agent_id_map[agent_targets[:, 0] - self.pad_width, agent_targets[:, 1] - self.pad_height]
         target_agent_indices = jnp.where(attack_mask, target_agent_indices, -1)
 
         target_agent_mask = self._indices_to_mask(target_agent_indices, self.num_agents)
@@ -213,11 +226,31 @@ class KingHillEnv(Environment[KingHillState]):
         blue_reward = jnp.repeat(blue_item[None], team_size)
 
         return jnp.concatenate((red_reward, blue_reward))
+    
+    def _calculate_digs(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array) -> KingHillState:
+        target_tile = state.map[agent_targets[:, 0], agent_targets[:, 1]]
+        execute_dig = jnp.logical_and(
+            state.map[agent_targets[:, 0], agent_targets[:, 1]] == GW.TILE_DESTRUCTIBLE_WALL,
+            action == GW.DIG_ACTION,
+        )
+
+        tiles = state.map.at[agent_targets[:, 0], agent_targets[:, 1]].set(jnp.where(execute_dig, GW.TILE_EMPTY, target_tile))
+
+        state = state._replace(
+            map=tiles,
+            agents_timeouts=jnp.where(execute_dig, self._config.dig_timeout, state.agents_timeouts)
+        )
+        return state
 
     def step(
         self, state: KingHillState, action: jax.Array, rng_key: jax.Array
     ) -> tuple[KingHillState, TimeStep]:
-        state = self._calculate_attacks(state, action)
+        action = jnp.where(state.agents_timeouts > 0, GW.STAY, action) # this does change the next observation, should probably be done with a action mask
+
+        agent_targets = state.agents_pos + GW.DIRECTIONS[state.agent_direction]
+
+        state = self._calculate_digs(state, action, agent_targets)
+        state = self._calculate_attacks(state, action, agent_targets)
 
         new_position = self.calculate_movement(state, action)
         new_directions = self._calculate_directions(state, action)
@@ -234,6 +267,7 @@ class KingHillEnv(Environment[KingHillState]):
         state = state._replace(
             control_point_team=flag_control,
             time=state.time + 1,
+            agents_timeouts=jnp.maximum(0, state.agents_timeouts - 1),
             rewards=state.rewards + jnp.mean(rewards),
         )
 

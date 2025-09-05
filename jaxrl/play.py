@@ -27,6 +27,8 @@ def get_action_from_keypress():
         return GW.STAY
     elif keys[pygame.K_SPACE]:
         return GW.PRIMARY_ACTION
+    elif keys[pygame.K_e]:
+        return GW.DIG_ACTION
 
     return None
 
@@ -115,9 +117,9 @@ def play(
             env_state, timestep = step(env_state, actions, rngs)
             print(timestep.last_reward[0].item())
             
-            # client.record_frame()
+            client.record_frame()
             time += 1
 
         client.render_pov(env_state, timestep, 0)
 
-    # client.save_video("videos/agent_pov.mp4")
+    client.save_video("videos/agent_pov.mp4")
