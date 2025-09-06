@@ -5,7 +5,7 @@ import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 
-from jaxrl.envs.map_generator import generate_perlin_noise_2d
+from jaxrl.envs.map_generator import fractal_noise, generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -65,30 +65,11 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         self.digging_timeout = config.digging_timeout
 
     def _generate_map(self, rng_key):
-        noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
+        walls_key, decor_key, rng_key = jax.random.split(rng_key, 3)
+        noise = fractal_noise(self.unpadded_width, self.unpadded_height, [2, 4, 5, 8, 10], walls_key)
 
-        res = [4, 5, 8, 10]
-        amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
-        noise = (
-            generate_perlin_noise_2d(
-                (self.unpadded_width, self.unpadded_height), (2, 2), rng_key=noise_key
-            )
-            * amplitude[0]
-        )
-
-        for i, r in enumerate(res):
-            noise_key, rng_key = jax.random.split(rng_key)
-            noise = (
-                noise
-                + generate_perlin_noise_2d(
-                    (self.unpadded_width, self.unpadded_height),
-                    (r, r),
-                    rng_key=noise_key,
-                )
-                * amplitude[i + 1]
-            )
-
-        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_DESTRUCTIBLE_WALL), jnp.int8(GW.TILE_EMPTY))
+        tiles = generate_decor_tiles(self.unpadded_width, self.unpadded_height, decor_key)
+        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_DESTRUCTIBLE_WALL), tiles)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(

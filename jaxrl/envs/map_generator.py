@@ -75,6 +75,14 @@ def fractal_noise(width: int, height: int, res: list[int], rng_key: jax.Array):
     return noise
 
 
+def generate_decor_tiles(width: int, height: int, rng_key: jax.Array):
+    tile_ids = jnp.array([GW.TILE_EMPTY, GW.TILE_DECOR_1, GW.TILE_DECOR_2, GW.TILE_DECOR_3, GW.TILE_DECOR_4], dtype=jnp.int8)
+    tile_probs = jnp.array([0.90, 0.04, 0.04, 0.015, 0.005])
+    tiles = jax.random.choice(rng_key, tile_ids, (width, height), p=tile_probs)
+
+    return tiles
+
+
 def choose_positions(tiles: jax.Array, n: int, rng_key: jax.Array):
     """
     Chooses 'n' non-repeating empty tile position
