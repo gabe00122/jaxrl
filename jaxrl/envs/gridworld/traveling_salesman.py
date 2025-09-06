@@ -5,6 +5,7 @@ import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 from jaxrl.envs.environment import Environment
+from jaxrl.envs.map_generator import generate_decor_tiles
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
@@ -109,9 +110,10 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         )
 
     def _generate_map(self, rng_key):
-        tiles = jnp.zeros((self.width, self.height), dtype=jnp.int8)
+        decor_key, flag_key = jax.random.split(rng_key)
+        tiles = generate_decor_tiles(self.width, self.height, decor_key)
 
-        flag_pos = self._random_positions(rng_key, self._config.num_flags, replace=False, pad=False)
+        flag_pos = self._random_positions(flag_key, self._config.num_flags, replace=False, pad=False)
 
         tiles = tiles.at[flag_pos.x, flag_pos.y].set(GW.TILE_FLAG)
 

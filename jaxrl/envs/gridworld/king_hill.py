@@ -6,7 +6,7 @@ from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 from wandb import agent
 from jaxrl.envs.environment import Environment
-from jaxrl.envs.map_generator import generate_perlin_noise_2d
+from jaxrl.envs.map_generator import generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
@@ -76,11 +76,7 @@ class KingHillEnv(Environment[KingHillState]):
 
     def _generate_map(self, rng_key):
         decor_key, wall_key = jax.random.split(rng_key)
-
-        tile_ids = jnp.array([GW.TILE_EMPTY, GW.TILE_DECOR_1, GW.TILE_DECOR_2, GW.TILE_DECOR_3, GW.TILE_DECOR_4])
-        tile_probs = jnp.array([0.90, 0.04, 0.04, 0.015, 0.005])
-        # tiles = jnp.zeros((self.width, self.height), dtype=jnp.int8)
-        tiles = jax.random.choice(decor_key, tile_ids, (self.width, self.height), p=tile_probs)
+        tiles = generate_decor_tiles(self.width, self.height, decor_key)
 
         noise = generate_perlin_noise_2d((self.width, self.height), (10, 10), rng_key=wall_key) > 0.25
         noise = noise.at[:, 0].set(False) # clear the starting edges so agents are not stuck in the walls
