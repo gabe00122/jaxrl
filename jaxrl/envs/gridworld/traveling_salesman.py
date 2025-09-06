@@ -1,5 +1,5 @@
 from functools import cached_property, partial
-from typing import NamedTuple, Literal, Self
+from typing import NamedTuple, Literal
 
 import jax
 from jax import numpy as jnp
@@ -10,31 +10,6 @@ from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderState
 import jaxrl.envs.gridworld.constance as GW
-
-
-class Position(NamedTuple):
-    data: jax.Array
-
-    def move(self, direction: jax.Array) -> Self:
-        direction = GW.DIRECTIONS[direction]
-        if len(self.data.shape) > 1:
-            direction = direction[:, None]
-
-        data = self.data + direction
-        return self.__class__(data=data)
-
-    @property
-    def x(self):
-        return self.data[0]
-    
-    @property
-    def y(self):
-        return self.data[1]
-    
-    @classmethod
-    def from_xy(cls, x: jax.Array, y: jax.Array) -> Self:
-        data = jnp.stack((x, y))
-        return cls(data)
 
 
 class TravelingSalesmanConfig(BaseModel):
@@ -51,7 +26,7 @@ class TravelingSalesmanConfig(BaseModel):
 
 
 class TravelingSalesmanState(NamedTuple):
-    agents_pos: Position
+    agents_pos: jax.Array  # (n, 2)
     flag_available: jax.Array # [agent, flag]
 
     time: jax.Array
@@ -79,7 +54,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         self.pad_height = self.view_height // 2
 
 
-    def _random_positions(self, rng_key: jax.Array, count: int, replace: bool = True, pad: bool = True) -> Position:
+    def _random_positions(self, rng_key: jax.Array, count: int, replace: bool = True, pad: bool = True) -> jax.Array:
         # This function assumes an empty map and does not account for walls
         indices = jax.random.choice(
             rng_key,
@@ -94,8 +69,8 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         if pad:
             x = x + self.pad_width
             y = y + self.pad_height
-
-        return Position.from_xy(x, y)
+        # return (count, 2) array of (x, y)
+        return jnp.stack((x, y), axis=-1)
 
     def _pad_tiles(self, tiles, fill):
         # pads tiles so the observation can just be a slice
@@ -115,10 +90,12 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         flag_pos = self._random_positions(flag_key, self._config.num_flags, replace=False, pad=False)
 
-        tiles = tiles.at[flag_pos.x, flag_pos.y].set(GW.TILE_FLAG)
+        tiles = tiles.at[flag_pos[:, 0], flag_pos[:, 1]].set(GW.TILE_FLAG)
 
-        flag_index_map = jnp.full_like(tiles, 0)
-        flag_index_map = flag_index_map.at[flag_pos.x, flag_pos.y].set(jnp.arange(self._config.num_flags, dtype=jnp.int8))
+        flag_index_map = jnp.full_like(tiles, 0, dtype=jnp.int32)
+        flag_index_map = flag_index_map.at[flag_pos[:, 0], flag_pos[:, 1]].set(
+            jnp.arange(self._config.num_flags, dtype=jnp.int8)
+        )
 
         tiles = self._pad_tiles(tiles, GW.TILE_WALL)
         flag_index_map = self._pad_tiles(flag_index_map, 0)
@@ -169,42 +146,51 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
     def step(
         self, state: TravelingSalesmanState, action: jax.Array, rng_key: jax.Array
     ) -> tuple[TravelingSalesmanState, TimeStep]:
-        @partial(jax.vmap, in_axes=(1, 0, 0), out_axes=(1, 0, 0))
-        def _step_agent(local_position: Position, local_action: jax.Array, flag_available: jax.Array):
-            target_pos = local_position.move(local_action)
+        @partial(jax.vmap, in_axes=(0, 0, 0), out_axes=(0, 0, 0))
+        def _step_agent(local_position: jax.Array, local_action: jax.Array, flag_available: jax.Array):
+            # local_position: (2,), returns (2,)
+            # Move only for movement actions; otherwise stay
+            proposed = jnp.where(
+                local_action < 4,
+                local_position + GW.DIRECTIONS[local_action],
+                local_position,
+            )
 
-            new_tile = state.map[target_pos.x, target_pos.y]
+            new_tile = state.map[proposed[0], proposed[1]]
 
             # don't move if we are moving into a wall
-            new_pos = Position(jnp.where(new_tile == GW.TILE_WALL, local_position.data, target_pos.data))
+            new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, proposed)
 
-            flag_index = state.flag_index_map[new_pos.x, new_pos.y]
+            flag_index = state.flag_index_map[new_pos[0], new_pos[1]]
             current_flag_available = flag_available[flag_index]
 
             found_flag = jnp.logical_and(
-                state.map[new_pos.x, new_pos.y] == GW.TILE_FLAG,
-                current_flag_available
+                state.map[new_pos[0], new_pos[1]] == GW.TILE_FLAG,
+                current_flag_available,
             )
 
             def on_found_flag(flag_available, flag_index):
                 flag_available = flag_available.at[flag_index].set(False)
 
-                is_all_taken = jnp.all(jnp.logical_not(flag_available)) # this could maybe be optimized with a counter
+                # reset once all flags taken
+                is_all_taken = jnp.all(jnp.logical_not(flag_available))
 
                 flag_available = jax.lax.cond(
                     is_all_taken,
                     lambda _: jnp.full((self._config.num_flags,), True, dtype=jnp.bool_),
                     lambda avail: avail,
-                    flag_available
+                    flag_available,
                 )
-                reward = jnp.array(1.0/3)
+                reward = jnp.array(1.0 / 3)
 
                 return reward, flag_available
 
             def on_not_found_flag(flag_available, flag_index):
                 return jnp.array(0.0), flag_available
-            
-            reward, new_flags = jax.lax.cond(found_flag, on_found_flag, on_not_found_flag, flag_available, flag_index)
+
+            reward, new_flags = jax.lax.cond(
+                found_flag, on_found_flag, on_not_found_flag, flag_available, flag_index
+            )
 
             return new_pos, reward, new_flags
 
@@ -222,15 +208,15 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
     def encode_observations(
         self, state: TravelingSalesmanState, actions, rewards
     ) -> TimeStep:
-        @partial(jax.vmap, in_axes=(None, 1))
+        @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions.x - self.view_width // 2, positions.y - self.view_height // 2),
+                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
                 (self.view_width, self.view_height),
             )
 
-        tiles = state.map.at[state.agents_pos.x, state.agents_pos.y].set(
+        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             GW.AGENT_GENERIC
         )
 
@@ -256,13 +242,9 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
     def get_render_state(self, state: TravelingSalesmanState) -> GridRenderState:
         tilemap = state.map
 
-        tilemap = tilemap.at[state.agents_pos.x, state.agents_pos.y].set(
+        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             GW.AGENT_GENERIC
         )
-
-        x = state.agents_pos.x[:, None]
-        y = state.agents_pos.y[:, None]
-        agent_pos = jnp.concatenate((x, y), axis=-1)
 
         return GridRenderState(
             tilemap=tilemap,
@@ -270,7 +252,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             pad_height=self.pad_height,
             unpadded_width=self.width,
             unpadded_height=self.height,
-            agent_positions=agent_pos,#state.agents_pos,
+            agent_positions=state.agents_pos,
             agent_types=None,
             view_width=self.view_width,
             view_height=self.view_height,

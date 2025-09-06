@@ -4,7 +4,6 @@ from typing import NamedTuple, Literal
 import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
-from wandb import agent
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec

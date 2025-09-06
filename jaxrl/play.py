@@ -1,4 +1,5 @@
 from pdb import run
+from xmlrpc.client import boolean
 import pygame
 from jax import numpy as jnp
 from flax import nnx
@@ -12,22 +13,28 @@ from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
 
 
-def get_action_from_keypress():
-    keys = pygame.key.get_pressed()
+def get_action_from_keydown(event: pygame.event.Event | None):
+    """Map a just-pressed key (KEYDOWN event) to an action.
 
-    if keys[pygame.K_w] or keys[pygame.K_UP]:
+    Returns None for events that are not relevant or not KEYDOWN.
+    """
+    if event is None or event.type != pygame.KEYDOWN:
+        return None
+
+    key = event.key
+    if key in (pygame.K_w, pygame.K_UP):
         return GW.MOVE_UP
-    elif keys[pygame.K_s] or keys[pygame.K_RIGHT]:
+    elif key in (pygame.K_s, pygame.K_RIGHT):
         return GW.MOVE_DOWN
-    elif keys[pygame.K_a] or keys[pygame.K_DOWN]:
+    elif key in (pygame.K_a, pygame.K_DOWN):
         return GW.MOVE_LEFT
-    elif keys[pygame.K_d] or keys[pygame.K_LEFT]:
+    elif key in (pygame.K_d, pygame.K_LEFT):
         return GW.MOVE_RIGHT
-    elif keys[pygame.K_PERIOD]:
+    elif key == pygame.K_PERIOD:
         return GW.STAY
-    elif keys[pygame.K_SPACE]:
+    elif key == pygame.K_SPACE:
         return GW.PRIMARY_ACTION
-    elif keys[pygame.K_e]:
+    elif key == pygame.K_e:
         return GW.DIG_ACTION
 
     return None
@@ -50,22 +57,23 @@ def load_policy(experiment: Experiment, env, max_steps, load: bool, rngs: nnx.Rn
 
 
 def play_from_run(
-    run_name: str, human_control: bool, seed: int, selector: str | None = None
+    run_name: str, human_control: bool, pov: bool, seed: int, selector: str | None = None
 ):
     experiment = Experiment.load(run_name, "results")
-    play(experiment, human_control, seed, selector, True)
+    play(experiment, human_control, pov, seed, selector, True)
 
 
 def play_from_config(
-    config_name: str, human_control: bool, seed: int, selector: str | None = None
+    config_name: str, human_control: bool, pov: bool, seed: int, selector: str | None = None
 ):
     experiment = Experiment.from_config_file(config_name, "", create_directories=False)
-    play(experiment, human_control, seed, selector, False)
+    play(experiment, human_control, pov, seed, selector, False)
 
 
 def play(
     experiment,
     human_control: bool,
+    pov: bool,
     seed: int,
     selector: str | None = None,
     load: bool = True,
@@ -100,26 +108,47 @@ def play(
 
     kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
     env_state, timestep = env.reset(rngs.env())
-    client.render(env_state, timestep)
+    if pov:
+        client.render_pov(env_state, timestep, 0)
+    else:
+        client.render(env_state, timestep)
 
     time = 0
     while time < 512 and running:
+        did_step = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if not running:
+                break
 
-        human_action = get_action_from_keypress()
-        if human_action is not None or not human_control:
+            if human_control and event.type == pygame.KEYDOWN:
+                human_action = get_action_from_keydown(event)
+                if human_action is not None:
+                    # Step immediately on just-pressed key
+                    actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
+                    actions = actions.at[0].set(human_action)
+                    env_state, timestep = step(env_state, actions, rngs)
+                    print(f"reward: {timestep.last_reward[0].item()}")
+                    client.record_frame()
+                    time += 1
+                    did_step = True
+                    # Process at most one action per loop to keep input discrete
+                    break
+
+        if not running:
+            break
+
+        # If not under human control, advance continuously
+        if not human_control and not did_step:
             actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
-            if human_control:
-                actions = actions.at[0].set(human_action)
-
             env_state, timestep = step(env_state, actions, rngs)
-            print(timestep.last_reward[0].item())
-            
             client.record_frame()
             time += 1
 
-        client.render(env_state, timestep)
-
+        if pov:
+            client.render_pov(env_state, timestep, 0)
+        else:
+            client.render(env_state, timestep)
+    
     client.save_video("videos/agent_pov.mp4")
