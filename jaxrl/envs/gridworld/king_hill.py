@@ -168,9 +168,9 @@ class KingHillEnv(Environment[KingHillState]):
         red_team = state.agents_pos[:self.num_agents//2]
         blue_team = state.agents_pos[self.num_agents//2:]
 
+        # this might be more efficent as a id map with the flag id's, i'm not sure. Right now the compute is agents * flags
         def get_overlaps(flags: jax.Array, team: jax.Array):
             eq = (flags[:, None, :] == team[None, :, :])
-            print(eq)
 
             # All coords must match -> (N, M)
             matches = jnp.all(eq, axis=-1)
