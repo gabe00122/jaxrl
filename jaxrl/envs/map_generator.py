@@ -83,7 +83,7 @@ def generate_decor_tiles(width: int, height: int, rng_key: jax.Array):
     return tiles
 
 
-def choose_positions(tiles: jax.Array, n: int, rng_key: jax.Array):
+def choose_positions(tiles: jax.Array, n: int, rng_key: jax.Array, replace: bool = False):
     """
     Chooses 'n' non-repeating empty tile position
     """
@@ -94,9 +94,18 @@ def choose_positions(tiles: jax.Array, n: int, rng_key: jax.Array):
 
     prob_mask = available_tiles / jnp.sum(available_tiles)
 
-    choice_indices = jax.random.choice(rng_key, size, (n,), replace=False, p=prob_mask)
+    choice_indices = jax.random.choice(rng_key, size, (n,), replace=replace, p=prob_mask)
 
     choice_x = choice_indices // height
     choice_y = choice_indices % height
+
+    return choice_x, choice_y
+
+
+def choose_positions_in_rect(tiles: jax.Array, n: int, rng_key: jax.Array, x: int, y: int, width: int, height: int, replace: bool = False):
+    tiles = tiles[x:x+width, y:y+height]
+    choice_x, choice_y = choose_positions(tiles, n, rng_key, replace=replace)
+    choice_x = choice_x + x
+    choice_y = choice_y + y
 
     return choice_x, choice_y
