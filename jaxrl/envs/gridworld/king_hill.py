@@ -111,7 +111,7 @@ class KingHillEnv(Environment[KingHillState]):
             agent_direction=jnp.zeros((self.num_agents,), jnp.int32),
             agents_timeouts=jnp.zeros((self.num_agents,), jnp.int32),
             control_point_pos=control_point_pos,
-            control_point_team=jnp.array([0], jnp.int32), # team index that controls the point
+            control_point_team=jnp.zeros((self._config.num_flags,), jnp.int32), # team index that controls the point
             tiles=tiles,
             time=jnp.int32(0),
             rewards=jnp.float32(0.0),
