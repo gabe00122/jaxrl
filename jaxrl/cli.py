@@ -4,6 +4,7 @@ import jax
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_config, play_from_run
 from jaxrl.train import train_run
+from jaxrl.benchmark import main as benchmark_main
 import shutil
 
 
@@ -57,6 +58,9 @@ def clean():
 
         if checkpoint_count == 0:
             shutil.rmtree(folder)
+
+
+app.command("benchmark")(benchmark_main)
 
 
 if __name__ == "__main__":

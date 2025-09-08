@@ -1,70 +1,30 @@
-import argparse
 import time
 from typing import Optional
 
 import jax
+import typer
 from flax import nnx
+from rich.console import Console
 
 from jaxrl.experiment import Experiment
 from jaxrl.envs.env_config import create_env
+
+
+console = Console()
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 def block_all(xs):
     return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Benchmark JAX environments.")
-    src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--config", type=str, help="Path to a config JSON file.")
-    src.add_argument(
-        "--run",
-        type=str,
-        help="Existing experiment run token (loads config from results/).",
-    )
-
-    parser.add_argument(
-        "--selector",
-        type=str,
-        default=None,
-        help="Select a specific env when using a multi env config.",
-    )
-    parser.add_argument(
-        "--seed", type=int, default=0, help="Random seed for RNGs and actions."
-    )
-    parser.add_argument(
-        "--vec",
-        type=int,
-        default=1,
-        help="Number of vectorized env copies (VectorWrapper).",
-    )
-    parser.add_argument(
-        "--steps",
-        type=int,
-        default=None,
-        help="Steps per rollout (defaults to config.max_env_steps).",
-    )
-    parser.add_argument(
-        "--warmup",
-        type=int,
-        default=2,
-        help="Number of warmup rollouts before timing.",
-    )
-    parser.add_argument(
-        "--iters",
-        type=int,
-        default=5,
-        help="Number of timed rollouts to average.",
-    )
-    return parser.parse_args()
-
-
-def main(
+def benchmark(
     config_path: Optional[str],
     run_token: Optional[str],
     seed: int,
     vec_count: int,
     selector: Optional[str],
+    steps: Optional[int],
     warmup: int,
     iters: int,
 ):
@@ -74,7 +34,7 @@ def main(
     else:
         experiment = Experiment.from_config_file(config_path, base_dir="", create_directories=False)
 
-    max_steps = experiment.config.max_env_steps
+    max_steps = steps or experiment.config.max_env_steps
 
     # Create environment
     env = create_env(
@@ -127,25 +87,45 @@ def main(
     avg_time = sum(times) / len(times)
     steps_per_second = total_env_steps / avg_time
 
-    print("Benchmark Results")
-    print(f"- env: {type(env).__name__}")
-    print(f"- vec_count: {vec_count}")
-    print(f"- agents: {num_agents}")
-    print(f"- warmup_rollouts: {warmup}")
-    print(f"- timed_rollouts: {iters}")
-    print(f"- avg_time_per_rollout: {avg_time:.6f}s")
-    print(f"- env_steps_per_rollout: {total_env_steps}")
-    print(f"- steps_per_second: {steps_per_second:,.2f}")
+    console.print("Benchmark Results")
+    console.print(f"- env: {type(env).__name__}")
+    console.print(f"- vec_count: {vec_count}")
+    console.print(f"- agents: {num_agents}")
+    console.print(f"- warmup_rollouts: {warmup}")
+    console.print(f"- timed_rollouts: {iters}")
+    console.print(f"- avg_time_per_rollout: {avg_time:.6f}s")
+    console.print(f"- env_steps_per_rollout: {total_env_steps}")
+    console.print(f"- steps_per_second: {steps_per_second:,.2f}")
+
+
+@app.command()
+def main(
+    config: Optional[str] = typer.Option(
+        None, help="Path to a config JSON file.", rich_help_panel="Input"
+    ),
+    run: Optional[str] = typer.Option(
+        None,
+        help="Existing experiment run token (loads config from results/).",
+        rich_help_panel="Input",
+    ),
+    selector: Optional[str] = typer.Option(
+        None, help="Select a specific env when using a multi env config."
+    ),
+    seed: int = typer.Option(0, help="Random seed for RNGs and actions."),
+    vec: int = typer.Option(
+        1, help="Number of vectorized env copies (VectorWrapper)."
+    ),
+    steps: Optional[int] = typer.Option(
+        None, help="Steps per rollout (defaults to config.max_env_steps)."
+    ),
+    warmup: int = typer.Option(2, help="Number of warmup rollouts before timing."),
+    iters: int = typer.Option(5, help="Number of timed rollouts to average."),
+):
+    if (config is None) == (run is None):
+        raise typer.BadParameter("Provide exactly one of --config or --run")
+
+    benchmark(config, run, seed, vec, selector, steps, warmup, iters)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(
-        config_path=args.config,
-        run_token=args.run,
-        seed=args.seed,
-        vec_count=args.vec,
-        selector=args.selector,
-        warmup=args.warmup,
-        iters=args.iters,
-    )
+    app()
