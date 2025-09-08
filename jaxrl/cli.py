@@ -12,13 +12,31 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
-def enjoy(name: str, human: bool = False, pov: bool = False, seed: int = 0, selector: str | None = None):
-    play_from_run(name, human, pov, seed, selector)
+def enjoy(
+    name: str,
+    human: bool = False,
+    pov: bool = False,
+    seed: int = 0,
+    selector: str | None = None,
+    video_path: str | None = typer.Option(
+        None, help="Path to save video; if omitted, no video is recorded."
+    ),
+):
+    play_from_run(name, human, pov, seed, selector, video_path)
 
 
 @app.command()
-def play(name: str, human: bool = False, pov: bool = False, seed: int = 0, selector: str | None = None):
-    play_from_config(name, human, pov, seed, selector)
+def play(
+    name: str,
+    human: bool = False,
+    pov: bool = False,
+    seed: int = 0,
+    selector: str | None = None,
+    video_path: str | None = typer.Option(
+        None, help="Path to save video; if omitted, no video is recorded."
+    ),
+):
+    play_from_config(name, human, pov, seed, selector, video_path)
 
 
 @app.command("train")

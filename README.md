@@ -53,6 +53,12 @@ To render an environment with a trained agent, use the enjoy command with the ru
 uv run pmarl enjoy "silly-camel-34"
 ```
 
+To save a recording, provide a path with `--video-path`:
+
+```bash
+uv run pmarl enjoy "silly-camel-34" --video-path my_run.mp4
+```
+
 To play as one of the agents:
 ```bash
 uv run pmarl enjoy "silly-camel-34" --human --pov
@@ -70,6 +76,8 @@ You can test out a environment without training a model using the `play` command
 ```
 uv run pmarl play ./config/return_baseline.json
 ```
+
+You can also record a video when testing by supplying `--video-path`.
 ---
 
 ## 🏋️‍♂️ Environments
