@@ -67,9 +67,9 @@ def main():
         config.learner.model,
         ObservationSpec(jnp.int8, obs_size, 7),
         4,
-        config.hl_gauss,
         seq_length,
         rngs=rngs,
+        task_vocab_size=None,
     )
 
     time = jnp.repeat(

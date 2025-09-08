@@ -114,6 +114,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     batch_last_actions = rollout.last_actions
     batch_last_rewards = rollout.last_rewards
+    batch_task_ids = rollout.task_ids
 
     if hypers.normalize_advantage:
         batch_advantage = (batch_advantage - batch_advantage.mean()) / (
@@ -130,6 +131,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
             last_action=batch_last_actions,
             last_reward=batch_last_rewards,
             action_mask=batch_action_masks,
+            task_id=batch_task_ids,
         ),
     )
     log_probs = policy.log_prob(batch_actions)
@@ -276,13 +278,18 @@ def train_run(
 
     rngs = nnx.Rngs(default=experiment.default_seed)
     rollout = Rollout(batch_size, max_steps, env.observation_spec, env.action_spec)
-
+    task_vocab_size = (
+        getattr(env, "num_tasks", 1)
+        if experiment.config.learner.model.use_task_ids
+        else None
+    )
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
         rngs=rngs,
+        task_vocab_size=task_vocab_size,
     )
 
     optimizer = nnx.ModelAndOptimizer(

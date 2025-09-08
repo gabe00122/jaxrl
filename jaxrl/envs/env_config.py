@@ -20,6 +20,7 @@ from jaxrl.envs.gridworld.renderer import GridworldClient
 from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanEnv
 from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.envs.vector import VectorWrapper
+from jaxrl.envs.task_id import TaskIdWrapper
 
 
 class PrisonersConfig(BaseModel):
@@ -74,8 +75,10 @@ def create_env(
         case "multi":
             out_envs = []
             out_env_names = []
-            for env_def in env_config.envs:
-                out_envs.append(create_env(env_def.env, length, env_def.num))
+            for idx, env_def in enumerate(env_config.envs):
+                base_env = create_env(env_def.env, length, vec_count=env_def.num)
+                base_env = TaskIdWrapper(base_env, idx)
+                out_envs.append(base_env)
                 out_env_names.append(env_def.name)
 
             env = MultiTaskWrapper(tuple(out_envs), tuple(out_env_names))
@@ -96,7 +99,7 @@ def create_env(
         case _:
             raise ValueError(f"Unknown environment type: {env_config.env_type}")
 
-    if vec_count > 1:
+    if env_config.env_type != "multi" and vec_count > 1:
         env = VectorWrapper(env, vec_count)
 
     return env

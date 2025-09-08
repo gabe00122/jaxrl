@@ -41,12 +41,18 @@ def get_action_from_keydown(event: pygame.event.Event | None):
 
 
 def load_policy(experiment: Experiment, env, max_steps, load: bool, rngs: nnx.Rngs):
+    task_vocab_size = (
+        getattr(env, "num_tasks", 1)
+        if experiment.config.learner.model.use_task_ids
+        else None
+    )
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
         rngs=rngs,
+        task_vocab_size=task_vocab_size,
     )
 
     if load:

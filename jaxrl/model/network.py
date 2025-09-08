@@ -208,6 +208,7 @@ class TransformerActorCritic(nnx.Module):
         max_seq_length: int,
         *,
         rngs: nnx.Rngs,
+        task_vocab_size: int | None = None,
     ):
         hidden_features = config.hidden_features
 
@@ -226,6 +227,20 @@ class TransformerActorCritic(nnx.Module):
         self.action_embedder = Embedder(
             action_dim, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
         )
+        if config.use_task_ids:
+            if task_vocab_size is None:
+                raise ValueError(
+                    "task_vocab_size must be provided when use_task_ids is True"
+                )
+            self.task_embedder = Embedder(
+                task_vocab_size,
+                hidden_features,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
+        else:
+            self.task_embedder = None
         self.obs_encoder = create_obs_encoder(
             config=config.obs_encoder,
             obs_spec=obs_spec,
@@ -286,8 +301,9 @@ class TransformerActorCritic(nnx.Module):
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
-
         x = obs_embedding + reward_embedding + action_embedding
+        if self.task_embedder is not None and ts.task_id is not None:
+            x = x + self.task_embedder.encode(ts.task_id)
 
         if carry is not None:
             out_carry = []

@@ -18,6 +18,7 @@
         "obs_type": "grid_flattened"
       },
       "hidden_features": 128,
+      "use_task_ids": true,
       "layer": {
         "feed_forward": {
           "glu": true,

@@ -81,6 +81,7 @@ class TransformerActorCriticConfig(BaseModel):
         LinearObsEncoderConfig | GridCnnObsEncoderConfig | FlattenedObsEncoderConfig
     ) = Field(discriminator="obs_type")
     hidden_features: int
+    use_task_ids: bool = False
 
     layer: LayerConfig
     num_layers: int

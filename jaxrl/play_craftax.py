@@ -32,13 +32,18 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
 
     env = CraftaxEnvironment()
     rngs = nnx.Rngs(default=seed)
-
+    task_vocab_size = (
+        getattr(env, "num_tasks", 1)
+        if experiment.config.learner.model.use_task_ids
+        else None
+    )
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
         rngs=rngs,
+        task_vocab_size=task_vocab_size,
     )
 
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
