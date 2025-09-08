@@ -57,17 +57,27 @@ def load_policy(experiment: Experiment, env, max_steps, load: bool, rngs: nnx.Rn
 
 
 def play_from_run(
-    run_name: str, human_control: bool, pov: bool, seed: int, selector: str | None = None
+    run_name: str,
+    human_control: bool,
+    pov: bool,
+    seed: int,
+    selector: str | None = None,
+    video_path: str | None = None,
 ):
     experiment = Experiment.load(run_name, "results")
-    play(experiment, human_control, pov, seed, selector, True)
+    play(experiment, human_control, pov, seed, selector, True, video_path)
 
 
 def play_from_config(
-    config_name: str, human_control: bool, pov: bool, seed: int, selector: str | None = None
+    config_name: str,
+    human_control: bool,
+    pov: bool,
+    seed: int,
+    selector: str | None = None,
+    video_path: str | None = None,
 ):
     experiment = Experiment.from_config_file(config_name, "", create_directories=False)
-    play(experiment, human_control, pov, seed, selector, False)
+    play(experiment, human_control, pov, seed, selector, False, video_path)
 
 
 def play(
@@ -77,6 +87,7 @@ def play(
     seed: int,
     selector: str | None = None,
     load: bool = True,
+    video_path: str | None = None,
 ):
     max_steps = experiment.config.max_env_steps
 
@@ -131,7 +142,8 @@ def play(
                     actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
                     actions = actions.at[0].set(human_action)
                     env_state, timestep = step(env_state, actions, rngs)
-                    client.record_frame()
+                    if video_path is not None:
+                        client.record_frame()
                     time += 1
                     did_step = True
                     reward = timestep.last_reward[0].item()
@@ -147,7 +159,8 @@ def play(
         if not human_control and not did_step:
             actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
             env_state, timestep = step(env_state, actions, rngs)
-            client.record_frame()
+            if video_path is not None:
+                client.record_frame()
             time += 1
 
             reward = timestep.last_reward[0].item()
@@ -160,5 +173,6 @@ def play(
             client.render(env_state, timestep)
     
     print(f"Cumulative reward: {cumulative_reward}")
-    
-    client.save_video("videos/agent_pov.mp4")
+
+    if video_path is not None:
+        client.save_video(video_path)
