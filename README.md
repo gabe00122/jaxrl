@@ -2,12 +2,17 @@
 
 This project provides a JAX-based framework for training Transformer-based agents in custom, partially observable multi-agent reinforcement learning (MARL) environments. The entire training pipeline, from environment stepping to parameter updates, is JIT-compiled for maximum performance.
 
+🚧 This project is under active development and some things might not be stable 🚧
+
 ### ✨ Key Features
 
 * **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability.
-* **High Performance**: Achieves **millions of environment steps per second** training on a single NVIDIA 5090 GPU, thanks to end-to-end JIT compilation with JAX and cudnn.
+* **High Performance**: Small models train a **10 million+** steps per second and the medium sized transformer trains at **2 million** steps per second on a single 5090.
 * **Custom Environments**: Includes several challenging MARL environments designed to test memory and coordination.
 * **PPO Implementation**: A clean and efficient Proximal Policy Optimization (PPO) implementation.
+* **Multi-task training**: One model can be trained on multiple environments simultaneously.
+
+* **Distributed Training**: Training can be distributed to several TPUs or GPUs (temporarily regressed)
 
 ---
 
@@ -29,7 +34,7 @@ uv sync --extra cuda
 ```
 
 
-## 🏃‍♀️ Usage
+## 💻 Usage
 ### Train an Agent
 To start a training run, use the train command and provide a configuration file.
 
@@ -48,9 +53,26 @@ To render an environment with a trained agent, use the enjoy command with the ru
 uv run pmarl enjoy "silly-camel-34"
 ```
 
+To play as one of the agents:
+```bash
+uv run pmarl enjoy "silly-camel-34" --human --pov
+```
+* `--human` means you control one of the agents with keyboard controls and `--pov` renders the environment from the agents point of view
+
+If the agent was trained on multiple environments you can select the right one using the `--selector` option. These correspond to the config.json
+```bash
+uv run pmarl enjoy "silly-camel-34" --selector return40
+```
+
+### Test out an environment
+You can test out a environment without training a model using the `play` command.
+
+```
+uv run pmarl play ./config/return_baseline.json
+```
 ---
 
-## 🎮 Environments
+## 🏋️‍♂️ Environments
 ### Variable n-back
 A single-agent memory task. The agent must determine if the current observation matches the observation from `n` steps ago. `n` is randomized and not part of the observation so must be deduced from the rewards via trial and error.
 
@@ -79,11 +101,7 @@ A multi-agent 2D grid world task requiring spatial memory.
 
 * Note: Agents can move through each other but not through obstacle tiles.
 
-### Grid Return (Communication)
-Same as Grid Return, but agents have additional actions to change their color. A turn is either a move turn (movement actions available) or a communication turn (color-change actions available) to avoid an opportunity cost for communicating.
-
-### Grid Return (Digging)
-Same as Grid Return, but agents can "dig" through obstacle tiles. Moving into an obstacle removes the tile but adds a timeout before the agent can move again.
+Agents can "dig" through obstacle tiles. Moving into an obstacle removes the tile but adds a timeout before the agent can move again.
 
 https://github.com/user-attachments/assets/a98a9277-de7e-43a6-a0c2-d6b8856eba10
 
@@ -94,3 +112,12 @@ Scout: Fast-moving agents that can gather resources only after they are "unlocke
 Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches a resource tile, it gets a reward and unlocks the resource, allowing Scouts to gather it.
 
 https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
+
+
+### Traveling Salesman
+
+The several way points are randomly scattered and the agents and the agents get a reward for the first time they get each flag. When all flags are taken they all reset.
+
+### King of the Hill
+
+Two teams of agents compete to capture random control points in the center.

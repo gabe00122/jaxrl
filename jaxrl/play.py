@@ -24,11 +24,11 @@ def get_action_from_keydown(event: pygame.event.Event | None):
     key = event.key
     if key in (pygame.K_w, pygame.K_UP):
         return GW.MOVE_UP
-    elif key in (pygame.K_s, pygame.K_RIGHT):
+    elif key in (pygame.K_s, pygame.K_DOWN):
         return GW.MOVE_DOWN
-    elif key in (pygame.K_a, pygame.K_DOWN):
+    elif key in (pygame.K_a, pygame.K_LEFT):
         return GW.MOVE_LEFT
-    elif key in (pygame.K_d, pygame.K_LEFT):
+    elif key in (pygame.K_d, pygame.K_RIGHT):
         return GW.MOVE_RIGHT
     elif key == pygame.K_PERIOD:
         return GW.STAY
@@ -113,6 +113,8 @@ def play(
     else:
         client.render(env_state, timestep)
 
+    cumulative_reward = 0.0
+
     time = 0
     while time < 512 and running:
         did_step = False
@@ -129,10 +131,12 @@ def play(
                     actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
                     actions = actions.at[0].set(human_action)
                     env_state, timestep = step(env_state, actions, rngs)
-                    print(f"reward: {timestep.last_reward[0].item()}")
                     client.record_frame()
                     time += 1
                     did_step = True
+                    reward = timestep.last_reward[0].item()
+                    cumulative_reward += reward
+                    print(f"reward: {reward}")
                     # Process at most one action per loop to keep input discrete
                     break
 
@@ -146,9 +150,15 @@ def play(
             client.record_frame()
             time += 1
 
+            reward = timestep.last_reward[0].item()
+            cumulative_reward += reward
+            print(f"reward: {reward}")
+
         if pov:
             client.render_pov(env_state, timestep, 0)
         else:
             client.render(env_state, timestep)
+    
+    print(f"Cumulative reward: {cumulative_reward}")
     
     client.save_video("videos/agent_pov.mp4")
