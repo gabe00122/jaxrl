@@ -103,7 +103,7 @@ A multi-agent 2D grid world task requiring spatial memory.
 
 Agents can "dig" through obstacle tiles. Moving into an obstacle removes the tile but adds a timeout before the agent can move again.
 
-https://github.com/user-attachments/assets/a98a9277-de7e-43a6-a0c2-d6b8856eba10
+https://github.com/user-attachments/assets/fd3237eb-f44e-4509-8a69-1f458ba3ffb7
 
 ### Scouts
 A multi-agent coordination task with two specialized agent types. A Harvester must first unlock a resource tile, which a Scout can then gather.
@@ -118,6 +118,10 @@ https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
 
 The several way points are randomly scattered and the agents and the agents get a reward for the first time they get each flag. When all flags are taken they all reset.
 
+https://github.com/user-attachments/assets/21a918cd-d409-43a6-b27b-737d0f73e1ad
+
 ### King of the Hill
 
 Two teams of agents compete to capture random control points in the center.
+
+https://github.com/user-attachments/assets/0b571499-2e92-4771-882e-aee1e38f1758
