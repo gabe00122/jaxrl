@@ -286,6 +286,11 @@ class KingHillEnv(Environment[KingHillState]):
             self._repeat_for_team(jnp.array(GW.AGENT_RED_KNIGHT_RIGHT, jnp.int8), jnp.array(GW.AGENT_BLUE_KNIGHT_RIGHT, jnp.int8))
         )
 
+        flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
+        tiles = state.tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
+            flag_tiles[state.control_point_team]
+        )
+
         view = _encode_view(tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
@@ -306,18 +311,19 @@ class KingHillEnv(Environment[KingHillState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: KingHillState) -> GridRenderState:
-        tilemap = state.tiles
+        tiles = state.tiles
 
-        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
+        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             GW.AGENT_GENERIC
         )
 
-        # x = state.agents_pos.x[:, None]
-        # y = state.agents_pos.y[:, None]
-        # agent_pos = jnp.concatenate((x, y), axis=-1)
+        flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
+        tiles = state.tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
+            flag_tiles[state.control_point_team]
+        )
 
         return GridRenderState(
-            tilemap=tilemap,
+            tilemap=tiles,
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.width,

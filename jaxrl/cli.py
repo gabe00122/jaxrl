@@ -27,7 +27,7 @@ def enjoy(
 
 @app.command()
 def play(
-    name: str,
+    config: str = "./config/return.json",
     human: bool = False,
     pov: bool = False,
     seed: int = 0,
@@ -36,7 +36,7 @@ def play(
         None, help="Path to save video; if omitted, no video is recorded."
     ),
 ):
-    play_from_config(name, human, pov, seed, selector, video_path)
+    play_from_config(config, human, pov, seed, selector, video_path)
 
 
 @app.command("train")
