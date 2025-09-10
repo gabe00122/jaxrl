@@ -1,5 +1,7 @@
 from jax import numpy as jnp
 
+from jaxrl.envs.specs import ObservationSpec
+
 NUM_TYPES = 16
 
 # Unified tile ids across gridworld environments
@@ -57,3 +59,30 @@ DIG_ACTION = 6
 
 
 DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
+
+TEAM_NEURAL = 0
+TEAM_RED = 1
+TEAM_BLUE = 2
+
+
+def make_obs_spec(width: int, height: int) -> ObservationSpec:
+    # channels tile type, direction, team
+    obs_spec = ObservationSpec(
+        dtype=jnp.int8,
+        shape=(width, height, 2),
+        max_value=(
+            NUM_TYPES,
+            5, # none, up, right, down, left
+        ),
+    )
+
+    return obs_spec
+
+
+def mask_action_mask(actions: list[int]):
+    mask = [False] * NUM_ACTIONS
+    
+    for action in actions:
+        mask[action] = True
+    
+    return jnp.array(mask, jnp.bool)

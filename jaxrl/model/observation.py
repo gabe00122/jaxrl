@@ -8,6 +8,7 @@ from jaxrl.config import (
     LinearObsEncoderConfig,
 )
 from jaxrl.envs.specs import ObservationSpec
+from jaxrl.util import concat_one_hot
 
 
 class LinearObsEncoder(nnx.Module):
@@ -48,8 +49,12 @@ class GridCnnObsEncoder(nnx.Module):
             "max_value must be specified in the observation spec"
         )
 
+        self.dtype = dtype
         self.params_dtype = params_dtype
-        self.num_classes = obs_spec.max_value
+
+
+        self._one_hot_sizes = obs_spec.max_value
+        self.num_classes = sum(self._one_hot_sizes) # todo this should support the int case again with no feature list
         self.conv0 = nnx.Conv(
             in_features=self.num_classes,
             out_features=16,
@@ -79,8 +84,9 @@ class GridCnnObsEncoder(nnx.Module):
             rngs=rngs,
         )
 
-    def __call__(self, x) -> jax.Array:
-        x = jax.nn.one_hot(x, self.num_classes, dtype=self.params_dtype)
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # x = jax.nn.one_hot(x, self.num_classes, dtype=self.params_dtype)
+        x = concat_one_hot(x, self._one_hot_sizes, self.dtype) # currently only supports the case with multiple components per tile
 
         x = self.conv0(x)
         x = jax.nn.gelu(x)

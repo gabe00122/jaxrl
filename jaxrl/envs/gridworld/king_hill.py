@@ -124,11 +124,7 @@ class KingHillEnv(Environment[KingHillState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -269,19 +265,9 @@ class KingHillEnv(Environment[KingHillState]):
         )
 
         return state, self.encode_observations(state, action, rewards)
+    
 
-    def encode_observations(
-        self, state: KingHillState, actions, rewards
-    ) -> TimeStep:
-        @partial(jax.vmap, in_axes=(None, 0))
-        def _encode_view(tiles, positions):
-            return jax.lax.dynamic_slice(
-                tiles,
-                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
-                (self.view_width, self.view_height),
-            )
-
-        # todo this needs to be team specific
+    def _render_tiles(self, state: KingHillState) -> jax.Array:
         tiles = state.tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             self._repeat_for_team(jnp.array(GW.AGENT_RED_KNIGHT_RIGHT, jnp.int8), jnp.array(GW.AGENT_BLUE_KNIGHT_RIGHT, jnp.int8))
         )
@@ -290,8 +276,28 @@ class KingHillEnv(Environment[KingHillState]):
         tiles = state.tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
             flag_tiles[state.control_point_team]
         )
+        
+        directions_tiles = jnp.zeros((self.padded_width, self.padded_height), jnp.int8)
+        directions_tiles = directions_tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(jnp.array(state.agent_direction, jnp.int8) + 1) # add one to account for no direction
 
-        view = _encode_view(tiles, state.agents_pos)
+        combined_tiles = jnp.concatenate((tiles[..., None], directions_tiles[..., None]), axis=-1)
+        return combined_tiles
+
+
+    def encode_observations(
+        self, state: KingHillState, actions, rewards
+    ) -> TimeStep:
+        @partial(jax.vmap, in_axes=(None, 0))
+        def _encode_view(tiles, positions):
+            return jax.lax.dynamic_slice(
+                tiles,
+                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2, 0),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
+            )
+
+        combined_tiles = self._render_tiles(state)
+
+        view = _encode_view(combined_tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
 
@@ -311,16 +317,7 @@ class KingHillEnv(Environment[KingHillState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: KingHillState) -> GridRenderState:
-        tiles = state.tiles
-
-        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
-        )
-
-        flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
-        tiles = state.tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
-            flag_tiles[state.control_point_team]
-        )
+        tiles = self._render_tiles(state)
 
         return GridRenderState(
             tilemap=tiles,

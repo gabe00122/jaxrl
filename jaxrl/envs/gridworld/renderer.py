@@ -26,12 +26,12 @@ class SpriteSheet:
         image = pygame.transform.scale(image, (target_size, target_size))
         return image
 
-    def image_at_tile(self, x: int, y: int, target_size: int):
+    def image_at_tile(self, x: int, y: int, target_size: int, colorkey):
         px = x * (self.tile_size + self.tile_pad) + self.tile_pad
         py = y * (self.tile_size + self.tile_pad) + self.tile_pad
 
         return self.image_at(
-            (px, py, self.tile_size, self.tile_size), None, target_size
+            (px, py, self.tile_size, self.tile_size), colorkey, target_size
         )
 
 
@@ -68,6 +68,13 @@ tilemap = {
     GW.TILE_DECOR_4: (14, 5)
 }
 
+direction_tiles = {
+    1: (32, 31),
+    2: (33, 32),
+    3: (32, 33),
+    4: (31, 32),
+}
+
 
 class GridworldRenderer:
     def __init__(
@@ -96,8 +103,12 @@ class GridworldRenderer:
         if self._tile_size is None:
             self._tile_size = max(1, self.screen_width // max(1, int(unpadded_width)))
             self._tilemap = {
-                name: self._spritesheet.image_at_tile(x, y, self._tile_size)
+                name: self._spritesheet.image_at_tile(x, y, self._tile_size, None)
                 for name, (x, y) in tilemap.items()
+            }
+            self._direction_tilemap = {
+                name: self._spritesheet.image_at_tile(x, y, self._tile_size, (0, 0, 0))
+                for name, (x, y) in direction_tiles.items()
             }
 
     def _tile_to_screen(
@@ -164,7 +175,7 @@ class GridworldRenderer:
             for y in range(rs.unpadded_height):
                 tx = rs.pad_width + x
                 ty = rs.pad_height + y
-                tile_type = tiles[tx][ty]
+                tile_type = tiles[tx][ty][0]
                 image = self._tilemap[tile_type]
                 self._draw_tile(
                     image, tx, ty, rs.pad_width, rs.pad_height, total_height
@@ -196,6 +207,16 @@ class GridworldRenderer:
                     rs.pad_height,
                     total_height,
                 )
+        
+        for x in range(rs.unpadded_width):
+            for y in range(rs.unpadded_height):
+                tx = rs.pad_width + x
+                ty = rs.pad_height + y
+                d = tiles[tx][ty][1]
+                if d > 0:
+                    self._draw_tile(
+                        self._direction_tilemap[d], tx, ty, rs.pad_width, rs.pad_height, total_height
+                    )
 
         self.clock.tick(self.fps)
         self.screen.blit(self.vision, (0, 0))
