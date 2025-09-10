@@ -27,6 +27,8 @@ class ScoutsConfig(BaseModel):
     view_height: int = 5
 
     harvesters_move_every: int = 6
+    scout_reward: float = 1.0
+    harvester_reward: float = 1.0
 
 
 class ScoutsState(NamedTuple):
@@ -65,6 +67,8 @@ class ScoutsEnv(Environment[ScoutsState]):
         self.height = self.unpadded_height + self.pad_height
 
         self.harvesters_move_every = config.harvesters_move_every
+        self.scout_reward = config.scout_reward
+        self.harvester_reward = config.harvester_reward
 
     def _generate_map(self, rng_key):
         res = [4, 5, 8, 10]
@@ -192,7 +196,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             # don't move if we are moving into a wall
             new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-            reward = (new_tile == GW.TILE_FLAG_UNLOCKED).astype(jnp.float32)
+            reward = jnp.where(new_tile == GW.TILE_FLAG_UNLOCKED, self.scout_reward, 0.0)
 
             return new_pos, reward
 
@@ -209,7 +213,7 @@ class ScoutsEnv(Environment[ScoutsState]):
                 # don't move if we are moving into a wall
                 new_pos = jnp.where(new_tile == GW.TILE_WALL, local_position, new_pos)
 
-                reward = (new_tile == GW.TILE_FLAG).astype(jnp.float32)
+                reward = jnp.where(new_tile == GW.TILE_FLAG, self.harvester_reward, 0.0)
                 time = (
                     self.harvesters_move_every
                 )  # (new_tile == TILE_TREASURE).astype(jnp.int32) * 20
