@@ -51,11 +51,12 @@ def evaluate(
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
 
-    rollout_state = rollout.create_state()
     carry = model.initialize_carry(rollout.batch_size, rngs)
 
-    def _step(i, x):
-        rollout_state, rngs, env_state, timestep, carry = x
+    rngs, step_rngs = nnx.split_rngs(rngs, rollout.trajectory_length)
+
+    def _step(carry, rngs):
+        env_state, timestep, carry = carry
 
         action_key = rngs.action()
         env_key = rngs.env()
@@ -69,28 +70,26 @@ def evaluate(
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
-        rollout_state = rollout.store(
-            rollout_state,
-            step=i,
+        rollout_step = rollout.store(
             timestep=timestep,
             next_timestep=next_timestep,
             log_prob=log_prob,
             value=value,
         )
 
-        return rollout_state, rngs, env_state, next_timestep, carry
+        return (env_state, next_timestep, carry), rollout_step
 
-    rollout_state, rngs, env_state, _, _ = nnx.fori_loop(
-        0,
-        rollout.trajectory_length,
-        _step,
-        init_val=(rollout_state, rngs, env_state, timestep, carry),
-    )
+    (env_state, timestep, carry), rollout_steps = nnx.scan(
+        _step, in_axes=(nnx.Carry, 0), out_axes=(nnx.Carry, 0)
+    )((env_state, timestep, carry), step_rngs)
 
-    # save the last value
+    rollout_state = nnx.vmap(lambda x: x, in_axes=0, out_axes=1)(rollout_steps)
+
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
-    rollout_state = rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
+    rollout_state = rollout_state._replace(
+        values=jnp.concatenate([rollout_state.values, value[:, None]], axis=1)
+    )
 
     rollout_state = rollout.calculate_advantage(
         rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda

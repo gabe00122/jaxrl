@@ -45,74 +45,45 @@ class Rollout:
 
     def create_state(self) -> RolloutState:
         return RolloutState(
-            # observation gets plus one because we need to store the next trailing observation
-            obs=jnp.zeros(
-                (self.batch_size, self.trajectory_length, *self.obs_spec.shape),
-                dtype=self.obs_spec.dtype,
-            ),
-            action_mask=jnp.ones(
-                (self.batch_size, self.trajectory_length, self.action_spec.num_actions),
-                dtype=jnp.bool_,
-            ),
-            actions=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=index_type
-            ),
-            rewards=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.float32
-            ),
-            terminated=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.bool_
-            ),
-            next_terminated=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.bool_
-            ),
-            log_prob=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.float32
-            ),
-            values=jnp.zeros(
-                (self.batch_size, self.trajectory_length + 1), dtype=jnp.float32
-            ),
-            # these are calculated in the rollout
-            advantages=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.float32
-            ),
-            targets=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.float32
-            ),
-            last_actions=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.int32
-            ),
-            last_rewards=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.float32
-            ),
+            obs=jnp.zeros((self.batch_size, *self.obs_spec.shape), dtype=self.obs_spec.dtype),
+            action_mask=jnp.ones((self.batch_size, self.action_spec.num_actions), dtype=jnp.bool_),
+            actions=jnp.zeros((self.batch_size,), dtype=index_type),
+            rewards=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            terminated=jnp.zeros((self.batch_size,), dtype=jnp.bool_),
+            next_terminated=jnp.zeros((self.batch_size,), dtype=jnp.bool_),
+            log_prob=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            values=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            advantages=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            targets=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            last_actions=jnp.zeros((self.batch_size,), dtype=jnp.int32),
+            last_rewards=jnp.zeros((self.batch_size,), dtype=jnp.float32),
         )
 
     def store(
         self,
-        state: RolloutState,
-        step: jax.Array,
         timestep: TimeStep,
         next_timestep: TimeStep,
         log_prob: jax.Array,
         value: jax.Array,
     ) -> RolloutState:
-        return state._replace(
-            obs=state.obs.at[:, step].set(timestep.obs),
-            action_mask=(
-                state.action_mask.at[:, step].set(timestep.action_mask)
-                if timestep.action_mask is not None
-                else state.action_mask
-            ),
-            actions=state.actions.at[:, step].set(next_timestep.last_action),
-            log_prob=state.log_prob.at[:, step].set(log_prob),
-            values=state.values.at[:, step].set(value),
-            rewards=state.rewards.at[:, step].set(next_timestep.last_reward),
-            terminated=state.terminated.at[:, step].set(timestep.terminated),
-            next_terminated=state.next_terminated.at[:, step].set(
-                next_timestep.terminated
-            ),
-            last_actions=state.last_actions.at[:, step].set(timestep.last_action),
-            last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
+        action_mask = (
+            timestep.action_mask
+            if timestep.action_mask is not None
+            else jnp.ones((self.batch_size, self.action_spec.num_actions), dtype=jnp.bool_)
+        )
+        return RolloutState(
+            obs=timestep.obs,
+            action_mask=action_mask,
+            actions=next_timestep.last_action,
+            rewards=next_timestep.last_reward,
+            terminated=timestep.terminated,
+            next_terminated=next_timestep.terminated,
+            log_prob=log_prob,
+            values=value,
+            advantages=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            targets=jnp.zeros((self.batch_size,), dtype=jnp.float32),
+            last_actions=timestep.last_action,
+            last_rewards=timestep.last_reward,
         )
 
     def calculate_advantage(
