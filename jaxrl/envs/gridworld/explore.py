@@ -17,6 +17,8 @@ class ExploreConfig(BaseModel):
 
     num_agents: int = 1
 
+    reward_scale: float = 20.0
+
     width: int = 40
     height: int = 40
     view_width: int = 5
@@ -51,13 +53,15 @@ class ExploreEnv(Environment[ExploreState]):
         self.width = self.unpadded_width + self.pad_width
         self.height = self.unpadded_height + self.pad_height
 
+        self.reward_scale = config.reward_scale
+
     def _generate_map(self, rng_key):
         # pad the tiles
         # tiles = jnp.full((self.width, self.height), GW.TILE_WALL, dtype=jnp.int32)
         reward_map = jax.random.uniform(
             rng_key, (self.unpadded_width, self.unpadded_height)
         )
-        reward_map = jnp.where(reward_map < 0.01, reward_map, 0.0) * 20
+        reward_map = jnp.where(reward_map < 0.01, reward_map, 0.0) * self.reward_scale
         reward_map = reward_map * reward_map
 
         tiles = jnp.where(reward_map == 0, GW.TILE_EMPTY, GW.TILE_FLAG)

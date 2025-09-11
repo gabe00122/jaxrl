@@ -19,6 +19,8 @@ class TravelingSalesmanConfig(BaseModel):
     num_agents: int = 2
     num_flags: int = 8
 
+    flag_reward: float = 1.0 / 3
+
     width: int = 40
     height: int = 40
     view_width: int = 5
@@ -181,7 +183,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
                     lambda avail: avail,
                     flag_available,
                 )
-                reward = jnp.array(1.0 / 3)
+                reward = jnp.array(self._config.flag_reward)
 
                 return reward, flag_available
 

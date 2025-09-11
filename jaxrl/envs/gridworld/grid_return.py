@@ -26,6 +26,7 @@ class ReturnDiggingConfig(BaseModel):
 
     mapgen_threshold: float = 0.3
     digging_timeout: int = 5
+    treasure_reward: float = 1.0
 
 
 class ReturnDiggingState(NamedTuple):
@@ -63,6 +64,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         self.mapgen_threshold = config.mapgen_threshold
         self.digging_timeout = config.digging_timeout
+        self.treasure_reward = config.treasure_reward
 
     def _generate_map(self, rng_key):
         walls_key, decor_key, rng_key = jax.random.split(rng_key, 3)
@@ -168,7 +170,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 )
 
                 found_treasure = jnp.all(new_pos == state.treasure_pos)
-                reward = found_treasure.astype(jnp.float32)
+                reward = jnp.where(found_treasure, self.treasure_reward, 0.0)
 
                 # randomize position if the agent finds the reward
                 new_pos = jnp.where(found_treasure, random_position, new_pos)
