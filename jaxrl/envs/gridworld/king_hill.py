@@ -27,7 +27,7 @@ class KingHillConfig(BaseModel):
     view_height: int = 5
 
     dig_timeout: int = 10
-    reward_per_turn: float = 20.0
+    reward_per_turn: float = 20.0 / 512
 
 
 class KingHillState(NamedTuple):
