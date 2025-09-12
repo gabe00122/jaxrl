@@ -27,6 +27,7 @@ class KingHillConfig(BaseModel):
     view_height: int = 5
 
     dig_timeout: int = 10
+    reward_per_turn: float = 20.0 / 512
 
 
 class KingHillState(NamedTuple):
@@ -258,10 +259,10 @@ class KingHillEnv(Environment[KingHillState]):
         state = state._replace(agents_pos=new_position, agent_direction=new_directions)
         flag_control = self._calculate_flag_captures(state)
 
-        rewards = 20.0 * self._repeat_for_team(
+        rewards = self._config.reward_per_turn * self._repeat_for_team(
             jnp.sum(flag_control == 1),
             jnp.sum(flag_control == 2),
-        ) / 512
+        )
 
         state = state._replace(
             control_point_team=flag_control,
