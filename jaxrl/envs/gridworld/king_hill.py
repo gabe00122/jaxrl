@@ -1,6 +1,6 @@
 from functools import cached_property, partial
 from turtle import pos
-from typing import NamedTuple, Literal
+from typing import NamedTuple, Literal, override
 
 import jax
 from jax import numpy as jnp
@@ -61,6 +61,8 @@ class KingHillEnv(Environment[KingHillState]):
 
         self.padded_width = self.width + self.pad_width * 2
         self.padded_height = self.height + self.pad_height * 2
+
+        self._teams = self._repeat_for_team(jnp.int32(0), jnp.int32(1))
 
     def _pad_tiles(self, tiles, fill):
         # pads tiles so the observation can just be a slice
@@ -333,3 +335,8 @@ class KingHillEnv(Environment[KingHillState]):
             view_width=self.view_width,
             view_height=self.view_height,
         )
+
+    @override
+    @property
+    def teams(self) -> jax.Array:
+        return self._teams

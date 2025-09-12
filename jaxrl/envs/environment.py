@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import Any
 
+import jax
 from jax import Array
 
 from jaxrl.types import TimeStep
@@ -45,3 +46,7 @@ class Environment[State](ABC):
     @property
     @abstractmethod
     def is_jittable(self) -> bool: ...
+
+    @property
+    def teams(self) -> jax.Array | None:
+        return None

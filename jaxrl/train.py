@@ -38,7 +38,7 @@ def create_training_logs() -> TrainingLogs:
 
 
 def add_seq_dim(ts: TimeStep):
-    return jax.tree_util.tree_map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
+    return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
 
 
 def evaluate(
