@@ -154,7 +154,7 @@ class GridworldRenderer:
         self._ensure_tile_size(rs.unpadded_width)
 
         # Clear translucent overlay
-        self.vision.fill(pygame.color.Color(40, 40, 40, 100))
+        self.vision.fill(pygame.color.Color(70, 70, 70, 100))
 
         # Draw base tiles (only unpadded region)
         tiles = rs.tilemap.tolist()
@@ -228,9 +228,7 @@ class GridworldRenderer:
         th_f = self.screen_height / float(vh)
 
         tiles = rs.tilemap.tolist()
-        total_height = rs.unpadded_height + 2 * rs.pad_height
 
-        # Clear background
         self.screen.fill((0, 0, 0))
 
         # Draw the cropped tile window
