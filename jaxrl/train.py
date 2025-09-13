@@ -351,7 +351,7 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        if i % (outer_updates // 5) == (outer_updates // 5) - 1:
+        if i % (outer_updates // 50) == (outer_updates // 50) - 1:
             checkpointer.save(optimizer.model, i * experiment.config.updates_per_jit)
             # optimizer.model.preturb(rngs)
 
