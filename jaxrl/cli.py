@@ -5,6 +5,7 @@ from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_config, play_from_run
 from jaxrl.train import train_run
 from jaxrl.benchmark import main as benchmark_main
+from jaxrl.eval import main as eval_main
 import shutil
 
 
@@ -79,6 +80,7 @@ def clean():
 
 
 app.command("benchmark")(benchmark_main)
+app.command("eval")(eval_main)
 
 
 if __name__ == "__main__":

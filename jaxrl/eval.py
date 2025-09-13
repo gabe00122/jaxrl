@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import random
-from typing import Any
+from typing import Any, Optional
 from einops import rearrange
 import jax
 import numpy as np
@@ -11,7 +11,9 @@ import trueskill
 
 from functools import partial
 
+import typer
 from rich import progress
+from rich.console import Console
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.env_config import create_env
@@ -21,28 +23,16 @@ from jaxrl.model.network import TransformerActorCritic
 from jaxrl.types import TimeStep
 
 
+console = Console()
+app = typer.Typer(pretty_exceptions_show_locals=False)
+
+
 @dataclass
 class PolicyRecord:
     name: str
     step: int
     rating: trueskill.Rating
     model: Any
-
-
-# @partial(nnx.jit, static_argnums=1)
-# def create_carry(model, num_agents: int, rngs):
-#     return model.initialize_carry(num_agents, rngs=rngs)
-
-
-# @partial(nnx.jit, donate_argnums=(2,))
-# def sample_actions(model, timestep, carry, rngs):
-#     action_key = rngs.action()
-#     _, policy, carry = model(timestep, carry)
-#     actions = policy.sample(seed=action_key)
-#     actions = actions.squeeze()
-
-#     return actions, carry
-
 
 @partial(jax.jit, static_argnums=(0,))
 def env_reset(env: Environment, rng_key):
@@ -97,8 +87,6 @@ class JittedPolicy:
 
 
 def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
-    # num_agents = env.num_agents
-
     teams = np.asarray(env.teams)
     unique_teams = np.unique(teams)
 
@@ -107,7 +95,7 @@ def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
     carries = [policy.initialize_carry(1, rngs.carry()) for policy in policies]
     env_state, timestep = env_reset(env, rngs.env())
 
-    np_actions = np.zeros((len(policies,)), jnp.int32)
+    np_actions = np.zeros((len(policies,)), np.int32)
     
     for _ in range(max_steps):
         for i, policy in enumerate(policies):
@@ -125,9 +113,6 @@ def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
     
     return team_rewards
 
-
-def rank_policies(env: Environment, policies: list):
-    pass
 
 def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
     model_template = TransformerActorCritic(
@@ -151,39 +136,70 @@ def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
 def format_skill(rating: trueskill.Rating):
     return f"mu: {rating.mu}, sigma: {rating.sigma}"
 
-def main():
-    experiment = Experiment.load("timid-snake-akjlh2")
+def evaluate(
+    run_token: str,
+    selector: Optional[str],
+    seed: int,
+    steps: Optional[int],
+    rounds: int,
+    verbose: bool,
+):
+    experiment = Experiment.load(run_token, base_dir="results")
 
-    max_steps = experiment.config.max_env_steps
+    max_steps = steps or experiment.config.max_env_steps
 
-    env = create_env(experiment.config.environment, max_steps, selector="koth")
-    rngs = nnx.Rngs(default=42)
+    env = create_env(experiment.config.environment, max_steps, selector=selector)
+    rngs = nnx.Rngs(default=seed)
 
     models = load_policy(experiment, env, max_steps, rngs)
+    if len(models) < 2:
+        raise typer.BadParameter("Need at least two checkpoints to evaluate head-to-head.")
 
-    for i in progress.track(range(1000)):
+    team_size = env.num_agents // 2
+
+    for _ in progress.track(range(rounds), description="Ranking rounds"):
         m = random.choices(models, k=2)
-        lineup = [m[0]] * 4 + [m[1]] * 4
-        p = [JittedPolicy(p.model) for p in lineup]
+        lineup = [m[0]] * team_size + [m[1]] * team_size
+        policies = [JittedPolicy(p.model) for p in lineup]
 
-        out = _round(env, p, max_steps, rngs)
+        out = _round(env, policies, max_steps, rngs)
         ranking = np.argsort(out)
-        print(f"{m[0].step} vs {m[1].step}")
         winner = m[ranking[1]].rating
-        losser = m[ranking[0]].rating
+        loser = m[ranking[0]].rating
 
-        winner, losser = trueskill.rate_1vs1(winner, losser)
-
+        winner, loser = trueskill.rate_1vs1(winner, loser)
         m[ranking[1]].rating = winner
-        m[ranking[0]].rating = losser
+        m[ranking[0]].rating = loser
 
-        print(format_skill(m[0].rating))
-        print(format_skill(m[1].rating))
-    
-    for m in models:
-        print(f"{m.step} - {format_skill(m.rating)}")
+        if verbose:
+            console.print(f"{m[0].step} vs {m[1].step}")
+            console.print(f"  {m[0].step}: {format_skill(m[0].rating)}")
+            console.print(f"  {m[1].step}: {format_skill(m[1].rating)}")
+
+    # Final summary sorted by rating.mu
+    models_sorted = sorted(models, key=lambda r: r.rating.mu, reverse=True)
+    console.print("Final ratings:")
+    for rec in models_sorted:
+        console.print(f"- step {rec.step}: {format_skill(rec.rating)}")
 
 
+@app.command()
+def main(
+    run: str = typer.Option(
+        ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
+    ),
+    selector: Optional[str] = typer.Option(
+        None, help="Select a specific env when using a multi env config."
+    ),
+    seed: int = typer.Option(0, help="Random seed for RNGs."),
+    steps: Optional[int] = typer.Option(
+        None, help="Override steps per episode (defaults to config)."
+    ),
+    rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
+    verbose: bool = typer.Option(False, help="Print per-round rating updates."),
+):
+    evaluate(run, selector, seed, steps, rounds, verbose)
 
-if __name__ == '__main__':
-    main()
+
+if __name__ == "__main__":
+    app()
