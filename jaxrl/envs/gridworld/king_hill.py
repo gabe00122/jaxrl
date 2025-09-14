@@ -1,5 +1,4 @@
 from functools import cached_property, partial
-from turtle import pos
 from typing import NamedTuple, Literal, override
 
 import jax

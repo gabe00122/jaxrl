@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict
 from jaxrl.envs.map_generator import (
     fractal_noise,
     generate_decor_tiles,
-    generate_perlin_noise_2d,
     choose_positions,
 )
 from jaxrl.envs.environment import Environment
