@@ -123,7 +123,14 @@ https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
 
 ### Traveling Salesman
 
-The several way points are randomly scattered and the agents and the agents get a reward for the first time they get each flag. When all flags are taken they all reset.
+A multi-agent navigation task in which agents must visit a set of flag
+tiles scattered across an open map. Each agent keeps track of which
+flags it has already collected.
+
+* Observation: A small rectangular grid centered on each agent.
+* Actions: [`move-up`, `move-right`, `move-down`, `move-left`] (other actions have no effect).
+* Reward: `+1/3` for the first visit to each flag tile. Once an agent has
+  collected all flags, they reset for that agent so the cycle can repeat.
 
 https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
