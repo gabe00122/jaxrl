@@ -5,7 +5,12 @@ import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 
-from jaxrl.envs.map_generator import fractal_noise, generate_decor_tiles, generate_perlin_noise_2d
+from jaxrl.envs.map_generator import (
+    fractal_noise,
+    generate_decor_tiles,
+    generate_perlin_noise_2d,
+    choose_positions,
+)
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
@@ -18,6 +23,7 @@ class ReturnDiggingConfig(BaseModel):
     env_type: Literal["return_digging"] = "return_digging"
 
     num_agents: int = 1
+    num_flags: int = 1
 
     width: int = 40
     height: int = 40
@@ -34,7 +40,6 @@ class ReturnDiggingState(NamedTuple):
     agents_timeout: jax.Array
     found_reward: jax.Array
 
-    treasure_pos: jax.Array
     time: jax.Array
 
     map: jax.Array
@@ -50,6 +55,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         self._length = length
         self._num_agents = config.num_agents
+        self.num_flags = config.num_flags
 
         self.unpadded_width = config.width
         self.unpadded_height = config.height
@@ -104,17 +110,29 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         map, spawn_pos, spawn_count = self._generate_map(map_key)
 
-        positions = jax.random.randint(
-            pos_key, (1 + self.num_agents,), minval=0, maxval=spawn_count
+        unpadded_map = map[
+            self.pad_width : -self.pad_width, self.pad_height : -self.pad_height
+        ]
+
+        pos_x, pos_y = choose_positions(
+            unpadded_map,
+            self.num_flags + self.num_agents,
+            pos_key,
+            replace=False,
         )
-        treasure_pos = spawn_pos[positions[0]]
-        agents_pos = spawn_pos[positions[1:]]
+
+        pos_x = pos_x + self.pad_width
+        pos_y = pos_y + self.pad_height
+        positions = jnp.stack((pos_x, pos_y), axis=1)
+        flag_pos = positions[: self.num_flags]
+        agents_pos = positions[self.num_flags :]
+
+        map = map.at[flag_pos[:, 0], flag_pos[:, 1]].set(GW.TILE_FLAG)
 
         state = ReturnDiggingState(
             map=map,
             spawn_pos=spawn_pos,
             spawn_count=spawn_count,
-            treasure_pos=treasure_pos,
             agents_pos=agents_pos,
             agents_timeout=jnp.zeros((self.num_agents,), dtype=jnp.int32),
             found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool_),
@@ -169,7 +187,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                     target_pos,
                 )
 
-                found_treasure = jnp.all(new_pos == state.treasure_pos)
+                found_treasure = new_tile == GW.TILE_FLAG
                 reward = jnp.where(found_treasure, self.treasure_reward, 0.0)
 
                 # randomize position if the agent finds the reward
@@ -233,9 +251,6 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
             GW.AGENT_GENERIC
         )
-        tiles = tiles.at[state.treasure_pos[0], state.treasure_pos[1]].set(
-            GW.TILE_FLAG
-        )
         view = _encode_view(tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
@@ -256,13 +271,8 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
-        tilemap = state.map
-        tilemap = tilemap.at[state.treasure_pos[0], state.treasure_pos[1]].set(
-            GW.TILE_FLAG
-        )
-
         return GridRenderState(
-            tilemap=tilemap,
+            tilemap=state.map,
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.unpadded_width,

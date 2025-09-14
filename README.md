@@ -99,7 +99,7 @@ A single-agent memory task. The agent must determine if the current observation 
 ### Grid Return
 A multi-agent 2D grid world task requiring spatial memory.
 
-* Description: A goal is placed at a random location. When an agent finds the goal, it receives a `+1` reward, and the agent is moved to a new random location. Agents must remember goal locations and navigate around obstacles to return to them efficiently.
+* Description: One or more goal tiles are placed at random locations. When an agent finds a goal, it receives a `+1` reward, and the agent is moved to a new random location. Agents must remember goal locations and navigate around obstacles to return to them efficiently. The number of goals can be configured via `num_flags` and defaults to one.
 
 * Observation: A small rectangular grid centered on the agent. Agents can see each other. No absolute positions are given.
 
