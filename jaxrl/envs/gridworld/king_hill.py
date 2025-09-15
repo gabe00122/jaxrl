@@ -145,24 +145,24 @@ class KingHillEnv(Environment[KingHillState]):
         return self._num_agents
 
     
-    def calculate_movement(self, state: KingHillState, action: jax.Array):
-        # block current positions
-        tiles = state.tiles
-        # without there's a potentially exploitable issue where agents can stack on the same tile by attempting to move into a wall while another agent moves on top of them
-        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.TILE_WALL) # kind of slow but prevents certain types of movement like swapping positions by making current agent positions non-passable
-        # block current positions
+    def calculate_movement(self, state: KingHillState, action: jax.Array, rng_key: jax.Array):
+        move_order = jax.random.permutation(rng_key, self._num_agents)
+
+        idx = jnp.arange(self._num_agents, dtype=jnp.int32)
+        movement_markers = jnp.full_like(state.tiles, -1, jnp.int32)
 
         proposed_position = jnp.where((action < 4)[:, None], state.agents_pos + GW.DIRECTIONS[action], state.agents_pos)
-        proposed_tiles = tiles[proposed_position[:, 0], proposed_position[:, 1]]
-        
-        # only move to positions with no blocking tile or agent
-        proposed_position = jnp.where((jnp.logical_and(proposed_tiles != GW.TILE_WALL, proposed_tiles != GW.TILE_DESTRUCTIBLE_WALL))[:, None], proposed_position, state.agents_pos)
-        
-        position_keys = proposed_position[:, 0] * self.height + proposed_position[:, 1]
-        unique_dest_mask = unique_mask(position_keys)
 
-        # only move to destinations that are unique
-        proposed_position = jnp.where(unique_dest_mask[:, None], proposed_position, state.agents_pos)
+        ordered_proposed_position = proposed_position[move_order]
+        movement_markers = movement_markers.at[ordered_proposed_position[:, 0], ordered_proposed_position[:, 1]].set(move_order)
+        movement_markers = movement_markers.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(idx)
+
+        target_move = movement_markers[proposed_position[:, 0], proposed_position[:, 1]]
+        proposed_position = jnp.where(
+            jnp.logical_or(target_move == idx, target_move == -1)[:, None],
+            proposed_position,
+            state.agents_pos
+        )
 
         return proposed_position
 
@@ -199,20 +199,21 @@ class KingHillEnv(Environment[KingHillState]):
 
     
     def _calculate_attacks(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array):
+        damage_map = jnp.zeros_like(state.tiles)
+
+        target_pos = state.agents_pos + GW.DIRECTIONS[state.agent_direction]
+
         attack_mask = action == GW.PRIMARY_ACTION
-        # might need attacks to extend two tiles because you could body block by trying to move to the same location
 
-        agent_id_tiles = jnp.full((self.width, self.height), -1, jnp.int32)
-        agent_id_tiles = agent_id_tiles.at[state.agents_pos[:, 0] - self.pad_width, state.agents_pos[:, 1] - self.pad_height].set(jnp.arange(self.num_agents))
+        damage_map = damage_map.at[target_pos[:, 0], target_pos[:, 1]].add(
+            jnp.where(attack_mask, 1, 0)
+        )
 
-        target_agent_indices = agent_id_tiles[agent_targets[:, 0] - self.pad_width, agent_targets[:, 1] - self.pad_height]
-        target_agent_indices = jnp.where(attack_mask, target_agent_indices, -1)
-
-        target_agent_mask = self._indices_to_mask(target_agent_indices, self.num_agents)
+        killed_mask = damage_map[state.agents_pos[:, 0], state.agents_pos[:, 1]] == 1
 
         # respawn
         state = state._replace(
-            agents_pos=jnp.where(target_agent_mask[:, None], state.agents_start_pos, state.agents_pos)
+            agents_pos=jnp.where(killed_mask[:, None], state.agents_start_pos, state.agents_pos)
         )
 
         return state
@@ -251,7 +252,7 @@ class KingHillEnv(Environment[KingHillState]):
         state = self._calculate_digs(state, action, agent_targets)
         state = self._calculate_attacks(state, action, agent_targets)
 
-        new_position = self.calculate_movement(state, action)
+        new_position = self.calculate_movement(state, action, rng_key)
         new_directions = self._calculate_directions(state, action)
 
         # flag control
