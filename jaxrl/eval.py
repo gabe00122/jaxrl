@@ -1,6 +1,9 @@
 from dataclasses import dataclass
+import csv
 import random
-from typing import Any, Optional
+from functools import partial
+from typing import Any, Optional, Sequence
+
 from einops import rearrange
 import jax
 import numpy as np
@@ -8,8 +11,6 @@ from jax import numpy as jnp
 from flax import nnx
 
 import trueskill
-
-from functools import partial
 
 import typer
 from rich import progress
@@ -114,7 +115,11 @@ def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
     return team_rewards
 
 
-def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
+def load_policies(
+    experiment: Experiment, env: Environment, max_steps: int, rngs: nnx.Rngs
+) -> list[PolicyRecord]:
+    """Load all saved policies for an experiment."""
+
     model_template = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
@@ -123,13 +128,13 @@ def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
         rngs=rngs,
     )
 
-    policies = []
-
+    policies: list[PolicyRecord] = []
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
             model = checkpointer.restore(model_template, step)
-            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model)
-            policies.append(policy)
+            policies.append(
+                PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model)
+            )
 
     return policies
 
@@ -137,28 +142,40 @@ def format_skill(rating: trueskill.Rating):
     return f"mu: {rating.mu}, sigma: {rating.sigma}"
 
 def evaluate(
-    run_token: str,
+    run_tokens: Sequence[str],
     selector: Optional[str],
     seed: int,
     steps: Optional[int],
     rounds: int,
     verbose: bool,
+    csv_path: Optional[str],
 ):
-    experiment = Experiment.load(run_token, base_dir="results")
+    """Evaluate checkpoints from one or more training runs using TrueSkill."""
 
-    max_steps = steps or experiment.config.max_env_steps
+    if not run_tokens:
+        raise typer.BadParameter("At least one run token must be provided.")
 
-    env = create_env(experiment.config.environment, max_steps, selector=selector)
+    experiments = [Experiment.load(token, base_dir="results") for token in run_tokens]
+
+    env_cfg = experiments[0].config.environment
+    for exp in experiments[1:]:
+        if exp.config.environment != env_cfg:
+            raise typer.BadParameter("All runs must use the same environment configuration.")
+
+    max_steps = steps or experiments[0].config.max_env_steps
+    env = create_env(env_cfg, max_steps, selector=selector)
     rngs = nnx.Rngs(default=seed)
 
-    models = load_policy(experiment, env, max_steps, rngs)
+    models: list[PolicyRecord] = []
+    for exp in experiments:
+        models.extend(load_policies(exp, env, max_steps, rngs))
+
     if len(models) < 2:
         raise typer.BadParameter("Need at least two checkpoints to evaluate head-to-head.")
 
     team_size = env.num_agents // 2
-
     for _ in progress.track(range(rounds), description="Ranking rounds"):
-        m = random.choices(models, k=2)
+        m = random.sample(models, k=2)
         lineup = [m[0]] * team_size + [m[1]] * team_size
         policies = [JittedPolicy(p.model) for p in lineup]
 
@@ -172,21 +189,30 @@ def evaluate(
         m[ranking[0]].rating = loser
 
         if verbose:
-            console.print(f"{m[0].step} vs {m[1].step}")
-            console.print(f"  {m[0].step}: {format_skill(m[0].rating)}")
-            console.print(f"  {m[1].step}: {format_skill(m[1].rating)}")
+            console.print(f"{m[0].name}:{m[0].step} vs {m[1].name}:{m[1].step}")
+            console.print(f"  {m[0].name}:{m[0].step}: {format_skill(m[0].rating)}")
+            console.print(f"  {m[1].name}:{m[1].step}: {format_skill(m[1].rating)}")
 
     # Final summary sorted by rating.mu
     models_sorted = sorted(models, key=lambda r: r.rating.mu, reverse=True)
     console.print("Final ratings:")
     for rec in models_sorted:
-        console.print(f"- step {rec.step}: {format_skill(rec.rating)}")
+        console.print(
+            f"- {rec.name} step {rec.step}: {format_skill(rec.rating)}"
+        )
+
+    if csv_path:
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["run", "step", "mu", "sigma"])
+            for rec in models_sorted:
+                writer.writerow([rec.name, rec.step, rec.rating.mu, rec.rating.sigma])
 
 
 @app.command()
 def main(
-    run: str = typer.Option(
-        ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
+    run: Sequence[str] = typer.Option(
+        ..., "--run", "-r", help="Experiment run tokens (under results/)", rich_help_panel="Input"
     ),
     selector: Optional[str] = typer.Option(
         None, help="Select a specific env when using a multi env config."
@@ -197,8 +223,11 @@ def main(
     ),
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
     verbose: bool = typer.Option(False, help="Print per-round rating updates."),
+    csv_path: Optional[str] = typer.Option(
+        None, help="Path to save final ratings as CSV.", rich_help_panel="Output"
+    ),
 ):
-    evaluate(run, selector, seed, steps, rounds, verbose)
+    evaluate(run, selector, seed, steps, rounds, verbose, csv_path)
 
 
 if __name__ == "__main__":
