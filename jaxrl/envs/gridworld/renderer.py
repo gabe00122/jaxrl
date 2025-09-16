@@ -76,7 +76,8 @@ tilemap = {
     GW.TILE_DECOR_1: (15, 5),
     GW.TILE_DECOR_2: (16, 5),
     GW.TILE_DECOR_3: (17, 5),
-    GW.TILE_DECOR_4: (14, 5)
+    GW.TILE_DECOR_4: (14, 5),
+    GW.TILE_ARROW: (33, 10)
 }
 
 
