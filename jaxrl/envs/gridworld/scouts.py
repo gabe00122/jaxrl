@@ -312,15 +312,6 @@ class ScoutsEnv(Environment[ScoutsState]):
         agent_positions = jnp.concatenate(
             (state.scout_pos, state.harvester_pos), axis=0
         )
-        agent_types = jnp.concatenate(
-            (
-                jnp.full((state.scout_pos.shape[0],), GW.AGENT_SCOUT, dtype=jnp.int32),
-                jnp.full(
-                    (state.harvester_pos.shape[0],), GW.AGENT_HARVESTER, dtype=jnp.int32
-                ),
-            ),
-            axis=0,
-        )
 
         return GridRenderState(
             tilemap=state.map,
@@ -329,7 +320,6 @@ class ScoutsEnv(Environment[ScoutsState]):
             unpadded_width=self.unpadded_width,
             unpadded_height=self.unpadded_height,
             agent_positions=agent_positions,
-            agent_types=agent_types,
             view_width=self.view_width,
             view_height=self.view_height,
         )

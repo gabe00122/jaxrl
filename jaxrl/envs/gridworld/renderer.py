@@ -54,7 +54,6 @@ class GridRenderState(NamedTuple):
     unpadded_height: int
 
     agent_positions: jax.Array  # (N, 2)
-    agent_types: jax.Array | None = None  # (N,)
 
     view_width: int = 0
     view_height: int = 0
@@ -71,7 +70,9 @@ tilemap = {
     GW.AGENT_GENERIC: (104, 0),
     GW.AGENT_HARVESTER: (104, 0),
     GW.AGENT_RED_KNIGHT_RIGHT: (153, 5),
+    GW.AGENT_RED_ARCHER_RIGHT: (156, 5),
     GW.AGENT_BLUE_KNIGHT_RIGHT: (153, 11),
+    GW.AGENT_BLUE_ARCHER_RIGHT: (156, 11),
     GW.AGENT_SCOUT: (104, 0),
     GW.TILE_DECOR_1: (15, 5),
     GW.TILE_DECOR_2: (16, 5),
@@ -110,11 +111,7 @@ class GridworldRenderer:
 
     def _refresh_screen_surface(self):
         current_surface = pygame.display.get_surface()
-        if current_surface is None:
-            return
-
-        if current_surface is not self.screen:
-            self.screen = current_surface
+        self.screen = current_surface
 
         width, height = current_surface.get_size()
         if width != self.screen_width or height != self.screen_height:
@@ -225,16 +222,8 @@ class GridworldRenderer:
 
         # Draw agents
         agent_pos = rs.agent_positions.tolist()
-        agent_types = (
-            rs.agent_types.tolist()
-            if rs.agent_types is not None
-            else [GW.AGENT_GENERIC] * len(agent_pos)
-        )
 
-        for i, ((x, y), t) in enumerate(zip(agent_pos, agent_types)):
-            image = self._tilemap[t]
-            self._draw_tile(image, x, y, rs.pad_width, rs.pad_height, total_height)
-
+        for i, (x, y) in enumerate(agent_pos):
             # Vision highlight
             if self._focused_agent is None or i == self._focused_agent:
                 vw = max(1, int(rs.view_width))

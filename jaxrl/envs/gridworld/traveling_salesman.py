@@ -255,7 +255,6 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             unpadded_width=self.width,
             unpadded_height=self.height,
             agent_positions=state.agents_pos,
-            agent_types=None,
             view_width=self.view_width,
             view_height=self.view_height,
         )

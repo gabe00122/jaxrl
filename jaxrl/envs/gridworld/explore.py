@@ -195,7 +195,6 @@ class ExploreEnv(Environment[ExploreState]):
             unpadded_width=self.unpadded_width,
             unpadded_height=self.unpadded_height,
             agent_positions=state.agents_pos,
-            agent_types=None,
             view_width=self.view_width,
             view_height=self.view_height,
         )
