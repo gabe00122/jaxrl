@@ -130,6 +130,8 @@ def play(
     while time < 512 and running:
         did_step = False
         for event in pygame.event.get():
+            if client.handle_event(event):
+                continue
             if event.type == pygame.QUIT:
                 running = False
             if not running:
