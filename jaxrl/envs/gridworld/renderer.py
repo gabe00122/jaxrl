@@ -8,6 +8,17 @@ import jaxrl.envs.gridworld.constance as GW
 from jaxrl.utils.video_writter import save_video
 
 
+RESIZE_EVENTS = tuple(
+    event
+    for event in (
+        pygame.VIDEORESIZE,
+        getattr(pygame, "WINDOWRESIZED", None),
+        getattr(pygame, "WINDOWSIZECHANGED", None),
+    )
+    if event is not None
+)
+
+
 class SpriteSheet:
     def __init__(self, filename) -> None:
         self.sheet = pygame.image.load(filename).convert()
@@ -77,28 +88,66 @@ class GridworldRenderer:
         self.screen_height = screen_height
         self.fps = fps
 
-        flags = pygame.SRCALPHA
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        self._display_flags = pygame.RESIZABLE
+        self.screen = pygame.display.set_mode(
+            (self.screen_width, self.screen_height), self._display_flags
+        )
+        self._vision_flags = pygame.SRCALPHA
         self.vision = pygame.Surface(
-            (self.screen_width, self.screen_height), flags=flags
+            (self.screen_width, self.screen_height), flags=self._vision_flags
         )
         self.clock = pygame.time.Clock()
 
         self.frames: list[np.ndarray] = []
         self._tile_size: int | None = None
+        self._tilemap = None
+        self._view_offset_x = 0
+        self._view_offset_y = 0
         self._focused_agent = None
 
         self._spritesheet = SpriteSheet("./assets/urizen_onebit_tileset__v2d0.png")
-        self._tilemap = None  # {name: self._spritesheet.image_at_tile(x, y) for name, (x, y) in tilemap.items()}
 
-    def _ensure_tile_size(self, unpadded_width: int):
-        # Compute tile size once per session based on the first env width
-        if self._tile_size is None:
-            self._tile_size = max(1, self.screen_width // max(1, int(unpadded_width)))
+    def _refresh_screen_surface(self):
+        current_surface = pygame.display.get_surface()
+        if current_surface is None:
+            return
+
+        if current_surface is not self.screen:
+            self.screen = current_surface
+
+        width, height = current_surface.get_size()
+        if width != self.screen_width or height != self.screen_height:
+            self.screen_width = width
+            self.screen_height = height
+            self.vision = pygame.Surface(
+                (self.screen_width, self.screen_height), flags=self._vision_flags
+            )
+            self._tile_size = None
+
+    def _ensure_layout(self, unpadded_width: int, unpadded_height: int):
+        self._refresh_screen_surface()
+
+        actual_width = max(0, int(unpadded_width))
+        actual_height = max(0, int(unpadded_height))
+        safe_width = max(1, actual_width)
+        safe_height = max(1, actual_height)
+
+        tile_size = max(
+            1,
+            min(self.screen_width // safe_width, self.screen_height // safe_height),
+        )
+
+        if self._tile_size != tile_size or self._tilemap is None:
+            self._tile_size = tile_size
             self._tilemap = {
                 name: self._spritesheet.image_at_tile(x, y, self._tile_size)
                 for name, (x, y) in tilemap.items()
             }
+
+        view_pixel_width = self._tile_size * actual_width
+        view_pixel_height = self._tile_size * actual_height
+        self._view_offset_x = (self.screen_width - view_pixel_width) // 2
+        self._view_offset_y = (self.screen_height - view_pixel_height) // 2
 
     def _tile_to_screen(
         self, x: int, y: int, pad_width: int, height: int, pad_height: int
@@ -109,15 +158,10 @@ class GridworldRenderer:
         self, image, x, y, pad_width: int, pad_height: int, total_height: int
     ):
         x, y = self._tile_to_screen(x, y, pad_width, total_height, pad_height)
-        self.screen.blit(
-            image,
-            (
-                x * self._tile_size,
-                y * self._tile_size,
-                self._tile_size,
-                self._tile_size,
-            ),
-        )
+        px = self._view_offset_x + x * self._tile_size
+        py = self._view_offset_y + y * self._tile_size
+        dest = pygame.Rect(px, py, self._tile_size, self._tile_size)
+        self.screen.blit(image, dest)
 
     def _draw_vision(
         self,
@@ -140,7 +184,12 @@ class GridworldRenderer:
         pw = width * self._tile_size
         ph = height * self._tile_size
 
-        rect = pygame.Rect(int(px), int(py), int(pw), int(ph))
+        rect = pygame.Rect(
+            int(self._view_offset_x + px),
+            int(self._view_offset_y + py),
+            int(pw),
+            int(ph),
+        )
 
         clipped = rect.clip(self.vision.get_rect())
         if clipped.width > 0 and clipped.height > 0:
@@ -151,7 +200,10 @@ class GridworldRenderer:
 
     def render(self, rs: GridRenderState):
         # Ensure tile size
-        self._ensure_tile_size(rs.unpadded_width)
+        self._ensure_layout(rs.unpadded_width, rs.unpadded_height)
+
+        # Clear screen background to support letterboxing
+        self.screen.fill((0, 0, 0))
 
         # Clear translucent overlay
         self.vision.fill(pygame.color.Color(70, 70, 70, 100))
@@ -208,7 +260,7 @@ class GridworldRenderer:
         - Scales the cropped region to fill the entire screen (may be non-square tiles).
         """
         # Ensure base sprites are loaded (for access to tile images)
-        self._ensure_tile_size(max(1, rs.unpadded_width))
+        self._ensure_layout(rs.unpadded_width, rs.unpadded_height)
 
         vw = max(1, int(rs.view_width))
         vh = max(1, int(rs.view_height))
@@ -276,6 +328,33 @@ class GridworldRenderer:
         self.clock.tick(self.fps)
         pygame.display.flip()
 
+    def handle_resize(self, width: int, height: int):
+        width = max(1, int(width))
+        height = max(1, int(height))
+        self.screen_width = width
+        self.screen_height = height
+        self.screen = pygame.display.set_mode(
+            (self.screen_width, self.screen_height), self._display_flags
+        )
+        self.vision = pygame.Surface(
+            (self.screen_width, self.screen_height), flags=self._vision_flags
+        )
+        self._tile_size = None
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        if event.type in RESIZE_EVENTS:
+            if hasattr(event, "size") and event.size is not None:
+                width, height = event.size
+            elif hasattr(event, "w") and hasattr(event, "h"):
+                width, height = event.w, event.h
+            elif hasattr(event, "x") and hasattr(event, "y"):
+                width, height = event.x, event.y
+            else:
+                return False
+            self.handle_resize(width, height)
+            return True
+        return False
+
     def record_frame(self):
         img_data = pygame.surfarray.array3d(pygame.display.get_surface())
         self.frames.append(img_data)
@@ -305,6 +384,9 @@ class GridworldClient:
         """Render only the focused agent's point-of-view, filling the screen."""
         rs: GridRenderState = self.env.get_render_state(state)
         self.renderer.render_agent_view(rs, agent_id=agent_id)
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        return self.renderer.handle_event(event)
 
     def record_frame(self):
         self.renderer.record_frame()
