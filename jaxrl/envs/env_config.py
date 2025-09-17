@@ -62,13 +62,13 @@ def create_env(
     env_config: EnvironmentConfig | MultiTaskConfig,
     length: int,
     vec_count: int = 1,
-    selector: str | None = None,
+    env_name: str | None = None,
 ) -> Environment:
-    if env_config.env_type == "multi" and selector is not None:
+    if env_config.env_type == "multi" and env_name is not None:
         for env_def in env_config.envs:
-            if env_def.name == selector:
+            if env_def.name == env_name:
                 return create_env(env_def.env, length, vec_count=vec_count)
-        raise ValueError("Could not find environment for selector")
+        raise ValueError("Could not find environment matching env_name")
 
     match env_config.env_type:
         case "multi":

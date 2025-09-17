@@ -61,11 +61,11 @@ def play_from_run(
     human_control: bool,
     pov: bool,
     seed: int,
-    selector: str | None = None,
+    env_name: str | None = None,
     video_path: str | None = None,
 ):
     experiment = Experiment.load(run_name, "results")
-    play(experiment, human_control, pov, seed, selector, True, video_path)
+    play(experiment, human_control, pov, seed, env_name, True, video_path)
 
 
 def play_from_config(
@@ -73,11 +73,11 @@ def play_from_config(
     human_control: bool,
     pov: bool,
     seed: int,
-    selector: str | None = None,
+    env_name: str | None = None,
     video_path: str | None = None,
 ):
     experiment = Experiment.from_config_file(config_name, "", create_directories=False)
-    play(experiment, human_control, pov, seed, selector, False, video_path)
+    play(experiment, human_control, pov, seed, env_name, False, video_path)
 
 
 def play(
@@ -85,13 +85,15 @@ def play(
     human_control: bool,
     pov: bool,
     seed: int,
-    selector: str | None = None,
+    env_name: str | None = None,
     load: bool = True,
     video_path: str | None = None,
 ):
     max_steps = experiment.config.max_env_steps
 
-    env = create_env(experiment.config.environment, max_steps, selector=selector)
+    env = create_env(
+        experiment.config.environment, max_steps, env_name=env_name
+    )
     rngs = nnx.Rngs(default=seed)
 
     model = load_policy(experiment, env, max_steps, load, rngs)

@@ -65,9 +65,9 @@ uv run pmarl enjoy "silly-camel-34" --human --pov
 ```
 * `--human` means you control one of the agents with keyboard controls and `--pov` renders the environment from the agents point of view
 
-If the agent was trained on multiple environments you can select the right one using the `--selector` option. These correspond to the config.json
+If the agent was trained on multiple environments you can select the right one using the `--env` option. These correspond to the config.json
 ```bash
-uv run pmarl enjoy "silly-camel-34" --selector return40
+uv run pmarl enjoy "silly-camel-34" --env return40
 ```
 
 ### Test out an environment

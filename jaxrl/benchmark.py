@@ -23,7 +23,7 @@ def benchmark(
     run_token: Optional[str],
     seed: int,
     vec_count: int,
-    selector: Optional[str],
+    env_name: Optional[str],
     steps: Optional[int],
     warmup: int,
     iters: int,
@@ -38,7 +38,10 @@ def benchmark(
 
     # Create environment
     env = create_env(
-        experiment.config.environment, max_steps, vec_count=vec_count, selector=selector
+        experiment.config.environment,
+        max_steps,
+        vec_count=vec_count,
+        env_name=env_name,
     )
 
     if not env.is_jittable:
@@ -108,7 +111,7 @@ def main(
         help="Existing experiment run token (loads config from results/).",
         rich_help_panel="Input",
     ),
-    selector: Optional[str] = typer.Option(
+    env: Optional[str] = typer.Option(
         None, help="Select a specific env when using a multi env config."
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs and actions."),
@@ -124,7 +127,7 @@ def main(
     if (config is None) == (run is None):
         raise typer.BadParameter("Provide exactly one of --config or --run")
 
-    benchmark(config, run, seed, vec, selector, steps, warmup, iters)
+    benchmark(config, run, seed, vec, env_name=env, steps=steps, warmup=warmup, iters=iters)
 
 
 if __name__ == "__main__":

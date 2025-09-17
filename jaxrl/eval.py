@@ -138,7 +138,7 @@ def format_skill(rating: trueskill.Rating):
 
 def evaluate(
     run_token: str,
-    selector: Optional[str],
+    env_name: Optional[str],
     seed: int,
     steps: Optional[int],
     rounds: int,
@@ -148,7 +148,9 @@ def evaluate(
 
     max_steps = steps or experiment.config.max_env_steps
 
-    env = create_env(experiment.config.environment, max_steps, selector=selector)
+    env = create_env(
+        experiment.config.environment, max_steps, env_name=env_name
+    )
     rngs = nnx.Rngs(default=seed)
 
     models = load_policy(experiment, env, max_steps, rngs)
@@ -188,7 +190,7 @@ def main(
     run: str = typer.Option(
         ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
     ),
-    selector: Optional[str] = typer.Option(
+    env: Optional[str] = typer.Option(
         None, help="Select a specific env when using a multi env config."
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs."),
@@ -198,7 +200,7 @@ def main(
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
     verbose: bool = typer.Option(False, help="Print per-round rating updates."),
 ):
-    evaluate(run, selector, seed, steps, rounds, verbose)
+    evaluate(run, env_name=env, seed=seed, steps=steps, rounds=rounds, verbose=verbose)
 
 
 if __name__ == "__main__":
