@@ -295,26 +295,6 @@ class GridworldRenderer:
                 scaled = pygame.transform.scale(base_img, (pw, ph))
                 self.screen.blit(scaled, (px, py))
 
-        # Draw any agents that fall within the window
-        agent_types = (
-            rs.agent_types.tolist()
-            if rs.agent_types is not None
-            else [GW.AGENT_GENERIC] * len(agent_pos)
-        )
-        for (x, y), t in zip(agent_pos, agent_types):
-            if x0 <= x < x0 + vw and y0 <= y < y0 + vh:
-                dx = x - x0
-                dy = y - y0
-                px = int(round(dx * tw_f))
-                py = int(round((vh - 1 - dy) * th_f))
-                pw = int(round((dx + 1) * tw_f)) - px
-                ph = int(round((vh - 0 - dy) * th_f)) - py
-                if pw <= 0 or ph <= 0:
-                    continue
-                agent_img = self._tilemap[t]
-                scaled = pygame.transform.scale(agent_img, (pw, ph))
-                self.screen.blit(scaled, (px, py))
-
         self.clock.tick(self.fps)
         pygame.display.flip()
 

@@ -24,10 +24,10 @@ class KingHillConfig(BaseModel):
     view_width: int = 5
     view_height: int = 5
 
-    dig_timeout: int = 10
+    dig_timeout: int = 5
     reward_per_turn: float = 10.0 / 512
 
-    arrow_timeout: int = 10
+    arrow_timeout: int = 5
 
 
 class KingHillState(NamedTuple):
@@ -36,6 +36,7 @@ class KingHillState(NamedTuple):
     agents_direction: jax.Array # (n,) top, right, down, left
     agents_timeouts: jax.Array
     agents_types: jax.Array
+    agents_health: jax.Array
 
     arrows_pos: jax.Array
     arrows_direction: jax.Array
@@ -70,6 +71,9 @@ class KingHillEnv(Environment[KingHillState]):
         self.padded_height = self.height + self.pad_height * 2
 
         self._teams = self._repeat_for_team(jnp.int32(0), jnp.int32(1))
+
+        self._agent_type_health = jnp.array([2, 1], jnp.int32)
+
 
     def _pad_tiles(self, tiles, fill):
         # pads tiles so the observation can just be a slice
@@ -124,6 +128,7 @@ class KingHillEnv(Environment[KingHillState]):
             agents_direction=jnp.zeros((self.num_agents,), jnp.int32),
             agents_timeouts=jnp.zeros((self.num_agents,), jnp.int32),
             agents_types=agent_types,
+            agents_health=self._agent_type_health[agent_types], # archers 1, melee 2
             arrows_pos=jnp.zeros((self._num_agents, 2), jnp.int32),
             arrows_direction=jnp.zeros((self._num_agents,), jnp.int32),
             arrows_timeouts=jnp.zeros((self._num_agents,), jnp.int32),
@@ -233,11 +238,17 @@ class KingHillEnv(Environment[KingHillState]):
             jnp.where(attack_mask, 1, 0)
         )
 
-        killed_mask = damage_map[state.agents_pos[:, 0], state.agents_pos[:, 1]] > 0
+        agents_health = state.agents_health - damage_map[state.agents_pos[:, 0], state.agents_pos[:, 1]]
+        killed_mask = agents_health <= 0
+
+        # reset health on death
+        agents_health = jnp.where(killed_mask, self._agent_type_health[state.agents_types], agents_health)
 
         # respawn
         state = state._replace(
-            agents_pos=jnp.where(killed_mask[:, None], state.agents_start_pos, state.agents_pos)
+            agents_pos=jnp.where(killed_mask[:, None], state.agents_start_pos, state.agents_pos),
+            agents_health=agents_health,
+            agents_timeouts=jnp.where(melee_attack_mask, 1, state.agents_timeouts)
         )
 
         # temp
@@ -346,12 +357,12 @@ class KingHillEnv(Environment[KingHillState]):
             flag_tiles[state.control_point_team]
         )
 
+        agent_types = self._get_agent_type_tiles(state)
+        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(agent_types)
+
         tiles = tiles.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(
             jnp.where(state.arrows_mask, jnp.int8(GW.TILE_ARROW), tiles[state.arrows_pos[:, 0], state.arrows_pos[:, 1]])
         )
-
-        agent_types = self._get_agent_type_tiles(state)
-        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(agent_types)
 
         return tiles
 
