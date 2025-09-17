@@ -49,14 +49,7 @@ def env_step(env: Environment, env_state, actions, rng_key):
 def split_timestep(ts: TimeStep):
     ts = jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 1 ..."), ts)
     batch_size = ts.obs.shape[0]
-    return [TimeStep(
-        obs=ts.obs[i],
-        time=ts.time[i],
-        terminated=ts.terminated[i],
-        last_action=ts.last_action[i],
-        last_reward=ts.last_reward[i],
-        action_mask=None, #ts.action_mask[i],
-    ) for i in range(batch_size)]
+    return [TimeStep(**{key: value[i] if value is not None else None for key, value in ts._asdict()}) for i in range(batch_size)]
 
 
 @partial(jax.jit, static_argnums=(0, 2))

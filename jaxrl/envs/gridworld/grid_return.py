@@ -236,6 +236,11 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         return state, self.encode_observations(state, action, rewards)
 
+    def _render_tiles(self, state: ReturnDiggingState):
+        tiles = state.map
+        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
+        return tiles
+
     def encode_observations(
         self, state: ReturnDiggingState, actions, rewards
     ) -> TimeStep:
@@ -247,9 +252,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                 (self.view_width, self.view_height),
             )
 
-        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
-        )
+        tiles = self._render_tiles(state)
         view = _encode_view(tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
@@ -270,8 +273,10 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: ReturnDiggingState) -> GridRenderState:
+        tiles = self._render_tiles(state)
+
         return GridRenderState(
-            tilemap=state.map,
+            tilemap=tiles,
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.unpadded_width,
