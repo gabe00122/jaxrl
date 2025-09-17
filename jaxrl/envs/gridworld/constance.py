@@ -1,6 +1,8 @@
 from jax import numpy as jnp
 
-NUM_TYPES = 19
+from jaxrl.envs.specs import ObservationSpec
+
+NUM_TYPES = 17
 
 # Unified tile ids across gridworld environments
 TILE_EMPTY = 0              # empty space
@@ -17,33 +19,15 @@ AGENT_GENERIC = 7           # typical agent
 AGENT_SCOUT = 8             # scout agent (scout env)
 AGENT_HARVESTER = 9         # harvester agent (scout env)
 
-# AGENT_RED_KNIGHT_UP    = 10
-AGENT_RED_KNIGHT_RIGHT = 10
-# AGENT_RED_KNIGHT_DOWN  = 12
-# AGENT_RED_KNIGHT_LEFT  = 13
+AGENT_KNIGHT = 10
+AGENT_ARCHER = 11
 
-# AGENT_RED_ARCHER_UP    = 14
-AGENT_RED_ARCHER_RIGHT = 11
-# AGENT_RED_ARCHER_DOWN  = 16
-# AGENT_RED_ARCHER_LEFT  = 17
+TILE_DECOR_1 = 12
+TILE_DECOR_2 = 13
+TILE_DECOR_3 = 14
+TILE_DECOR_4 = 15
 
-# AGENT_BLUE_KNIGHT_UP    = 18
-AGENT_BLUE_KNIGHT_RIGHT = 12
-# AGENT_BLUE_KNIGHT_DOWN  = 20
-# AGENT_BLUE_KNIGHT_LEFT  = 21
-
-# AGENT_BLUE_ARCHER_UP    = 22
-AGENT_BLUE_ARCHER_RIGHT = 13
-# AGENT_BLUE_ARCHER_DOWN  = 24
-# AGENT_BLUE_ARCHER_LEFT  = 25
-
-
-TILE_DECOR_1 = 14
-TILE_DECOR_2 = 15
-TILE_DECOR_3 = 16
-TILE_DECOR_4 = 17
-
-TILE_ARROW = 18
+TILE_ARROW = 16
 
 
 # Actions
@@ -59,3 +43,32 @@ DIG_ACTION = 6
 
 
 DIRECTIONS = jnp.array([[0, 1], [1, 0], [0, -1], [-1, 0]], dtype=jnp.int32)
+
+
+def make_obs_spec(width: int, height: int) -> ObservationSpec:
+    # CHANNELS:
+    # TILE
+    # DIRECTION
+    # TEAM ID
+    # HEALTH
+    obs_spec = ObservationSpec(
+        dtype=jnp.int8,
+        shape=(width, height, 4),
+        max_value=(
+            NUM_TYPES,
+            5, # none, up, right, down, left,
+            3, # none, red, blue
+            3, # 0, 1, 2
+        ),
+    )
+
+    return obs_spec
+
+
+def mask_action_mask(actions: list[int]):
+    mask = [False] * NUM_ACTIONS
+
+    for action in actions:
+        mask[action] = True
+
+    return jnp.array(mask, jnp.bool)

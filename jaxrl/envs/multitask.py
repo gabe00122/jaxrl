@@ -48,11 +48,12 @@ class MultiTaskWrapper(Environment):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        max_channel = max([env.observation_spec.max_value for env in self._envs])
-        dtype = self._envs[0].observation_spec.dtype
-        shape = self._envs[0].observation_spec.shape
+        # max_channel = max([env.observation_spec.max_value for env in self._envs])
+        # dtype = self._envs[0].observation_spec.dtype
+        # shape = self._envs[0].observation_spec.shape
+        
+        return self._env.observation_spec # todo: we shouldn't assume they are all the same
 
-        return ObservationSpec(dtype, shape, max_channel)
 
     @cached_property
     def action_spec(self) -> ActionSpec:

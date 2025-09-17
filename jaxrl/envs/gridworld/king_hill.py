@@ -147,11 +147,7 @@ class KingHillEnv(Environment[KingHillState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -340,12 +336,8 @@ class KingHillEnv(Environment[KingHillState]):
         return state, self.encode_observations(state, action, rewards)
     
     def _get_agent_type_tiles(self, state: KingHillState):
-        red_agent_types, blue_agent_types = jnp.split(state.agents_types, 2, axis=-1)
-        red_type_map = jnp.array([GW.AGENT_RED_KNIGHT_RIGHT, GW.AGENT_RED_ARCHER_RIGHT], jnp.int8)
-        blue_type_map = jnp.array([GW.AGENT_BLUE_KNIGHT_RIGHT, GW.AGENT_BLUE_ARCHER_RIGHT], jnp.int8)
-        red_agent_types = red_type_map[red_agent_types]
-        blue_agent_types = blue_type_map[blue_agent_types]
-        agent_types = jnp.concatenate((red_agent_types, blue_agent_types), axis=-1)
+        agent_types_map = jnp.array([GW.AGENT_KNIGHT, GW.AGENT_ARCHER], jnp.int8)
+        agent_types = agent_types_map[state.agents_types]
 
         return agent_types
 
@@ -364,7 +356,21 @@ class KingHillEnv(Environment[KingHillState]):
             jnp.where(state.arrows_mask, jnp.int8(GW.TILE_ARROW), tiles[state.arrows_pos[:, 0], state.arrows_pos[:, 1]])
         )
 
-        return tiles
+        directions = jnp.zeros_like(tiles)
+        directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction)
+        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction)
+
+        teams = jnp.zeros_like(tiles)
+        teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
+        # todo: add flag team
+
+        health = jnp.zeros_like(tiles)
+        health = health.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_health)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
 
     def encode_observations(
         self, state: KingHillState, actions, rewards
@@ -373,8 +379,8 @@ class KingHillEnv(Environment[KingHillState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
-                (self.view_width, self.view_height),
+                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2, 0),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
         tiles = self._render_tiles(state)
@@ -401,7 +407,7 @@ class KingHillEnv(Environment[KingHillState]):
         tiles = self._render_tiles(state)
 
         return GridRenderState(
-            tilemap=tiles,
+            tilemap=tiles[..., 0],
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.width,

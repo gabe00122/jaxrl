@@ -1,40 +1,22 @@
 
-from typing import NamedTuple, Self
+import math
 
-import jax
 from jax import numpy as jnp
-import jaxrl.envs.gridworld.constance as GW
 
 
-class Position(NamedTuple):
-    data: jax.Array
+def concat_one_hot(x: jnp.ndarray, sizes: tuple[int, ...], dtype=jnp.float32):
+    *batch, n = x.shape
+    flat_batch = math.prod(batch)
+    total = sum(sizes)
 
-    def move(self, direction: jax.Array) -> Self:
-        direction = GW.DIRECTIONS[direction]
-        if len(direction.shape) > 1:
-            direction = direction.transpose(1, 0)
+    sizes = jnp.array(sizes, jnp.int32)
+    offsets = jnp.cumsum(sizes) - sizes
 
-        return self.__class__(data=self.data + direction)
+    flat_x = x.reshape(flat_batch, n)
+    idx = flat_x + offsets
 
-    @property
-    def x(self):
-        return self.data[0]
-    
-    @property
-    def y(self):
-        return self.data[1]
-    
-    @classmethod
-    def from_xy(cls, x: jax.Array, y: jax.Array) -> Self:
-        data = jnp.stack((x, y))
-        return cls(data)
+    out = jnp.zeros((flat_batch, total), dtype)
+    out = out.at[jnp.arange(flat_batch)[:, None], idx].set(1)
+    out = out.reshape(*batch, total)
 
-
-def unique_mask(xs: jax.Array) -> jax.Array:
-    """
-    Returns a mask over values that are unique
-    """
-
-    _, inv, counts = jnp.unique(xs, return_inverse=True, return_counts=True, size=xs.shape[0])
-
-    return counts[inv] == 1
+    return out
