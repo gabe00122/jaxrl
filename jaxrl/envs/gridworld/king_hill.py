@@ -357,8 +357,8 @@ class KingHillEnv(Environment[KingHillState]):
         )
 
         directions = jnp.zeros_like(tiles)
-        directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction)
-        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction)
+        directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction+1)
+        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1)
 
         teams = jnp.zeros_like(tiles)
         teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
