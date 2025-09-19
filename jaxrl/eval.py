@@ -49,7 +49,7 @@ def env_step(env: Environment, env_state, actions, rng_key):
 def split_timestep(ts: TimeStep):
     ts = jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 1 ..."), ts)
     batch_size = ts.obs.shape[0]
-    return [TimeStep(**{key: value[i] if value is not None else None for key, value in ts._asdict()}) for i in range(batch_size)]
+    return [TimeStep(**{key: value[i] if value is not None else None for key, value in ts._asdict().items()}) for i in range(batch_size)]
 
 
 @partial(jax.jit, static_argnums=(0, 2))
@@ -121,7 +121,7 @@ def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
             model = checkpointer.restore(model_template, step)
-            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model)
+            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), JittedPolicy(model))
             policies.append(policy)
 
     return policies
@@ -133,13 +133,12 @@ def evaluate(
     run_token: str,
     env_name: Optional[str],
     seed: int,
-    steps: Optional[int],
     rounds: int,
     verbose: bool,
 ):
     experiment = Experiment.load(run_token, base_dir="results")
 
-    max_steps = steps or experiment.config.max_env_steps
+    max_steps = experiment.config.max_env_steps
 
     env = create_env(
         experiment.config.environment, max_steps, env_name=env_name
@@ -155,7 +154,7 @@ def evaluate(
     for _ in progress.track(range(rounds), description="Ranking rounds"):
         m = random.choices(models, k=2)
         lineup = [m[0]] * team_size + [m[1]] * team_size
-        policies = [JittedPolicy(p.model) for p in lineup]
+        policies = [p.model for p in lineup]
 
         out = _round(env, policies, max_steps, rngs)
         ranking = np.argsort(out)
@@ -172,9 +171,9 @@ def evaluate(
             console.print(f"  {m[1].step}: {format_skill(m[1].rating)}")
 
     # Final summary sorted by rating.mu
-    models_sorted = sorted(models, key=lambda r: r.rating.mu, reverse=True)
+    models = models
     console.print("Final ratings:")
-    for rec in models_sorted:
+    for rec in models:
         console.print(f"- step {rec.step}: {format_skill(rec.rating)}")
 
 
@@ -187,13 +186,10 @@ def main(
         None, help="Select a specific env when using a multi env config."
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs."),
-    steps: Optional[int] = typer.Option(
-        None, help="Override steps per episode (defaults to config)."
-    ),
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
     verbose: bool = typer.Option(False, help="Print per-round rating updates."),
 ):
-    evaluate(run, env_name=env, seed=seed, steps=steps, rounds=rounds, verbose=verbose)
+    evaluate(run, env_name=env, seed=seed, rounds=rounds, verbose=verbose)
 
 
 if __name__ == "__main__":
