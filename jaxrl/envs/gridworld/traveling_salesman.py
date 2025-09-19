@@ -127,11 +127,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -207,6 +203,19 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         return state, self.encode_observations(state, action, rewards)
 
+    def _render_tiles(self, state: TravelingSalesmanState):
+        tiles = state.map
+        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
+
+        directions = jnp.zeros_like(tiles)
+        teams = jnp.zeros_like(tiles)
+        health = jnp.zeros_like(tiles)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
+
     def encode_observations(
         self, state: TravelingSalesmanState, actions, rewards
     ) -> TimeStep:
@@ -214,14 +223,15 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
-                (self.view_width, self.view_height),
+                (
+                    positions[0] - self.view_width // 2,
+                    positions[1] - self.view_height // 2,
+                    0,
+                ),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
-        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
-        )
-
+        tiles = self._render_tiles(state)
         view = _encode_view(tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)

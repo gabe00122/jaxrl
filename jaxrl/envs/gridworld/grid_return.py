@@ -146,11 +146,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -239,7 +235,15 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
     def _render_tiles(self, state: ReturnDiggingState):
         tiles = state.map
         tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
-        return tiles
+
+        directions = jnp.zeros_like(tiles)
+        teams = jnp.zeros_like(tiles)
+        health = jnp.zeros_like(tiles)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
 
     def encode_observations(
         self, state: ReturnDiggingState, actions, rewards
@@ -248,8 +252,12 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                positions - jnp.array([self.view_width // 2, self.view_height // 2]),
-                (self.view_width, self.view_height),
+                (
+                    positions[0] - self.view_width // 2,
+                    positions[1] - self.view_height // 2,
+                    0,
+                ),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
         tiles = self._render_tiles(state)
@@ -276,7 +284,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         tiles = self._render_tiles(state)
 
         return GridRenderState(
-            tilemap=tiles,
+            tilemap=tiles[..., 0],
             pad_width=self.pad_width,
             pad_height=self.pad_height,
             unpadded_width=self.unpadded_width,
@@ -285,4 +293,3 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             view_width=self.view_width,
             view_height=self.view_height,
         )
-
