@@ -236,9 +236,9 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         tiles = state.map
         tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
 
-        directions = jnp.zeros_like(tiles)
-        teams = jnp.zeros_like(tiles)
-        health = jnp.zeros_like(tiles)
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
 
         return jnp.concatenate(
             (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),

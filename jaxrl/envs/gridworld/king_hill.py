@@ -356,16 +356,16 @@ class KingHillEnv(Environment[KingHillState]):
             jnp.where(state.arrows_mask, jnp.int8(GW.TILE_ARROW), tiles[state.arrows_pos[:, 0], state.arrows_pos[:, 1]])
         )
 
-        directions = jnp.zeros_like(tiles)
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
         directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction+1)
         directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1)
 
-        teams = jnp.zeros_like(tiles)
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
         teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
         teams = teams.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(state.control_point_team+1)
         # todo: add flag team
 
-        health = jnp.zeros_like(tiles)
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
         health = health.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_health)
 
         return jnp.concatenate(
