@@ -344,9 +344,9 @@ class KingHillEnv(Environment[KingHillState]):
     def _render_tiles(self, state: KingHillState):
         tiles = state.tiles
 
-        flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
+        # flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
         tiles = tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
-            flag_tiles[state.control_point_team]
+            GW.TILE_FLAG
         )
 
         agent_types = self._get_agent_type_tiles(state)
@@ -362,6 +362,7 @@ class KingHillEnv(Environment[KingHillState]):
 
         teams = jnp.zeros_like(tiles)
         teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
+        teams = teams.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(state.control_point_team+1)
         # todo: add flag team
 
         health = jnp.zeros_like(tiles)
