@@ -52,7 +52,7 @@ class MultiTaskWrapper(Environment):
         # dtype = self._envs[0].observation_spec.dtype
         # shape = self._envs[0].observation_spec.shape
         
-        return self._env.observation_spec # todo: we shouldn't assume they are all the same
+        return self._envs[0].observation_spec # todo: we shouldn't assume they are all the same
 
 
     @cached_property
