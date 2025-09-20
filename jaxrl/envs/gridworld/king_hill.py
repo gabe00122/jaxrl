@@ -70,9 +70,9 @@ class KingHillEnv(Environment[KingHillState]):
         self.padded_width = self.width + self.pad_width * 2
         self.padded_height = self.height + self.pad_height * 2
 
-        self._teams = self._repeat_for_team(jnp.int32(0), jnp.int32(1))
+        self._teams = self._repeat_for_team(jnp.int8(0), jnp.int8(1))
 
-        self._agent_type_health = jnp.array([2, 1], jnp.int32)
+        self._agent_type_health = jnp.array([2, 1], jnp.int8)
 
 
     def _pad_tiles(self, tiles, fill):
@@ -119,22 +119,22 @@ class KingHillEnv(Environment[KingHillState]):
         blue_agent_pos = jnp.stack((xs, ys + self.height - 1), axis=-1)
         agent_pos = jnp.concatenate((red_agent_pos, blue_agent_pos), axis=0)
 
-        agent_types = jax.random.randint(agent_type_key, team_size, 0, 2, jnp.int32)
+        agent_types = jax.random.randint(agent_type_key, team_size, 0, 2, jnp.int8)
         agent_types = jnp.tile(agent_types, 2)
 
         state = KingHillState(
             agents_start_pos=agent_pos,
             agents_pos=agent_pos,
-            agents_direction=jnp.zeros((self.num_agents,), jnp.int32),
-            agents_timeouts=jnp.zeros((self.num_agents,), jnp.int32),
+            agents_direction=jnp.zeros((self.num_agents,), jnp.int8),
+            agents_timeouts=jnp.zeros((self.num_agents,), jnp.int8),
             agents_types=agent_types,
             agents_health=self._agent_type_health[agent_types], # archers 1, melee 2
             arrows_pos=jnp.zeros((self._num_agents, 2), jnp.int32),
-            arrows_direction=jnp.zeros((self._num_agents,), jnp.int32),
-            arrows_timeouts=jnp.zeros((self._num_agents,), jnp.int32),
+            arrows_direction=jnp.zeros((self._num_agents,), jnp.int8),
+            arrows_timeouts=jnp.zeros((self._num_agents,), jnp.int8),
             arrows_mask=jnp.zeros((self._num_agents,), jnp.bool_),
             control_point_pos=control_point_pos,
-            control_point_team=jnp.zeros((self._config.num_flags,), jnp.int32), # team index that controls the point
+            control_point_team=jnp.zeros((self._config.num_flags,), jnp.int8), # team index that controls the point
             tiles=tiles,
             time=jnp.int32(0),
             rewards=jnp.float32(0.0),
@@ -361,8 +361,8 @@ class KingHillEnv(Environment[KingHillState]):
         directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1) #todo this is the int32 to int8 scatter
 
         teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = teams.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(state.control_point_team)
         teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
-        teams = teams.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(state.control_point_team+1)
         # todo: add flag team
 
         health = jnp.zeros_like(tiles, dtype=jnp.int8)
@@ -408,7 +408,7 @@ class KingHillEnv(Environment[KingHillState]):
         tiles = self._render_tiles(state)
 
         return GridRenderState(
-            tilemap=tiles[..., 0],
+            tilemap=tiles,
             agent_positions=state.agents_pos,
         )
     

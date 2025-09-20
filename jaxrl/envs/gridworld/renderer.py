@@ -52,12 +52,12 @@ tilemap = {
     GW.TILE_EMPTY: (17, 0),
     GW.TILE_WALL: (20, 3),
     GW.TILE_DESTRUCTIBLE_WALL: (20, 3),
-    GW.TILE_FLAG: (29, 23),
+    GW.TILE_FLAG: [(29, 23), (29, 31), (29, 32)],
     GW.TILE_FLAG_UNLOCKED: (29, 23),
     GW.AGENT_GENERIC: (104, 0),
     GW.AGENT_HARVESTER: (104, 0),
-    GW.AGENT_KNIGHT: (153, 5),
-    GW.AGENT_ARCHER: (156, 5),
+    GW.AGENT_KNIGHT: [None, (153, 5), (153, 11)],
+    GW.AGENT_ARCHER: [None, (156, 5), (153, 11)],
     GW.AGENT_SCOUT: (104, 0),
     GW.TILE_DECOR_1: (15, 5),
     GW.TILE_DECOR_2: (16, 5),
@@ -84,7 +84,7 @@ class GridworldRenderer:
 
         self.frames: list[np.ndarray] = []
         self._tile_size: int | None = None
-        self._tilemap = None
+        self._tilecache = None
         self._view_offset_x = 0
         self._view_offset_y = 0
         self._focused_agent = None
@@ -121,12 +121,22 @@ class GridworldRenderer:
             min(self.screen_width // self._tile_width, self.screen_height // self._tile_height),
         )
 
-        if self._tile_size != tile_size or self._tilemap is None:
+        if self._tile_size != tile_size or self._tilecache is None:
             self._tile_size = tile_size
-            self._tilemap = {
-                name: self._spritesheet.image_at_tile(x, y, self._tile_size)
-                for name, (x, y) in tilemap.items()
-            }
+            self._tilecache = {}
+            for name, coords in tilemap.items():
+                if isinstance(coords, list):
+                    cache = []
+                    for coord in coords:
+                        if coord is None:
+                            cache.append(coord)
+                        else:
+                            x, y = coord
+                            cache.append(self._spritesheet.image_at_tile(x, y, self._tile_size))
+                else:
+                    x, y = coords
+                    cache = self._spritesheet.image_at_tile(x, y, self._tile_size)
+                self._tilecache[name] = cache
 
         view_pixel_width = self._tile_size * self._tile_width
         view_pixel_height = self._tile_size * self._tile_height
@@ -177,7 +187,6 @@ class GridworldRenderer:
         self._ensure_layout()
 
         self.screen.fill((0, 0, 0))
-
         self.vision.fill(pygame.color.Color(70, 70, 70, 100))
 
         tiles = rs.tilemap.tolist()
@@ -186,8 +195,12 @@ class GridworldRenderer:
             for y in range(self._tile_height):
                 tx = self._pad_width + x
                 ty = self._pad_height + y
-                tile_type = tiles[tx][ty]
-                image = self._tilemap[tile_type]
+                tile_type_id = tiles[tx][ty][0]
+
+                image = self._tilecache[tile_type_id]
+                if isinstance(image, list):
+                    image = image[tiles[tx][ty][2]]
+
                 self._draw_tile(image, tx, ty)
 
         agent_pos = rs.agent_positions.tolist()
