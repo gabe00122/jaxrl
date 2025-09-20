@@ -1,8 +1,9 @@
 {
   "seed": "random",
+  "num_envs": 256,
   "max_env_steps": 512,
   "updates_per_jit": 10,
-  "update_steps": 1000,
+  "update_steps": 3800,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -15,7 +16,7 @@
     },
     "model": {
       "obs_encoder": {
-        "obs_type": "grid_cnn"
+        "obs_type": "grid_flattened"
       },
       "hidden_features": 128,
       "layer": {
@@ -36,7 +37,7 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
+      "num_layers": 10,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
@@ -65,70 +66,17 @@
     }
   },
   "environment": {
-    "env_type": "multi",
-    "envs": [
-        {
-          "num": 64,
-          "name": "return40",
-          "env": {
-              "env_type": "return_digging",
-              "num_agents": 16,
-              "width": 40,
-              "height": 40,
-              "view_width": 11,
-              "view_height": 11
-          }
-        },
-        {
-          "num": 256,
-          "name": "tsp",
-          "env": {
-              "env_type": "traveling_salesman",
-              "num_agents": 4,
-              "view_width": 11,
-              "view_height": 11
-          }
-        },
-        {
-            "num": 256,
-            "name": "koth2",
-            "env": {
-                "env_type": "king_hill",
-                "num_agents": 2,
-                "width": 40,
-                "height": 40,
-                "view_width": 11,
-                "view_height": 11
-            }
-        },
-        {
-            "num": 128,
-            "name": "koth4",
-            "env": {
-                "env_type": "king_hill",
-                "num_agents": 4,
-                "width": 40,
-                "height": 40,
-                "view_width": 11,
-                "view_height": 11
-            }
-        },
-        {
-            "num": 128,
-            "name": "koth",
-            "env": {
-                "env_type": "king_hill",
-                "num_agents": 8,
-                "width": 40,
-                "height": 40,
-                "view_width": 11,
-                "view_height": 11
-            }
-        }
-    ]
+    "env_type": "return",
+    "num_agents": 16,
+    "width": 40,
+    "height": 40,
+    "view_width": 5,
+    "view_height": 5
   },
   "logger": {
     "use_console": true,
+    "use_tb": false,
+    "use_neptune": false,
     "use_wandb": true
   }
 }

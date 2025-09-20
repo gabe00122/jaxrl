@@ -220,7 +220,7 @@ class KingHillEnv(Environment[KingHillState]):
         return flag_control
     
     def _calculate_directions(self, state: KingHillState, action: jax.Array) -> jax.Array:
-        return jnp.where(action < 4, action, state.agents_direction)
+        return jnp.astype(jnp.where(action < 4, action, state.agents_direction), jnp.int8)
     
     def _indices_to_mask(self, indices: jax.Array, size: int) -> jax.Array:
         one_hot = jax.nn.one_hot(indices, size, dtype=jnp.bool_)

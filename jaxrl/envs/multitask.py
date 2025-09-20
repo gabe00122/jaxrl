@@ -14,7 +14,7 @@ def _stack_pytree(batch):
 
 class MultiTaskWrapper(Environment):
     def __init__(self, envs: tuple[Environment], env_names: tuple[str]) -> None:
-        envs = [TaskIdWrapper(env, task_id) for env, task_id in enumerate(envs)]
+        envs = [TaskIdWrapper(env, task_id) for task_id, env in enumerate(envs)]
 
         self._envs = envs
         self._env_names = env_names

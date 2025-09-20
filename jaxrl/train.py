@@ -318,6 +318,7 @@ def train_run(
 
     console.print(f"Starting Training: {experiment.unique_token}")
     console.print(f"Parameter Count: {count_parameters(model)}")
+    console.print(f"Agent Count: {env.num_agents}")
 
     logs = None
     for i in track(range(outer_updates), description="Training", console=console):
@@ -354,7 +355,7 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        if i % (outer_updates // 50) == (outer_updates // 50) - 1:
+        if i % (outer_updates // 10) == (outer_updates // 10) - 1:
             checkpointer.save(optimizer.model, i * experiment.config.updates_per_jit)
             # optimizer.model.preturb(rngs)
 
