@@ -8,7 +8,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import choose_positions_in_rect, generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -358,7 +358,7 @@ class KingHillEnv(Environment[KingHillState]):
 
         directions = jnp.zeros_like(tiles, dtype=jnp.int8)
         directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction+1)
-        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1)
+        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1) #todo this is the int32 to int8 scatter
 
         teams = jnp.zeros_like(tiles, dtype=jnp.int8)
         teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
@@ -409,11 +409,13 @@ class KingHillEnv(Environment[KingHillState]):
 
         return GridRenderState(
             tilemap=tiles[..., 0],
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.width,
-            unpadded_height=self.height,
             agent_positions=state.agents_pos,
+        )
+    
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.width,
+            tile_height=self.height,
             view_width=self.view_width,
             view_height=self.view_height,
         )
