@@ -73,6 +73,15 @@ class KingHillEnv(Environment[KingHillState]):
         self._teams = self._repeat_for_team(jnp.int8(0), jnp.int8(1))
 
         self._agent_type_health = jnp.array([2, 1], jnp.int8)
+        self._action_mask = GW.make_action_mask([
+            GW.MOVE_UP,
+            GW.MOVE_RIGHT,
+            GW.MOVE_DOWN,
+            GW.MOVE_LEFT,
+            GW.STAY,
+            GW.PRIMARY_ACTION,
+            GW.DIG_ACTION,
+        ], self.num_agents)
 
 
     def _pad_tiles(self, tiles, fill):
@@ -394,7 +403,7 @@ class KingHillEnv(Environment[KingHillState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 

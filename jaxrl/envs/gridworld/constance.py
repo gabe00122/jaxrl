@@ -65,10 +65,11 @@ def make_obs_spec(width: int, height: int) -> ObservationSpec:
     return obs_spec
 
 
-def mask_action_mask(actions: list[int]):
+def make_action_mask(actions: list[int], num_agents: int):
     mask = [False] * NUM_ACTIONS
 
     for action in actions:
         mask[action] = True
 
-    return jnp.array(mask, jnp.bool)
+    mask_array = jnp.array(mask, jnp.bool)
+    return jnp.repeat(mask_array[None, :], num_agents, axis=0)
