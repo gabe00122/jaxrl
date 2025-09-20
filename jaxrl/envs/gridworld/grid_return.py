@@ -13,7 +13,7 @@ from jaxrl.envs.map_generator import (
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -70,6 +70,16 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         self.mapgen_threshold = config.mapgen_threshold
         self.digging_timeout = config.digging_timeout
         self.treasure_reward = config.treasure_reward
+
+        self._action_mask = GW.make_action_mask(
+            [
+                GW.MOVE_UP,
+                GW.MOVE_RIGHT,
+                GW.MOVE_DOWN,
+                GW.MOVE_LEFT,
+            ],
+            self.num_agents,
+        )
 
     def _generate_map(self, rng_key):
         walls_key, decor_key, rng_key = jax.random.split(rng_key, 3)
@@ -270,7 +280,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -284,12 +294,14 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         tiles = self._render_tiles(state)
 
         return GridRenderState(
-            tilemap=tiles[..., 0],
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.unpadded_width,
-            unpadded_height=self.unpadded_height,
+            tilemap=tiles,
             agent_positions=state.agents_pos,
+        )
+
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.unpadded_width,
+            tile_height=self.unpadded_height,
             view_width=self.view_width,
             view_height=self.view_height,
         )

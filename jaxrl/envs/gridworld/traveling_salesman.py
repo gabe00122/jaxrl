@@ -8,7 +8,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import generate_decor_tiles
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -54,6 +54,17 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         self.view_height = config.view_height
         self.pad_width = self.view_width // 2
         self.pad_height = self.view_height // 2
+
+        self._action_mask = GW.make_action_mask(
+            [
+                GW.MOVE_UP,
+                GW.MOVE_RIGHT,
+                GW.MOVE_DOWN,
+                GW.MOVE_LEFT,
+                GW.STAY,
+            ],
+            self.num_agents,
+        )
 
 
     def _random_positions(self, rng_key: jax.Array, count: int, replace: bool = True, pad: bool = True) -> jax.Array:
@@ -241,7 +252,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -252,19 +263,15 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: TravelingSalesmanState) -> GridRenderState:
-        tilemap = state.map
-
-        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
+        return GridRenderState(
+            tilemap=self._render_tiles(state),
+            agent_positions=state.agents_pos,
         )
 
-        return GridRenderState(
-            tilemap=tilemap,
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.width,
-            unpadded_height=self.height,
-            agent_positions=state.agents_pos,
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.width,
+            tile_height=self.height,
             view_width=self.view_width,
             view_height=self.view_height,
         )

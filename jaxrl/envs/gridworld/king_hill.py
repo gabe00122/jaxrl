@@ -100,7 +100,7 @@ class KingHillEnv(Environment[KingHillState]):
         decor_key, wall_key = jax.random.split(rng_key)
         tiles = generate_decor_tiles(self.width, self.height, decor_key)
 
-        noise = generate_perlin_noise_2d((self.width, self.height), (10, 10), rng_key=wall_key) > 0.25
+        noise = generate_perlin_noise_2d((self.width, self.height), (8, 8), rng_key=wall_key) > 0.20
         noise = noise.at[:, 0].set(False) # clear the starting edges so agents are not stuck in the walls
         noise = noise.at[:, self.height-1].set(False)
 
@@ -429,7 +429,6 @@ class KingHillEnv(Environment[KingHillState]):
             view_height=self.view_height,
         )
 
-    @override
     @property
     def teams(self) -> jax.Array:
         return self._teams
