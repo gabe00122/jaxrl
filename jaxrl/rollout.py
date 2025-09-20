@@ -28,6 +28,7 @@ class RolloutState(NamedTuple):
     # these are used as part of the observation
     last_actions: jax.Array
     last_rewards: jax.Array
+    task_ids: jax.Array
 
 
 class Rollout:
@@ -85,6 +86,9 @@ class Rollout:
             last_rewards=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
+            task_ids=jnp.zeros(
+                (self.batch_size, self.trajectory_length), dtype=jnp.int32
+            )
         )
 
     def store(
@@ -113,6 +117,11 @@ class Rollout:
             ),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
             last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
+            task_ids=(
+                state.task_ids.at[:, step].set(timestep.task_ids)
+                if timestep.task_ids is not None
+                else state.task_ids
+            ),
         )
 
     def calculate_advantage(

@@ -8,6 +8,7 @@ from jaxrl.envs.gridworld.grid_return import ReturnDiggingConfig
 from jaxrl.envs.gridworld.explore import ExploreConfig
 from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanConfig
 from jaxrl.envs.gridworld.scouts import ScoutsConfig
+from jaxrl.envs.task_id_wrapper import TaskIdWrapper
 from jaxrl.envs.third_party.craftax_wrapper import CraftaxConfig
 from jaxrl.envs.client import EnvironmentClient
 from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
@@ -63,19 +64,22 @@ def create_env(
     length: int,
     vec_count: int = 1,
     env_name: str | None = None,
-) -> Environment:
+) -> tuple[Environment, int]:
+    num_tasks = 1
     if env_config.env_type == "multi" and env_name is not None:
-        for env_def in env_config.envs:
+        num_tasks = len(env_config.envs)
+        for task_id, env_def in enumerate(env_config.envs):
             if env_def.name == env_name:
-                return create_env(env_def.env, length, vec_count=vec_count)
+                return TaskIdWrapper(create_env(env_def.env, length, vec_count=vec_count)[0], task_id), num_tasks
         raise ValueError("Could not find environment matching env_name")
 
     match env_config.env_type:
         case "multi":
             out_envs = []
             out_env_names = []
+            num_tasks = len(env_config.env_type)
             for env_def in env_config.envs:
-                out_envs.append(create_env(env_def.env, length, env_def.num))
+                out_envs.append(create_env(env_def.env, length, env_def.num)[0])
                 out_env_names.append(env_def.name)
 
             env = MultiTaskWrapper(tuple(out_envs), tuple(out_env_names))
@@ -99,7 +103,7 @@ def create_env(
     if vec_count > 1:
         env = VectorWrapper(env, vec_count)
 
-    return env
+    return env, num_tasks
 
 
 def create_client[State](env: Environment[State]) -> EnvironmentClient[State]:

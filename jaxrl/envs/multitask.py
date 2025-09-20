@@ -5,6 +5,7 @@ from jax import numpy as jnp
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import ActionSpec, DiscreteActionSpec, ObservationSpec
+from jaxrl.envs.task_id_wrapper import TaskIdWrapper
 
 
 def _stack_pytree(batch):
@@ -13,6 +14,8 @@ def _stack_pytree(batch):
 
 class MultiTaskWrapper(Environment):
     def __init__(self, envs: tuple[Environment], env_names: tuple[str]) -> None:
+        envs = [TaskIdWrapper(env, task_id) for env, task_id in enumerate(envs)]
+
         self._envs = envs
         self._env_names = env_names
 
@@ -68,6 +71,10 @@ class MultiTaskWrapper(Environment):
     @property
     def num_agents(self) -> int:
         return sum([env.num_agents for env in self._envs])
+    
+    @property
+    def num_tasks(self) -> int:
+        return len(self._envs)
 
     def create_placeholder_logs(self):
         return {

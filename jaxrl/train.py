@@ -114,6 +114,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 
     batch_last_actions = rollout.last_actions
     batch_last_rewards = rollout.last_rewards
+    batch_task_ids = rollout.task_ids
 
     if hypers.normalize_advantage:
         batch_advantage = (batch_advantage - batch_advantage.mean()) / (
@@ -130,6 +131,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
             last_action=batch_last_actions,
             last_reward=batch_last_rewards,
             action_mask=batch_action_masks,
+            task_ids=batch_task_ids,
         ),
     )
     log_probs = policy.log_prob(batch_actions)
@@ -268,7 +270,7 @@ def train_run(
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env = create_env(
+    env, task_count = create_env(
         experiment.config.environment, max_steps, experiment.config.num_envs
     )
 
@@ -282,6 +284,7 @@ def train_run(
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
+        task_count=task_count,
         rngs=rngs,
     )
 
