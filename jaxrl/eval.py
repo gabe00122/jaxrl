@@ -1,3 +1,4 @@
+import csv
 from dataclasses import dataclass
 import random
 from typing import Any, Optional
@@ -21,6 +22,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.types import TimeStep
+from jaxrl.utils.live_skill_plot import LiveRankingsPlot
 
 
 console = Console()
@@ -69,6 +71,9 @@ def _sample(graphdef, state, timestep, carry, _key):
 
 
 class JittedPolicy:
+    """
+    Pre split the policy to avoid the nnx overhead
+    """
     def __init__(self, model) -> None:
         self._graphdef, self._state = nnx.split(model)
 
@@ -107,12 +112,13 @@ def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
     return team_rewards
 
 
-def load_policy(experiment: Experiment, env, max_steps, rngs: nnx.Rngs):
+def load_policy(experiment: Experiment, env, max_steps: int, task_count: int, rngs: nnx.Rngs) -> list[PolicyRecord]:
     model_template = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
+        task_count=task_count,
         rngs=rngs,
     )
 
@@ -130,56 +136,60 @@ def format_skill(rating: trueskill.Rating):
     return f"mu: {rating.mu}, sigma: {rating.sigma}"
 
 def evaluate(
-    run_token: str,
+    run_tokens: list[str],
     env_name: Optional[str],
     seed: int,
     rounds: int,
-    verbose: bool,
 ):
-    experiment = Experiment.load(run_token, base_dir="results")
-
+    console = Console()
+    
+    # assume all the runs have the same environment config, task id's will differ if the environment used are different
+    # one work around is to keep the env you want to test the same among all runs and the first one defined in the config
+    experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
-    env = create_env(
-        experiment.config.environment, max_steps, env_name=env_name
-    )
+    env, task_count = create_env(experiment.config.environment, max_steps, env_name=env_name)
     rngs = nnx.Rngs(default=seed)
 
-    models = load_policy(experiment, env, max_steps, rngs)
-    if len(models) < 2:
-        raise typer.BadParameter("Need at least two checkpoints to evaluate head-to-head.")
+    league: list[PolicyRecord] = [] 
+
+    for name in run_tokens:
+        console.print(f"Loading: {name}")
+        experiment = Experiment.load(name, base_dir="results")
+        policies = load_policy(experiment, env, max_steps, task_count, rngs)
+        league.extend(policies)
 
     team_size = env.num_agents // 2
 
-    for _ in progress.track(range(rounds), description="Ranking rounds"):
-        m = random.choices(models, k=2)
-        lineup = [m[0]] * team_size + [m[1]] * team_size
+    plot = LiveRankingsPlot()
+
+    for i in progress.track(range(rounds), description="Ranking rounds", console=console):
+        agents = random.choices(league, k=2)
+        lineup = [agents[0]] * team_size + [agents[1]] * team_size
         policies = [p.model for p in lineup]
 
+        console.print(f"Round: {i}")
         out = _round(env, policies, max_steps, rngs)
         ranking = np.argsort(out)
-        winner = m[ranking[1]].rating
-        loser = m[ranking[0]].rating
+        winner = agents[ranking[1]]
+        loser = agents[ranking[0]]
 
-        winner, loser = trueskill.rate_1vs1(winner, loser)
-        m[ranking[1]].rating = winner
-        m[ranking[0]].rating = loser
+        winner_rating, loser_rating = trueskill.rate_1vs1(winner.rating, loser.rating)
+        winner.rating = winner_rating
+        loser.rating = loser_rating
 
-        if verbose:
-            console.print(f"{m[0].step} vs {m[1].step}")
-            console.print(f"  {m[0].step}: {format_skill(m[0].rating)}")
-            console.print(f"  {m[1].step}: {format_skill(m[1].rating)}")
+        plot.update(league)
 
-    # Final summary sorted by rating.mu
-    models = models
-    console.print("Final ratings:")
-    for rec in models:
-        console.print(f"- step {rec.step}: {format_skill(rec.rating)}")
+    with open("rankings.csv", "w", newline='') as f:
+        rankings_writer = csv.writer(f)
+
+        for policy in league:
+            rankings_writer.writerow([policy.name, policy.step, policy.rating.mu, policy.rating.sigma])
 
 
 @app.command()
 def main(
-    run: str = typer.Option(
+    runs: list[str] = typer.Option(
         ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
     ),
     env: Optional[str] = typer.Option(
@@ -187,9 +197,8 @@ def main(
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs."),
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
-    verbose: bool = typer.Option(False, help="Print per-round rating updates."),
 ):
-    evaluate(run, env_name=env, seed=seed, rounds=rounds, verbose=verbose)
+    evaluate(runs, env_name=env, seed=seed, rounds=rounds)
 
 
 if __name__ == "__main__":
