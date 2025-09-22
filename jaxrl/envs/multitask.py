@@ -14,7 +14,7 @@ def _stack_pytree(batch):
 
 class MultiTaskWrapper(Environment):
     def __init__(self, envs: tuple[Environment], env_names: tuple[str]) -> None:
-        envs = [TaskIdWrapper(env, task_id) for task_id, env in enumerate(envs)]
+        envs = [TaskIdWrapper(env, task_id) for env, task_id in enumerate(envs)]
 
         self._envs = envs
         self._env_names = env_names
@@ -75,6 +75,10 @@ class MultiTaskWrapper(Environment):
     @property
     def num_tasks(self) -> int:
         return len(self._envs)
+    
+    @property
+    def teams(self) -> jax.Array:
+        return jnp.concatenate([env.teams for env in self._envs], axis=0)
 
     def create_placeholder_logs(self):
         return {
@@ -87,3 +91,4 @@ class MultiTaskWrapper(Environment):
             name: env.create_logs(s)
             for name, env, s in zip(self._env_names, self._envs, state)
         }
+    

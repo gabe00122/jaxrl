@@ -44,6 +44,13 @@ class VectorWrapper[EnvState](Environment[EnvState]):
     @property
     def num_agents(self) -> int:
         return self._vec_count * self.base_env.num_agents
+    
+    @property
+    def teams(self) -> jax.Array | None:
+        if self.base_env.teams is None:
+            return None
+        else:
+            return jnp.tile(self.base_env.teams, self._vec_count)
 
     def _flatten_timestep(self, timestep: TimeStep) -> TimeStep:
         return jax.tree_util.tree_map(

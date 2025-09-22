@@ -21,6 +21,7 @@ from jaxrl.envs.env_config import create_env
 from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
+from jaxrl.train import add_seq_dim
 from jaxrl.types import TimeStep
 from jaxrl.utils.live_skill_plot import LiveRankingsPlot
 
@@ -36,80 +37,53 @@ class PolicyRecord:
     rating: trueskill.Rating
     model: Any
 
-@partial(jax.jit, static_argnums=(0,))
-def env_reset(env: Environment, rng_key):
-    env_state, timestep = env.reset(rng_key)
-    return env_state, split_timestep(timestep)
 
+@partial(nnx.jit, static_argnums=(0, 3))
+def _round(env: Environment, policy1: TransformerActorCritic, policy2: TransformerActorCritic, max_steps: int, rngs: nnx.Rngs):
+    teams = env.teams
+    team_size = env.num_agents // 2
 
-@partial(jax.jit, static_argnums=(0,), donate_argnums=(1,))
-def env_step(env: Environment, env_state, actions, rng_key):
-    env_state, timestep = env.step(env_state, actions, rng_key)
-    return env_state, split_timestep(timestep)
+    policy1_carry = policy1.initialize_carry(team_size, rngs)
+    policy2_carry = policy2.initialize_carry(team_size, rngs)
 
+    policy1_idx = jnp.where(teams == 0, fill_value=-1, size=team_size)
+    policy2_idx = jnp.where(teams == 1, fill_value=-1, size=team_size)
 
-def split_timestep(ts: TimeStep):
-    ts = jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 1 ..."), ts)
-    batch_size = ts.obs.shape[0]
-    return [TimeStep(**{key: value[i] if value is not None else None for key, value in ts._asdict().items()}) for i in range(batch_size)]
+    state, ts = env.reset(rngs.env())
 
+    def _step(_, x):
+        state, ts, policy1_carry, policy2_carry, policy1_reward, policy2_reward, rngs = x
 
-@partial(jax.jit, static_argnums=(0, 2))
-def _initialize_carry(graphdef, state, num_agents: int, rng_key):
-    model = nnx.merge(graphdef, state)
-    return model.initialize_carry(num_agents, rngs=nnx.Rngs(rng_key))
+        ts = add_seq_dim(ts)
 
+        policy1_ts = jax.tree.map(lambda item: item[policy1_idx], ts)
+        policy2_ts = jax.tree.map(lambda item: item[policy2_idx], ts)
 
-@partial(jax.jit, static_argnums=(0,), donate_argnums=(3,))
-def _sample(graphdef, state, timestep, carry, _key):
-    model = nnx.merge(graphdef, state)
-    _, policy, carry = model(timestep, carry)
-    action = policy.sample(seed=_key)
-    action = action.squeeze()
+        _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
+        _, a2, policy2_carry = policy2(policy2_ts, policy2_carry)
 
-    return action, carry
+        a1 = a1.sample(seed=rngs.action()).squeeze(-1)
+        a2 = a2.sample(seed=rngs.action()).squeeze(-1)
 
+        actions = jnp.zeros((env.num_agents,), jnp.int32)
+        actions = actions.at[policy1_idx].set(a1)
+        actions = actions.at[policy2_idx].set(a2)
 
-class JittedPolicy:
-    """
-    Pre split the policy to avoid the nnx overhead
-    """
-    def __init__(self, model) -> None:
-        self._graphdef, self._state = nnx.split(model)
+        state, ts = env.step(state, actions, rngs.env())
 
-    def sample_action(self, ts: TimeStep, carry, rng_key: jax.Array):
-        return _sample(self._graphdef, self._state, ts, carry, rng_key)
-    
-    def initialize_carry(self, num_agents: int, rng_key):
-        return _initialize_carry(self._graphdef, self._state, num_agents, rng_key)
+        policy1_reward = policy1_reward + policy1_ts.last_reward.sum()
+        policy2_reward = policy2_reward + policy2_ts.last_reward.sum()
 
+        return state, ts, policy1_carry, policy2_carry, policy1_reward, policy2_reward, rngs
 
-def _round(env: Environment, policies: list, max_steps: int, rngs: nnx.Rngs):
-    teams = np.asarray(env.teams)
-    unique_teams = np.unique(teams)
+    _, _, _, _, policy1_reward, policy2_reward, rngs = nnx.fori_loop(
+        0,
+        max_steps,
+        _step,
+        (state, ts, policy1_carry, policy2_carry, jnp.float32(0.0), jnp.float32(0.0), rngs)
+    )
 
-    team_rewards = np.zeros_like(unique_teams, dtype=np.float64)
-
-    carries = [policy.initialize_carry(1, rngs.carry()) for policy in policies]
-    env_state, timestep = env_reset(env, rngs.env())
-
-    np_actions = np.zeros((len(policies,)), np.int32)
-    
-    for _ in range(max_steps):
-        for i, policy in enumerate(policies):
-            action, carry = policy.sample_action(timestep[i], carries[i], rngs.action())
-            carries[i] = carry
-            np_actions[i] = action
-        
-        actions = jnp.asarray(np_actions)
-        
-        env_state, timestep = env_step(env, env_state, actions, rngs.env())
-
-        for i, ts in enumerate(timestep):
-            team_idx = teams[i]
-            team_rewards[team_idx] += ts.last_reward.item()
-    
-    return team_rewards
+    return policy1_reward, policy2_reward, rngs
 
 
 def load_policy(experiment: Experiment, env, max_steps: int, task_count: int, rngs: nnx.Rngs) -> list[PolicyRecord]:
@@ -127,7 +101,7 @@ def load_policy(experiment: Experiment, env, max_steps: int, task_count: int, rn
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
             model = checkpointer.restore(model_template, step)
-            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), JittedPolicy(model))
+            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model)
             policies.append(policy)
 
     return policies
@@ -148,8 +122,8 @@ def evaluate(
     experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
-    env, task_count = create_env(experiment.config.environment, max_steps, env_name=env_name)
-    rngs = nnx.Rngs(default=seed)
+    env, task_count = create_env(experiment.config.environment, max_steps, vec_count=16, env_name=env_name)
+    rngs = nnx.Rngs(default=42)
 
     league: list[PolicyRecord] = [] 
 
@@ -159,20 +133,16 @@ def evaluate(
         policies = load_policy(experiment, env, max_steps, task_count, rngs)
         league.extend(policies)
 
-    team_size = env.num_agents // 2
 
     plot = LiveRankingsPlot()
 
     for i in progress.track(range(rounds), description="Ranking rounds", console=console):
         agents = random.choices(league, k=2)
-        lineup = [agents[0]] * team_size + [agents[1]] * team_size
-        policies = [p.model for p in lineup]
+        policies = [p.model for p in agents]
 
         console.print(f"Round: {i}")
-        out = _round(env, policies, max_steps, rngs)
-        ranking = np.argsort(out)
-        winner = agents[ranking[1]]
-        loser = agents[ranking[0]]
+        policy1_reward, policy2_reward, rngs = _round(env, policies[0], policies[1], max_steps, rngs)
+        winner, loser = agents if policy1_reward > policy2_reward else (agents[1], agents[0])
 
         winner_rating, loser_rating = trueskill.rate_1vs1(winner.rating, loser.rating)
         winner.rating = winner_rating
