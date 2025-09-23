@@ -122,7 +122,7 @@ def evaluate(
     experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
-    env, task_count = create_env(experiment.config.environment, max_steps, vec_count=16, env_name=env_name)
+    env, task_count = create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
     rngs = nnx.Rngs(default=42)
 
     league: list[PolicyRecord] = [] 

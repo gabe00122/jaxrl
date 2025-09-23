@@ -26,6 +26,7 @@ class TrainingLogs(NamedTuple):
     actor_loss: jax.Array
     entropy_loss: jax.Array
     total_loss: jax.Array
+    entropy_coef: jax.Array
 
 
 def create_training_logs() -> TrainingLogs:
@@ -34,11 +35,27 @@ def create_training_logs() -> TrainingLogs:
         actor_loss=jnp.array(0.0),
         entropy_loss=jnp.array(0.0),
         total_loss=jnp.array(0.0),
+        entropy_coef=jnp.array(0.0),
     )
 
 
 def add_seq_dim(ts: TimeStep):
     return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
+
+
+def compute_entropy_coef(hypers: PPOConfig, step: jax.Array, total_steps: int) -> jax.Array:
+    """Linearly anneal entropy coefficient to the configured end value."""
+    if hypers.entropy_coef_end is None:
+        return jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
+
+    start = jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
+    end = jnp.asarray(hypers.entropy_coef_end, dtype=jnp.float32)
+
+    # Guard against divide-by-zero when only a single step is requested.
+    denom = jnp.maximum(jnp.asarray(total_steps - 1, dtype=jnp.float32), 1.0)
+    progress = jnp.clip(step.astype(jnp.float32) / denom, a_min=0.0, a_max=1.0)
+
+    return start + (end - start) * progress
 
 
 def evaluate(
@@ -101,7 +118,12 @@ def evaluate(
     return rollout_state, env_logs, rngs
 
 
-def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOConfig):
+def ppo_loss(
+    model: TransformerActorCritic,
+    rollout: RolloutState,
+    hypers: PPOConfig,
+    entropy_coef: jax.Array | float | None = None,
+):
     batch_obs = rollout.obs
     batch_target = rollout.targets
     batch_log_prob = rollout.log_prob
@@ -158,8 +180,14 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
     # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
+    entropy_coef_value = (
+        jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
+        if entropy_coef is None
+        else jnp.asarray(entropy_coef, dtype=jnp.float32)
+    )
+
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
+        hypers.vf_coef * value_loss + actor_loss + entropy_coef_value * entropy_loss
     )
 
     logs = TrainingLogs(
@@ -167,6 +195,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
         actor_loss=actor_loss,
         entropy_loss=entropy_loss,
         total_loss=total_loss,
+        entropy_coef=entropy_coef_value,
     )
 
     return total_loss, logs
@@ -175,6 +204,7 @@ def ppo_loss(model: TransformerActorCritic, rollout: RolloutState, hypers: PPOCo
 def train(
     optimizer: nnx.Optimizer,
     rngs: nnx.Rngs,
+    step: jax.Array,
     rollout: Rollout,
     env: Environment,
     config: Config,
@@ -182,12 +212,12 @@ def train(
     hypers = config.learner.trainer
 
     @partial(nnx.grad, has_aux=True)
-    def _vec_grad(model, rollout_state):
-        return ppo_loss(model, rollout_state, hypers)
+    def _vec_grad(model, rollout_state, entropy_coef_value):
+        return ppo_loss(model, rollout_state, hypers, entropy_coef_value)
 
     def _minibatch_step(carry, rollout_state):
-        optimizer, logs = carry
-        grad, step_logs = _vec_grad(optimizer.model, rollout_state)
+        optimizer, logs, entropy_coef_value = carry
+        grad, step_logs = _vec_grad(optimizer.model, rollout_state, entropy_coef_value)
 
         # combine accross devices
         # step_logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), step_logs)
@@ -196,45 +226,52 @@ def train(
         optimizer.update(grad)
         logs = jax.tree.map(lambda x, y: x + y, logs, step_logs)
 
-        return (optimizer, logs)
+        return (optimizer, logs, entropy_coef_value)
 
     def _epoch_step(i, x):
-        optimizer, rollout_state, logs, rngs = x
+        optimizer, rollout_state, logs, rngs, entropy_coef_value = x
 
         minibatch_rng = rngs.shuffle()
         minibatch_rollout_state = rollout.create_minibatches(
             rollout_state, hypers.minibatch_count, minibatch_rng
         )
-        optimizer, logs = nnx.scan(
+        optimizer, logs, entropy_coef_value = nnx.scan(
             _minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry
-        )((optimizer, logs), minibatch_rollout_state)
+        )((optimizer, logs, entropy_coef_value), minibatch_rollout_state)
 
-        return optimizer, rollout_state, logs, rngs
+        return optimizer, rollout_state, logs, rngs, entropy_coef_value
 
     def _global_step(i, x):
-        optimizer, logs, env_logs, rngs = x
+        optimizer, logs, env_logs, rngs, step_value = x
+        entropy_coef_value = compute_entropy_coef(hypers, step_value, config.update_steps)
         rollout_state, env_log_update, rngs = evaluate(
             optimizer.model, rollout, rngs, env, hypers
         )
-        optimizer, rollout_state, logs, rngs = nnx.fori_loop(
+        optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
             hypers.epoch_count,
             _epoch_step,
-            init_val=(optimizer, rollout_state, logs, rngs),
+            init_val=(
+                optimizer,
+                rollout_state,
+                logs,
+                rngs,
+                entropy_coef_value,
+            ),
         )
 
         env_logs = jax.tree.map(lambda x, y: x + y, env_logs, env_log_update)
 
-        return optimizer, logs, env_logs, rngs
+        return optimizer, logs, env_logs, rngs, step_value + 1
 
     logs = create_training_logs()
     env_logs = env.create_placeholder_logs()
 
-    optimizer, logs, env_logs, rngs = nnx.fori_loop(
+    optimizer, logs, env_logs, rngs, step = nnx.fori_loop(
         0,
         config.updates_per_jit,
         _global_step,
-        init_val=(optimizer, logs, env_logs, rngs),
+        init_val=(optimizer, logs, env_logs, rngs, step),
     )
 
     logs = jax.tree.map(
@@ -244,7 +281,7 @@ def train(
     )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
-    return optimizer, rngs, {"algo": logs._asdict(), "env": env_logs}
+    return optimizer, rngs, step, {"algo": logs._asdict(), "env": env_logs}
 
 
 def replicate_model(optimizer, sharding):
@@ -306,7 +343,7 @@ def train_run(
     # device_rngs = jax.device_put(device_rngs, batch_sharding)
     rngs = nnx.Rngs(default=jax.random.PRNGKey(experiment.default_seed))
 
-    jitted_train = nnx.jit(train, static_argnums=(2, 3, 4))
+    jitted_train = nnx.jit(train, static_argnums=(3, 4, 5))
 
     env_steps_per_update = (
         batch_size
@@ -321,17 +358,18 @@ def train_run(
     console.print(f"Agent Count: {env.num_agents}")
 
     logs = None
+    step = jnp.asarray(0, dtype=jnp.int32)
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        optimizer, rngs, logs = jitted_train(
-            optimizer, rngs, rollout, env, experiment.config
+        optimizer, rngs, step, logs = jitted_train(
+            optimizer, rngs, step, rollout, env, experiment.config
         )
 
         if profile and i >= 4:
             with jax.profiler.trace("/tmp/jax-trace"):
-                optimizer, rngs, logs = jitted_train(
-                    optimizer, rngs, rollout, env, experiment.config
+                optimizer, rngs, step, logs = jitted_train(
+                    optimizer, rngs, step, rollout, env, experiment.config
                 )
                 block_all(nnx.state(optimizer))
 
@@ -355,7 +393,7 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        if i % (outer_updates // 10) == (outer_updates // 10) - 1:
+        if i % (outer_updates // 50) == (outer_updates // 50) - 1:
             checkpointer.save(optimizer.model, i * experiment.config.updates_per_jit)
             # optimizer.model.preturb(rngs)
 

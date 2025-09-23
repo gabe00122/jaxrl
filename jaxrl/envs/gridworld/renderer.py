@@ -57,7 +57,7 @@ tilemap = {
     GW.AGENT_GENERIC: (104, 0),
     GW.AGENT_HARVESTER: (104, 0),
     GW.AGENT_KNIGHT: [None, (153, 5), (153, 11)],
-    GW.AGENT_ARCHER: [None, (156, 5), (153, 11)],
+    GW.AGENT_ARCHER: [None, (156, 5), (156, 11)],
     GW.AGENT_SCOUT: (104, 0),
     GW.TILE_DECOR_1: (15, 5),
     GW.TILE_DECOR_2: (16, 5),
