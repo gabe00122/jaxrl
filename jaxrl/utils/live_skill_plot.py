@@ -1,93 +1,166 @@
-from typing import Optional, Dict, Tuple, List
+import argparse
+from pathlib import Path
+from typing import Dict, Iterable, List, Sequence, Union, NamedTuple
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+import seaborn as sns
+
+
+class LeagueEntry(NamedTuple):
+    """Coerced record describing a league rating sample."""
+
+    name: str
+    step: int
+    mu: float
+    sigma: float
+
 
 class LiveRankingsPlot:
     """
-    Live-updating line plot of rankings between runs, directly from `league`.
-    - One line per run token (`PolicyRecord.name`)
-    - X = checkpoint step, Y = mu or (mu - 3*sigma)
-    - Call `update(league)` whenever ratings change (e.g., each round or every N rounds)
+    Live-updating probability density plot of rankings between runs, directly from a list of
+    `LeagueEntry` records.
+    - One curve per run token (`LeagueEntry.name`), derived from its rating mean and variance
+    - X = training step; Y = rating mean with shaded credible interval from the reported sigma
+    - Call `update(entries)` whenever ratings change (e.g., each round or every N rounds)
+    - Use `update_from_csv(path)` to render a saved CSV snapshot of league entries
     """
     def __init__(
         self,
-        conservative: bool = True,
-        smooth: Optional[int] = None,   # e.g., 3 for moving avg per run
-        pause_sec: float = 0.1,
-        title: str = "Policy rankings (live)"
+        title: str = "Policy rankings"
     ):
-        self.conservative = conservative
-        self.smooth = smooth if (smooth is not None and smooth > 1) else None
-        self.pause_sec = pause_sec
         self.title = title
-
-        plt.ion()
         self.fig, self.ax = plt.subplots(figsize=(9, 6))
-        self.lines: Dict[str, any] = {}   # run_name -> Line2D
 
-    @staticmethod
-    def _score(mu: np.ndarray, sigma: np.ndarray, conservative: bool) -> np.ndarray:
-        return mu - 3.0 * sigma if conservative else mu
-
-    def _group_league(self, league) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-        """
-        Returns {run_name: (steps_sorted, mu_sorted, sigma_sorted)}.
-        """
-        rows: List[Tuple[str, int, float, float]] = [
-            (p.name, int(p.step), float(p.rating.mu), float(p.rating.sigma)) for p in league
-        ]
-        if not rows:
-            return {}
-
-        df = pd.DataFrame(rows, columns=["name", "step", "mu", "sigma"])
-        # If duplicates exist per (name, step), keep last (latest rating)
-        df = df.sort_values(["name", "step"]).groupby(["name", "step"], as_index=False).tail(1)
-
-        groups: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-        for run_name, g in df.groupby("name"):
-            g = g.sort_values("step")
-            steps = g["step"].to_numpy()
-            mu = g["mu"].to_numpy()
-            sigma = g["sigma"].to_numpy()
-            groups[run_name] = (steps, mu, sigma)
-        return groups
-
-    def _maybe_smooth(self, y: np.ndarray) -> np.ndarray:
-        if self.smooth is None or len(y) <= 1:
-            return y
-        k = int(self.smooth)
-        if k <= 1:
-            return y
-        # simple causal moving average
-        kernel = np.ones(k, dtype=float) / k
-        # pad to keep same length and avoid phase shift
-        y_pad = np.pad(y, (k-1, 0), mode="edge")
-        return np.convolve(y_pad, kernel, mode="valid")
-
-    def update(self, league) -> None:
-        groups = self._group_league(league)
-
+    def update(self, league: Iterable[LeagueEntry]) -> None:
         self.ax.clear()
-        any_data = False
 
-        for run_name, (steps, mu, sigma) in groups.items():
-            y = self._score(mu, sigma, self.conservative)
-            y = self._maybe_smooth(y)
+        plot_records: List[Dict[str, float]] = []
+        for name, step, mu, sigma in league:
+            plot_records.append(
+                {
+                    "step": step,
+                    "mu": mu,
+                    "sigma": sigma,
+                    "run": name,
+                }
+            )
 
-            line, = self.ax.plot(steps, y, marker="o", linewidth=1.5, label=str(run_name))
-            self.lines[run_name] = line
-            any_data = True
+        plot_df = pd.DataFrame(plot_records)
+        order = list(dict.fromkeys(plot_df["run"].tolist()))  # preserve insertion order
+        palette = sns.color_palette("husl", n_colors=len(order) or 1)
 
-        ylabel = "Conservative rating (mu - 3·sigma)" if self.conservative else "Rating (mu)"
+        sns.lineplot(
+            data=plot_df,
+            x="step",
+            y="mu",
+            hue="run",
+            hue_order=order,
+            linewidth=2.0,
+            ax=self.ax,
+            palette=palette,
+        )
+
+        z = 1.96  # approx 95% credible interval assuming normality
+        for color, run_name in zip(palette, order):
+            run_df = plot_df[plot_df["run"] == run_name]
+            steps = run_df["step"].to_numpy()
+            mu = run_df["mu"].to_numpy()
+            sigma = run_df["sigma"].to_numpy()
+            lower = mu - z * sigma
+            upper = mu + z * sigma
+            self.ax.fill_between(steps, lower, upper, color=color, alpha=0.2)
+
+        self.ax.legend(title="Run", loc="best", fontsize=9)
+
         self.ax.set_xlabel("Checkpoint step")
-        self.ax.set_ylabel(ylabel)
+        self.ax.set_ylabel("Rating (mu)")
         self.ax.set_title(self.title)
-        self.ax.grid(True, alpha=0.3)
-        if any_data:
-            self.ax.legend(loc="best", fontsize=9)
+        self.ax.grid(True, alpha=0.2)
         self.fig.tight_layout()
 
-        # redraw without blocking the loop
         self.fig.canvas.draw_idle()
-        plt.pause(self.pause_sec)
+
+    def update_from_csv(self, csv_path: Union[str, Path]) -> None:
+        """Convenience helper to load a CSV and render its entries."""
+
+        entries = load_league_csv(csv_path)
+        self.update(entries)
+
+
+REQUIRED_LEAGUE_COLUMNS = ("name", "step", "mu", "sigma")
+
+
+def save_league_csv(entries: Sequence[LeagueEntry], path: Union[str, Path]) -> Path:
+    """Persist a sequence of league entries to CSV and return the file path."""
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    entries = list(entries)
+
+    if entries:
+        data = [entry._asdict() for entry in entries]
+    else:
+        data = {column: [] for column in REQUIRED_LEAGUE_COLUMNS}
+
+    df = pd.DataFrame(data, columns=REQUIRED_LEAGUE_COLUMNS)
+    df.to_csv(path, index=False)
+    return path
+
+
+def load_league_csv(path: Union[str, Path]) -> List[LeagueEntry]:
+    """Load league entries from CSV into the common `LeagueEntry` format."""
+
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"League CSV not found: {path}")
+
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return []
+
+    missing = set(REQUIRED_LEAGUE_COLUMNS) - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in league CSV: {sorted(missing)}")
+
+    entries: List[LeagueEntry] = []
+    for row in df.itertuples(index=False):
+        entries.append(
+            LeagueEntry(
+                name=str(getattr(row, "name")),
+                step=int(getattr(row, "step")),
+                mu=float(getattr(row, "mu")),
+                sigma=float(getattr(row, "sigma")),
+            )
+        )
+
+    return entries
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """CLI entrypoint for plotting league ratings from a CSV file."""
+
+    parser = argparse.ArgumentParser(description="Render a probability density plot for league ratings.")
+    parser.add_argument(
+        "csv",
+        nargs="?",
+        default="rankings.csv",
+        help="Path to the ratings CSV (default: ratings.csv)",
+    )
+    parser.add_argument(
+        "--title",
+        default="Policy rankings",
+        help="Plot title to display.",
+    )
+    args = parser.parse_args(argv)
+
+    plot = LiveRankingsPlot(title=args.title)
+    plot.update_from_csv(args.csv)
+
+    plt.ioff()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()

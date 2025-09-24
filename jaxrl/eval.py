@@ -134,7 +134,7 @@ def evaluate(
         league.extend(policies)
 
 
-    plot = LiveRankingsPlot()
+    # plot = LiveRankingsPlot()
 
     for i in progress.track(range(rounds), description="Ranking rounds", console=console):
         agents = random.choices(league, k=2)
@@ -148,7 +148,7 @@ def evaluate(
         winner.rating = winner_rating
         loser.rating = loser_rating
 
-        plot.update(league)
+        # plot.update(league)
 
     with open("rankings.csv", "w", newline='') as f:
         rankings_writer = csv.writer(f)
@@ -159,7 +159,7 @@ def evaluate(
 
 @app.command()
 def main(
-    runs: list[str] = typer.Option(
+    run: list[str] = typer.Option(
         ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
     ),
     env: Optional[str] = typer.Option(
@@ -168,7 +168,7 @@ def main(
     seed: int = typer.Option(0, help="Random seed for RNGs."),
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
 ):
-    evaluate(runs, env_name=env, seed=seed, rounds=rounds)
+    evaluate(run, env_name=env, seed=seed, rounds=rounds)
 
 
 if __name__ == "__main__":
