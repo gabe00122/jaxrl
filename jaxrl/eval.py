@@ -23,7 +23,7 @@ from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
 from jaxrl.types import TimeStep
-from jaxrl.utils.live_skill_plot import LiveRankingsPlot
+from jaxrl.utils.live_skill_plot import LeagueEntry, LiveRankingsPlot
 
 
 console = Console()
@@ -36,10 +36,11 @@ class PolicyRecord:
     step: int
     rating: trueskill.Rating
     model: Any
+    task_id: int
 
 
-@partial(nnx.jit, static_argnums=(0, 3))
-def _round(env: Environment, policy1: TransformerActorCritic, policy2: TransformerActorCritic, max_steps: int, rngs: nnx.Rngs):
+@partial(nnx.jit, static_argnums=(0, 3, 4, 5))
+def _round(env: Environment, policy1: TransformerActorCritic, policy2: TransformerActorCritic, policy1_task_id: int, policy2_task_id: int, max_steps: int, rngs: nnx.Rngs):
     teams = env.teams
     team_size = env.num_agents // 2
 
@@ -56,8 +57,16 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
 
         ts = add_seq_dim(ts)
 
-        policy1_ts = jax.tree.map(lambda item: item[policy1_idx], ts)
-        policy2_ts = jax.tree.map(lambda item: item[policy2_idx], ts)
+        policy1_ts: TimeStep = jax.tree.map(lambda item: item[policy1_idx], ts)
+        policy2_ts: TimeStep = jax.tree.map(lambda item: item[policy2_idx], ts)
+
+        # override the task id's in case they are different for different models
+        policy1_ts = policy1_ts._replace(
+            task_ids = jnp.full_like(policy1_ts.task_ids, policy1_task_id)
+        )
+        policy2_ts = policy2_ts._replace(
+            task_ids = jnp.full_like(policy2_ts.task_ids, policy2_task_id)
+        )
 
         _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
         _, a2, policy2_carry = policy2(policy2_ts, policy2_carry)
@@ -86,7 +95,7 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
     return policy1_reward, policy2_reward, rngs
 
 
-def load_policy(experiment: Experiment, env, max_steps: int, task_count: int, rngs: nnx.Rngs) -> list[PolicyRecord]:
+def load_policy(experiment: Experiment, env, env_name, max_steps: int, task_count: int, rngs: nnx.Rngs) -> list[PolicyRecord]:
     model_template = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
@@ -96,12 +105,20 @@ def load_policy(experiment: Experiment, env, max_steps: int, task_count: int, rn
         rngs=rngs,
     )
 
+    task_id = 0
+
+    if experiment.config.environment.env_type == "multi":
+        for i, task in enumerate(experiment.config.environment.envs):
+            if task.name == env_name:
+                task_id = i
+                break
+
     policies = []
 
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
             model = checkpointer.restore(model_template, step)
-            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model)
+            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model, task_id)
             policies.append(policy)
 
     return policies
@@ -116,21 +133,19 @@ def evaluate(
     rounds: int,
 ):
     console = Console()
-    
-    # assume all the runs have the same environment config, task id's will differ if the environment used are different
-    # one work around is to keep the env you want to test the same among all runs and the first one defined in the config
+
     experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
     env, task_count = create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
-    rngs = nnx.Rngs(default=42)
+    rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = [] 
 
     for name in run_tokens:
         console.print(f"Loading: {name}")
         experiment = Experiment.load(name, base_dir="results")
-        policies = load_policy(experiment, env, max_steps, task_count, rngs)
+        policies = load_policy(experiment, env, env_name, max_steps, task_count, rngs)
         league.extend(policies)
 
 
@@ -138,20 +153,27 @@ def evaluate(
 
     for i in progress.track(range(rounds), description="Ranking rounds", console=console):
         agents = random.choices(league, k=2)
-        policies = [p.model for p in agents]
 
         console.print(f"Round: {i}")
-        policy1_reward, policy2_reward, rngs = _round(env, policies[0], policies[1], max_steps, rngs)
+        policy1_reward, policy2_reward, rngs = _round(env, agents[0].model, agents[1].model, agents[0].task_id, agents[1].task_id, max_steps, rngs)
         winner, loser = agents if policy1_reward > policy2_reward else (agents[1], agents[0])
 
         winner_rating, loser_rating = trueskill.rate_1vs1(winner.rating, loser.rating)
         winner.rating = winner_rating
         loser.rating = loser_rating
 
-        # plot.update(league)
+        # plot.update([
+        #     LeagueEntry(
+        #         name=a.name,
+        #         step=a.step,
+        #         mu=a.rating.mu,
+        #         sigma=a.rating.sigma,
+        #     ) for a in agents
+        # ])
 
     with open("rankings.csv", "w", newline='') as f:
         rankings_writer = csv.writer(f)
+        rankings_writer.writerow(["name", "step", "mu", "sigma"])
 
         for policy in league:
             rankings_writer.writerow([policy.name, policy.step, policy.rating.mu, policy.rating.sigma])

@@ -158,7 +158,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     plot = LiveRankingsPlot(title=args.title)
     plot.update_from_csv(args.csv)
 
-    plt.ioff()
     plt.show()
 
 
