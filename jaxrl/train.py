@@ -1,3 +1,4 @@
+import math
 from functools import partial
 import time
 from typing import NamedTuple
@@ -357,6 +358,13 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
     console.print(f"Agent Count: {env.num_agents}")
 
+    checkpoint_interval: int | None = None
+    if experiment.config.num_checkpoints > 0 and outer_updates > 0:
+        checkpoint_interval = max(
+            1,
+            math.ceil(outer_updates / experiment.config.num_checkpoints),
+        )
+
     logs = None
     step = jnp.asarray(0, dtype=jnp.int32)
     for i in track(range(outer_updates), description="Training", console=console):
@@ -393,8 +401,12 @@ def train_run(
             # if trial.should_prune():
             #     raise optuna.exceptions.TrialPruned()
 
-        if i % (outer_updates // 50) == (outer_updates // 50) - 1:
-            checkpointer.save(optimizer.model, i * experiment.config.updates_per_jit)
+        if (
+            checkpoint_interval is not None
+            and (i + 1) % checkpoint_interval == 0
+        ):
+            completed_updates = (i + 1) * experiment.config.updates_per_jit
+            checkpointer.save(optimizer.model, completed_updates)
             # optimizer.model.preturb(rngs)
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
