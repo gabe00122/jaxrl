@@ -152,6 +152,7 @@ class Config(BaseModel):
 
     updates_per_jit: int = 1
     update_steps: int
+    num_checkpoints: int = 50
 
     learner: LearnerConfig
     environment: EnvironmentConfig | MultiTaskConfig = Field(discriminator="env_type")
