@@ -131,4 +131,4 @@ https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
 Two teams of agents compete to capture random control points in the center.
 
-https://github.com/user-attachments/assets/f745d713-92f7-49b1-b000-05320ef887b2
+https://github.com/user-attachments/assets/741df541-9df0-4331-9193-d4a7da7dfc89
