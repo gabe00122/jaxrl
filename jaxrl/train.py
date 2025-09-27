@@ -84,6 +84,15 @@ def evaluate(
         fic_size = env.num_agents - rollout.batch_size
         fic_carry = fictitious_model.initialize_carry(fic_size, rngs)
 
+    def split_timestep(ts: TimeStep) -> tuple[TimeStep, TimeStep | None]:
+        if agent_idx is None:
+            return ts, None
+
+        ts = jax.tree.map(lambda xs: xs[agent_idx], ts)
+        fic_timestep = jax.tree.map(lambda xs: xs[:fic_size], ts)
+        timestep = jax.tree.map(lambda xs: xs[fic_size:], ts)
+        return timestep, fic_timestep
+
     def _step(i, x):
         rollout_state, rngs, env_state, env_timestep, carry, fic_carry = x
 
@@ -91,9 +100,7 @@ def evaluate(
         env_key = rngs.env()
 
         if agent_idx is not None:
-            env_timestep = jax.tree.map(lambda xs: xs[agent_idx], env_timestep)
-            fic_timestep = jax.tree.map(lambda xs: xs[:fic_size], env_timestep)
-            timestep = jax.tree.map(lambda xs: xs[fic_size:], env_timestep)
+            timestep, fic_timestep = split_timestep(env_timestep)
 
             _, fic_policy, fic_carry = fictitious_model(add_seq_dim(fic_timestep), fic_carry)
             fic_actions = fic_policy.sample(seed=rngs.action()).squeeze(axis=-1)
@@ -114,11 +121,13 @@ def evaluate(
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
+        rollout_next_timestep, _ = split_timestep(next_timestep)
+
         rollout_state = rollout.store(
             rollout_state,
             step=i,
             timestep=timestep,
-            next_timestep=next_timestep,
+            next_timestep=rollout_next_timestep,
             log_prob=log_prob,
             value=value,
         )
@@ -133,6 +142,7 @@ def evaluate(
     )
 
     # save the last value
+    timestep, _ = split_timestep(timestep)
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
     rollout_state = rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
