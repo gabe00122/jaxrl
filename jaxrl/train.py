@@ -1,5 +1,6 @@
 import math
 from functools import partial
+import random
 import time
 from typing import NamedTuple
 import jax
@@ -65,6 +66,7 @@ def evaluate(
     rngs: nnx.Rngs,
     env: Environment,
     hypers: PPOConfig,
+    fictitious_model: TransformerActorCritic | None = None
 ):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
@@ -72,11 +74,32 @@ def evaluate(
     rollout_state = rollout.create_state()
     carry = model.initialize_carry(rollout.batch_size, rngs)
 
+    agent_idx = None
+    fic_size = None
+    fic_carry = None
+    if fictitious_model is not None:
+        agent_idx = jax.random.permutation(rngs.env(), env.num_agents)
+        agent_inv_idx = jnp.zeros_like(agent_idx).at[agent_idx].set(jnp.arange(env.num_agents))
+
+        fic_size = env.num_agents - rollout.batch_size
+        fic_carry = fictitious_model.initialize_carry(fic_size, rngs)
+
     def _step(i, x):
-        rollout_state, rngs, env_state, timestep, carry = x
+        rollout_state, rngs, env_state, env_timestep, carry, fic_carry = x
 
         action_key = rngs.action()
         env_key = rngs.env()
+
+        if agent_idx is not None:
+            env_timestep = jax.tree.map(lambda xs: xs[agent_idx], env_timestep)
+            fic_timestep = jax.tree.map(lambda xs: xs[:fic_size], env_timestep)
+            timestep = jax.tree.map(lambda xs: xs[fic_size:], env_timestep)
+
+            _, fic_policy, fic_carry = fictitious_model(add_seq_dim(fic_timestep), fic_carry)
+            fic_actions = fic_policy.sample(seed=rngs.action()).squeeze(axis=-1)
+        else:
+            fic_actions = None
+            timestep = env_timestep
 
         value_rep, policy, carry = model(add_seq_dim(timestep), carry)
 
@@ -84,6 +107,10 @@ def evaluate(
         log_prob = policy.log_prob(action).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
         value = model.get_value(value_rep).squeeze(axis=-1)
+
+        if fic_actions is not None:
+            action = jnp.concatenate((fic_actions, action), axis=0)
+            action = action[agent_inv_idx]
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
@@ -96,13 +123,13 @@ def evaluate(
             value=value,
         )
 
-        return rollout_state, rngs, env_state, next_timestep, carry
+        return rollout_state, rngs, env_state, next_timestep, carry, fic_carry
 
-    rollout_state, rngs, env_state, _, _ = nnx.fori_loop(
+    rollout_state, rngs, env_state, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
-        init_val=(rollout_state, rngs, env_state, timestep, carry),
+        init_val=(rollout_state, rngs, env_state, timestep, carry, fic_carry),
     )
 
     # save the last value
@@ -131,8 +158,6 @@ def ppo_loss(
     batch_actions = rollout.actions
     batch_action_masks = rollout.action_mask
     batch_advantage = rollout.advantages
-    # batch_values = rollout.values[..., :-1])
-    # batch_rewards = rollout.rewards
     batch_terminated = rollout.terminated
 
     batch_last_actions = rollout.last_actions
@@ -160,14 +185,6 @@ def ppo_loss(
     log_probs = policy.log_prob(batch_actions)
 
     value_loss = model.get_value_loss(value_rep, batch_target)
-
-    # value_pred_clipped = batch_values + jnp.clip(
-    #     values - batch_values, -hypers.vf_clip, hypers.vf_clip
-    # )
-
-    # value_losses = jnp.square(values - batch_target)
-    # value_losses_clipped = jnp.square(value_pred_clipped - batch_target)
-    # value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
     ratio = jnp.exp(log_probs - batch_log_prob)
 
@@ -209,6 +226,7 @@ def train(
     rollout: Rollout,
     env: Environment,
     config: Config,
+    fictitious_model: TransformerActorCritic | None = None
 ):
     hypers = config.learner.trainer
 
@@ -219,10 +237,6 @@ def train(
     def _minibatch_step(carry, rollout_state):
         optimizer, logs, entropy_coef_value = carry
         grad, step_logs = _vec_grad(optimizer.model, rollout_state, entropy_coef_value)
-
-        # combine accross devices
-        # step_logs = jax.tree_util.tree_map(lambda x: jnp.mean(x), step_logs)
-        # grad = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), grads)
 
         optimizer.update(grad)
         logs = jax.tree.map(lambda x, y: x + y, logs, step_logs)
@@ -246,7 +260,7 @@ def train(
         optimizer, logs, env_logs, rngs, step_value = x
         entropy_coef_value = compute_entropy_coef(hypers, step_value, config.update_steps)
         rollout_state, env_log_update, rngs = evaluate(
-            optimizer.model, rollout, rngs, env, hypers
+            optimizer.model, rollout, rngs, env, hypers, fictitious_model
         )
         optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
@@ -299,9 +313,6 @@ def train_run(
     experiment: Experiment, trial: optuna.Trial | None = None, profile: bool = False
 ):
     console = Console()
-    # mesh = Mesh(devices=jax.devices(), axis_names=("batch",))
-    # replicate_sharding = NamedSharding(mesh, P())
-    # batch_sharding = NamedSharding(mesh, P("batch"))
 
     max_steps = experiment.config.max_env_steps
 
@@ -314,8 +325,9 @@ def train_run(
 
     batch_size = env.num_agents
 
+    # todo the rollout is smaller because half the agents are the fictitus copy, these are not used for training
     rngs = nnx.Rngs(default=experiment.default_seed)
-    rollout = Rollout(batch_size, max_steps, env.observation_spec, env.action_spec)
+    rollout = Rollout(batch_size // 2, max_steps, env.observation_spec, env.action_spec)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
@@ -337,11 +349,6 @@ def train_run(
         wrt=nnx.Param,
     )
 
-    # replicate_model(optimizer, replicate_sharding)
-
-    # rng = jax.random.PRNGKey(experiment.default_seed)
-    # device_rngs = jax.random.split(rng, len(jax.devices()))
-    # device_rngs = jax.device_put(device_rngs, batch_sharding)
     rngs = nnx.Rngs(default=jax.random.PRNGKey(experiment.default_seed))
 
     jitted_train = nnx.jit(train, static_argnums=(3, 4, 5))
@@ -358,6 +365,8 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
     console.print(f"Agent Count: {env.num_agents}")
 
+    snapshot_league = [model]
+
     checkpoint_interval: int | None = None
     if experiment.config.num_checkpoints > 0 and outer_updates > 0:
         checkpoint_interval = max(
@@ -370,8 +379,9 @@ def train_run(
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
+        fic = random.choice(snapshot_league)
         optimizer, rngs, step, logs = jitted_train(
-            optimizer, rngs, step, rollout, env, experiment.config
+            optimizer, rngs, step, rollout, env, experiment.config, fic
         )
 
         if profile and i >= 4:
@@ -398,8 +408,6 @@ def train_run(
 
         if trial:
             trial.report(logs.rewards.item(), i)
-            # if trial.should_prune():
-            #     raise optuna.exceptions.TrialPruned()
 
         if (
             checkpoint_interval is not None
@@ -407,13 +415,11 @@ def train_run(
         ):
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
-            # optimizer.model.preturb(rngs)
+            snapshot_league.append(optimizer.model)
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
 
     logger.close()
     checkpointer.close()
 
-    # if logs:
-    #     return logs.rewards.item()
     return -1.0
