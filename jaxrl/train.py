@@ -425,7 +425,7 @@ def train_run(
         ):
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
-            snapshot_league.append(optimizer.model)
+            snapshot_league.append(nnx.clone(optimizer.model))
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
 
