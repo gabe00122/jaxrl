@@ -1,12 +1,10 @@
-import csv
 from dataclasses import dataclass
 import random
 from typing import Any, Optional
-from einops import rearrange
 import jax
-import numpy as np
 from jax import numpy as jnp
 from flax import nnx
+import pandas as pd
 
 import trueskill
 
@@ -23,7 +21,7 @@ from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
 from jaxrl.types import TimeStep
-from jaxrl.utils.live_skill_plot import LeagueEntry, LiveRankingsPlot
+from jaxrl.utils.ranking_plot import save_ranking_plot
 
 
 console = Console()
@@ -123,14 +121,12 @@ def load_policy(experiment: Experiment, env, env_name, max_steps: int, task_coun
 
     return policies
 
-def format_skill(rating: trueskill.Rating):
-    return f"mu: {rating.mu}, sigma: {rating.sigma}"
-
 def evaluate(
     run_tokens: list[str],
     env_name: Optional[str],
     seed: int,
     rounds: int,
+    output_name: str
 ):
     console = Console()
 
@@ -148,13 +144,9 @@ def evaluate(
         policies = load_policy(experiment, env, env_name, max_steps, task_count, rngs)
         league.extend(policies)
 
-
-    # plot = LiveRankingsPlot()
-
-    for i in progress.track(range(rounds), description="Ranking rounds", console=console):
+    for _ in progress.track(range(rounds), description="Ranking rounds", console=console):
         agents = random.choices(league, k=2)
 
-        console.print(f"Round: {i}")
         policy1_reward, policy2_reward, rngs = _round(env, agents[0].model, agents[1].model, agents[0].task_id, agents[1].task_id, max_steps, rngs)
         winner, loser = agents if policy1_reward > policy2_reward else (agents[1], agents[0])
 
@@ -162,21 +154,12 @@ def evaluate(
         winner.rating = winner_rating
         loser.rating = loser_rating
 
-        # plot.update([
-        #     LeagueEntry(
-        #         name=a.name,
-        #         step=a.step,
-        #         mu=a.rating.mu,
-        #         sigma=a.rating.sigma,
-        #     ) for a in agents
-        # ])
+    df = pd.DataFrame([
+        (policy.name, policy.step, policy.rating.mu, policy.rating.sigma) for policy in league
+    ], columns=["run", "step", "mu", "sigma"])
 
-    with open("rankings.csv", "w", newline='') as f:
-        rankings_writer = csv.writer(f)
-        rankings_writer.writerow(["name", "step", "mu", "sigma"])
-
-        for policy in league:
-            rankings_writer.writerow([policy.name, policy.step, policy.rating.mu, policy.rating.sigma])
+    df.to_csv(output_name + '.csv')
+    save_ranking_plot(df, output_name + '.png')
 
 
 @app.command()
@@ -189,8 +172,9 @@ def main(
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs."),
     rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
+    out: str = typer.Option(help="The path and name of the results to save"),
 ):
-    evaluate(run, env_name=env, seed=seed, rounds=rounds)
+    evaluate(run, env_name=env, seed=seed, rounds=rounds, output_name=out)
 
 
 if __name__ == "__main__":

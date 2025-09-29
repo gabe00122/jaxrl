@@ -337,7 +337,7 @@ def train_run(
 
     # todo the rollout is smaller because half the agents are the fictitus copy, these are not used for training
     rngs = nnx.Rngs(default=experiment.default_seed)
-    rollout = Rollout(batch_size // 2, max_steps, env.observation_spec, env.action_spec)
+    rollout = Rollout(batch_size, max_steps, env.observation_spec, env.action_spec)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
@@ -375,7 +375,7 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
     console.print(f"Agent Count: {env.num_agents}")
 
-    snapshot_league = [model]
+    # snapshot_league = [model]
 
     checkpoint_interval: int | None = None
     if experiment.config.num_checkpoints > 0 and outer_updates > 0:
@@ -389,7 +389,7 @@ def train_run(
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        fic = random.choice(snapshot_league)
+        fic = None #random.choice(snapshot_league)
         optimizer, rngs, step, logs = jitted_train(
             optimizer, rngs, step, rollout, env, experiment.config, fic
         )
@@ -425,7 +425,7 @@ def train_run(
         ):
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
-            snapshot_league.append(nnx.clone(optimizer.model))
+            # snapshot_league.append(nnx.clone(optimizer.model))
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
 
