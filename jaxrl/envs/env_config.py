@@ -3,24 +3,21 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from jaxrl.envs.gridworld.king_hill import KingHillConfig, KingHillEnv
-from jaxrl.envs.sequence.n_back import NBackConfig
-from jaxrl.envs.gridworld.grid_return import ReturnDiggingConfig
-from jaxrl.envs.gridworld.explore import ExploreConfig
-from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanConfig
-from jaxrl.envs.gridworld.scouts import ScoutsConfig
-from jaxrl.envs.task_id_wrapper import TaskIdWrapper
-from jaxrl.envs.third_party.craftax_wrapper import CraftaxConfig
-from jaxrl.envs.client import EnvironmentClient
-from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
-from jaxrl.envs.environment import Environment
-from jaxrl.envs.gridworld.explore import ExploreEnv
-from jaxrl.envs.sequence.n_back import NBackMemory
-from jaxrl.envs.gridworld.grid_return import ReturnDiggingEnv
-from jaxrl.envs.gridworld.scouts import ScoutsEnv
+from jaxrl.envs.gridworld.grid_return import ReturnDiggingConfig, ReturnDiggingEnv
+from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanConfig, TravelingSalesmanEnv
+from jaxrl.envs.gridworld.scouts import ScoutsConfig, ScoutsEnv
 from jaxrl.envs.gridworld.renderer import GridworldClient
-from jaxrl.envs.gridworld.traveling_salesman import TravelingSalesmanEnv
+
+from jaxrl.envs.sequence.n_back import NBackConfig, NBackMemory
+
+from jaxrl.envs.third_party.craftax_wrapper import CraftaxConfig, CraftaxEnvironment
+
+from jaxrl.envs.client import EnvironmentClient
+from jaxrl.envs.environment import Environment
+from jaxrl.envs.task_id_wrapper import TaskIdWrapper
 from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.envs.vector import VectorWrapper
+
 
 
 class PrisonersConfig(BaseModel):
@@ -31,7 +28,6 @@ class PrisonersConfig(BaseModel):
 type EnvironmentConfig = (
     NBackConfig
     | ReturnDiggingConfig
-    | ExploreConfig
     | TravelingSalesmanConfig
     | ScoutsConfig
     | KingHillConfig
@@ -89,8 +85,6 @@ def create_env(
             env = ReturnDiggingEnv(env_config, length)
         case "scouts":
             env = ScoutsEnv(env_config, length)
-        case "explore":
-            env = ExploreEnv(env_config, length)
         case "traveling_salesman":
             env = TravelingSalesmanEnv(env_config, length)
         case "king_hill":

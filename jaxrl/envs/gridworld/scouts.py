@@ -5,11 +5,11 @@ import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 
-from jaxrl.envs.map_generator import generate_perlin_noise_2d
+from jaxrl.envs.map_generator import generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -19,12 +19,12 @@ class ScoutsConfig(BaseModel):
 
     num_scouts: int = 1
     num_harvesters: int = 1
-    num_treasures: int = 1
+    num_treasures: int = 12
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
     harvesters_move_every: int = 6
     scout_reward: float = 1.0
@@ -70,10 +70,20 @@ class ScoutsEnv(Environment[ScoutsState]):
         self.scout_reward = config.scout_reward
         self.harvester_reward = config.harvester_reward
 
+        self._action_mask = GW.make_action_mask(
+            [
+                GW.MOVE_UP,
+                GW.MOVE_RIGHT,
+                GW.MOVE_DOWN,
+                GW.MOVE_LEFT,
+            ],
+            self.num_agents,
+        )
+
     def _generate_map(self, rng_key):
         res = [4, 5, 8, 10]
 
-        noise_key, amplitude_key, rng_key = jax.random.split(rng_key, 3)
+        noise_key, amplitude_key, decor_key, rng_key = jax.random.split(rng_key, 4)
 
         amplitude = jax.random.dirichlet(amplitude_key, jnp.ones((5,)))
         noise = (
@@ -95,7 +105,8 @@ class ScoutsEnv(Environment[ScoutsState]):
                 * amplitude[i + 1]
             )
 
-        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_WALL), jnp.int8(GW.TILE_EMPTY))
+        decor = generate_decor_tiles(self.unpadded_width, self.unpadded_height, decor_key)
+        tiles = jnp.where(noise > 0.05, jnp.int8(GW.TILE_WALL), decor)
 
         # get the empty tiles for spawning
         x_spawns, y_spawns = jnp.where(
@@ -163,11 +174,7 @@ class ScoutsEnv(Environment[ScoutsState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -252,17 +259,6 @@ class ScoutsEnv(Environment[ScoutsState]):
             )
         )
 
-        # for each treasure that was found create a new one
-        # random_positions = state.spawn_pos[jax.random.randint(
-        #     rng_key, (self._num_scouts,), minval=0, maxval=state.spawn_count
-        # )]
-        # # there is a change two of these positions are the same and be lose a treasure
-        # map = map.at[random_positions[:, 0], random_positions[:, 1]].set(jnp.where(
-        #     new_scout_tile == TILE_TREASURE_OPEN,
-        #     TILE_TREASURE,
-        #     map[random_positions[:, 0], random_positions[:, 1]],
-        # ))
-
         rewards = jnp.concatenate((scout_rewards, harvester_rewards))
 
         state = state._replace(
@@ -276,25 +272,40 @@ class ScoutsEnv(Environment[ScoutsState]):
 
         return state, self.encode_observations(state, action, rewards)
 
+    def _render_tiles(self, state: ScoutsState):
+        # Tile channel stores terrain and agents
+        tiles = state.map
+        tiles = tiles.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(GW.AGENT_SCOUT)
+        tiles = tiles.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(
+            GW.AGENT_HARVESTER
+        )
+
+        # Remaining channels are unused for scouts, keep zeros
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
+
     def encode_observations(self, state: ScoutsState, actions, rewards) -> TimeStep:
         @partial(jax.vmap, in_axes=(None, 0))
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                positions - jnp.array([self.view_width // 2, self.view_height // 2]),
-                (self.view_width, self.view_height),
+                (
+                    positions[0] - self.view_width // 2,
+                    positions[1] - self.view_height // 2,
+                    0,
+                ),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
-        map = state.map.at[state.scout_pos[:, 0], state.scout_pos[:, 1]].set(
-            GW.AGENT_SCOUT
-        )
-        map = map.at[state.harvester_pos[:, 0], state.harvester_pos[:, 1]].set(
-            GW.AGENT_HARVESTER
-        )
-
+        tiles = self._render_tiles(state)
         agents_pos = jnp.concatenate((state.scout_pos, state.harvester_pos), axis=0)
-
-        view = _encode_view(map, agents_pos)
+        view = _encode_view(tiles, agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
 
@@ -303,7 +314,7 @@ class ScoutsEnv(Environment[ScoutsState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -313,15 +324,11 @@ class ScoutsEnv(Environment[ScoutsState]):
             (state.scout_pos, state.harvester_pos), axis=0
         )
 
+        tiles = self._render_tiles(state)
+
         return GridRenderState(
-            tilemap=state.map,
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.unpadded_width,
-            unpadded_height=self.unpadded_height,
+            tilemap=tiles,
             agent_positions=agent_positions,
-            view_width=self.view_width,
-            view_height=self.view_height,
         )
 
     def create_placeholder_logs(self):
@@ -329,3 +336,11 @@ class ScoutsEnv(Environment[ScoutsState]):
 
     def create_logs(self, state: ScoutsState):
         return {"rewards": state.rewards}
+
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.unpadded_width,
+            tile_height=self.unpadded_height,
+            view_width=self.view_width,
+            view_height=self.view_height,
+        )

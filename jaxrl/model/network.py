@@ -235,13 +235,14 @@ class TransformerActorCritic(nnx.Module):
             params_dtype=param_dtype,
             rngs=rngs,
         )
+
         self.task_embedder = Embedder(
             task_count,
             hidden_features,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
-        )
+        ) if task_count > 1 else None
 
         layers = []
         for _ in range(config.num_layers):
@@ -296,7 +297,7 @@ class TransformerActorCritic(nnx.Module):
         action_embedding = self.action_embedder.encode(ts.last_action)
 
         x = obs_embedding + reward_embedding + action_embedding
-        if ts.task_ids is not None:
+        if ts.task_ids is not None and self.task_embedder is not None:
             x = x + self.task_embedder.encode(ts.task_ids)
 
         if carry is not None:

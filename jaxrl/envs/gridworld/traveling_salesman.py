@@ -23,8 +23,8 @@ class TravelingSalesmanConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
 
 class TravelingSalesmanState(NamedTuple):

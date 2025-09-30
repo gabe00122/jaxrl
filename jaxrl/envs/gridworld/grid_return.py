@@ -26,8 +26,8 @@ class ReturnDiggingConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
     mapgen_threshold: float = 0.3
     digging_timeout: int = 5

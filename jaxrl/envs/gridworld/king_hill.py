@@ -21,8 +21,8 @@ class KingHillConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
     dig_timeout: int = 5
     reward_per_turn: float = 10.0 / 512
