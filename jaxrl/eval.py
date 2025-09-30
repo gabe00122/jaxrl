@@ -60,11 +60,11 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
 
         # override the task id's in case they are different for different models
         policy1_ts = policy1_ts._replace(
-            task_ids = jnp.full_like(policy1_ts.task_ids, policy1_task_id)
-        ) if policy1_ts.task_ids is not None else policy1_ts
+            task_ids = jnp.full((policy1_ts.obs.shape[0],), policy1_task_id)
+        )
         policy2_ts = policy2_ts._replace(
-            task_ids = jnp.full_like(policy2_ts.task_ids, policy2_task_id)
-        ) if policy2_ts.task_ids is not None else policy2_ts
+            task_ids = jnp.full((policy2_ts.obs.shape[0],), policy2_ts.task_ids, policy2_task_id)
+        )
 
         _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
         _, a2, policy2_carry = policy2(policy2_ts, policy2_carry)

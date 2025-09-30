@@ -6,6 +6,7 @@ import jaxrl.envs.gridworld.constance as GW
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.envs.env_config import create_env
 from jaxrl.envs.gridworld.renderer import GridworldClient
+from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
@@ -89,17 +90,21 @@ def play(
     video_path: str | None = None,
 ):
     max_steps = experiment.config.max_env_steps
+    focused_agent = 0
 
     env, task_count = create_env(
         experiment.config.environment, max_steps, env_name=env_name
     )
+    if isinstance(env, MultiTaskWrapper):
+        raise Exception("Must specificity and environment with the --env option")
+
     rngs = nnx.Rngs(default=seed)
 
     model = load_policy(experiment, env, max_steps, task_count, load, rngs)
 
-    client = GridworldClient(env, fps=6)
+    client = GridworldClient(env, fps=30 if human_control else 6)
     if human_control:
-        client.renderer.focus_agent(0)
+        client.focus_agent(focused_agent)
 
     @nnx.jit
     def sample_actions(timestep, kv_cache, rngs):
@@ -121,14 +126,14 @@ def play(
     kv_cache = model.initialize_carry(env.num_agents, rngs=rngs)
     env_state, timestep = env.reset(rngs.env())
     if pov:
-        client.render_pov(env_state, timestep, 0)
+        client.render_pov(env_state, timestep)
     else:
         client.render(env_state, timestep)
 
     cumulative_reward = 0.0
 
     time = 0
-    while time < 512 and running:
+    while time < max_steps and running:
         did_step = False
         for event in pygame.event.get():
             if client.handle_event(event):
@@ -139,21 +144,27 @@ def play(
                 break
 
             if human_control and event.type == pygame.KEYDOWN:
-                human_action = get_action_from_keydown(event)
-                if human_action is not None:
-                    # Step immediately on just-pressed key
-                    actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
-                    actions = actions.at[0].set(human_action)
-                    env_state, timestep = step(env_state, actions, rngs)
-                    if video_path is not None:
-                        client.record_frame()
-                    time += 1
-                    did_step = True
-                    reward = timestep.last_reward[0].item()
-                    cumulative_reward += reward
-                    print(f"reward: {reward}")
-                    # Process at most one action per loop to keep input discrete
-                    break
+                if event.key == pygame.K_n:
+                    focused_agent += 1
+                    if focused_agent >= env.num_agents:
+                        focused_agent = 0
+                    client.focus_agent(focused_agent)
+                else:
+                    human_action = get_action_from_keydown(event)
+                    if human_action is not None:
+                        # Step immediately on just-pressed key
+                        actions, kv_cache = sample_actions(timestep, kv_cache, rngs)
+                        actions = actions.at[focused_agent].set(human_action)
+                        env_state, timestep = step(env_state, actions, rngs)
+                        if video_path is not None:
+                            client.record_frame()
+                        time += 1
+                        did_step = True
+                        reward = timestep.last_reward[focused_agent].item()
+                        cumulative_reward += reward
+                        print(f"reward: {reward}")
+                        # Process at most one action per loop to keep input discrete
+                        break
 
         if not running:
             break
@@ -166,12 +177,12 @@ def play(
                 client.record_frame()
             time += 1
 
-            reward = timestep.last_reward[0].item()
+            reward = timestep.last_reward[focused_agent].item()
             cumulative_reward += reward
             print(f"reward: {reward}")
 
         if pov:
-            client.render_pov(env_state, timestep, 0)
+            client.render_pov(env_state, timestep)
         else:
             client.render(env_state, timestep)
     
