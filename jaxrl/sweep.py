@@ -46,7 +46,6 @@ def objective(trial: optuna.Trial):
                 dtype="bfloat16",
                 param_dtype="float32",
                 transformer_block=AttentionConfig(
-                    attention_impl="cudnn",
                     num_heads=4,
                     num_kv_heads=1,
                     head_dim=32,

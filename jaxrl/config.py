@@ -33,8 +33,6 @@ class AttentionConfig(BaseModel):
     head_dim: int
     sliding_window: int | None = None
 
-    attention_impl: str = "xla"
-
     rope_max_wavelength: float = 10_000
     use_qk_norm: bool = False
 

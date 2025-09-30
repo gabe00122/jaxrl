@@ -3,8 +3,28 @@ import jax
 import jax.numpy as jnp
 from jax.typing import DTypeLike
 from flax import nnx
+from jax.lib import xla_bridge
 
 from jaxrl.model import positional_embeddings
+
+
+def _default_attention_impl() -> str:
+    """Select the default attention implementation for the current platform."""
+    backend = xla_bridge.get_backend()
+    platform = getattr(backend, "platform", "")
+    if platform == "gpu":
+        version = getattr(backend, "platform_version", "")
+        if "cuda" in version.lower():
+            return "cudnn"
+
+        # Fallback detection using device kinds for NVIDIA GPUs.
+        try:
+            if any("nvidia" in device.device_kind.lower() for device in jax.local_devices()):
+                return "cudnn"
+        except Exception:  # pragma: no cover - best effort hardware detection
+            pass
+
+    return "xla"
 
 
 class KVCache(NamedTuple):
@@ -23,7 +43,7 @@ class AttentionBlock(nnx.Module):
         max_seq_length: int,
         rope_max_wavelength: float = 10_000,
         use_qk_norm: bool = False,
-        attention_impl: str | None = "cudnn",
+        attention_impl: str | None = None,
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
         kernel_init: nnx.Initializer = nnx.initializers.normal(),
@@ -36,7 +56,7 @@ class AttentionBlock(nnx.Module):
         self.use_qk_norm = use_qk_norm
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
-        self.attention_impl = attention_impl
+        self.attention_impl = attention_impl or _default_attention_impl()
         self.dtype = dtype
         self.param_dtype = param_dtype
 
