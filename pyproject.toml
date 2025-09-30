@@ -15,7 +15,6 @@ dependencies = [
     "matplotlib>=3.10.5",
     "optax>=0.2.4",
     "optuna>=4.3.0",
-    "optuna-dashboard>=0.18.0",
     "orbax>=0.1.9",
     "pydantic>=2.11.4",
     "pygame-ce>=2.5.4",

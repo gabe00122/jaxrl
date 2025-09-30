@@ -259,7 +259,7 @@ class TransformerActorCritic(nnx.Module):
                     rngs=rngs,
                 )
             )
-        self.layers = tuple(layers)
+        self.layers = nnx.List(layers)
         self.output_norm = norm(
             num_features=hidden_features,
             dtype=dtype,

@@ -74,7 +74,7 @@ class GridCnnObsEncoder(nnx.Module):
             )
             in_channel = channel
         
-        self.layers = tuple(layers)
+        self.layers = nnx.List(layers)
 
     def __call__(self, x) -> jax.Array:
         x = concat_one_hot(x, self._one_hot_sizes, self.dtype) # currently only supports the case with multiple components per tile
