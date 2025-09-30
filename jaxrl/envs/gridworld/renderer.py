@@ -85,8 +85,12 @@ class GridworldRenderer:
         self.frames: list[np.ndarray] = []
         self._tile_size: int | None = None
         self._tilecache = None
+        self._agent_tile_size: int | None = None
+        self._agent_tilecache = None
         self._view_offset_x = 0
         self._view_offset_y = 0
+        self._agent_view_offset_x = 0
+        self._agent_view_offset_y = 0
         self._focused_agent = None
 
         self._spritesheet = SpriteSheet("./assets/urizen_onebit_tileset__v2d0.png")
@@ -121,27 +125,45 @@ class GridworldRenderer:
             min(self.screen_width // self._tile_width, self.screen_height // self._tile_height),
         )
 
+        agent_tile_size = max(
+            1,
+            min(self.screen_width // self._view_width, self.screen_height // self._view_height),
+        )
+
         if self._tile_size != tile_size or self._tilecache is None:
             self._tile_size = tile_size
-            self._tilecache = {}
-            for name, coords in tilemap.items():
-                if isinstance(coords, list):
-                    cache = []
-                    for coord in coords:
-                        if coord is None:
-                            cache.append(coord)
-                        else:
-                            x, y = coord
-                            cache.append(self._spritesheet.image_at_tile(x, y, self._tile_size))
-                else:
-                    x, y = coords
-                    cache = self._spritesheet.image_at_tile(x, y, self._tile_size)
-                self._tilecache[name] = cache
+            self._tilecache = self._build_tilecache(self._tile_size)
+
+        if self._agent_tile_size != agent_tile_size or self._agent_tilecache is None:
+            self._agent_tile_size = agent_tile_size
+            self._agent_tilecache = self._build_tilecache(self._agent_tile_size)
 
         view_pixel_width = self._tile_size * self._tile_width
         view_pixel_height = self._tile_size * self._tile_height
         self._view_offset_x = (self.screen_width - view_pixel_width) // 2
         self._view_offset_y = (self.screen_height - view_pixel_height) // 2
+
+        agent_pixel_width = self._agent_tile_size * self._view_width
+        agent_pixel_height = self._agent_tile_size * self._view_height
+        self._agent_view_offset_x = (self.screen_width - agent_pixel_width) // 2
+        self._agent_view_offset_y = (self.screen_height - agent_pixel_height) // 2
+
+    def _build_tilecache(self, tile_size: int):
+        cache = {}
+        for name, coords in tilemap.items():
+            if isinstance(coords, list):
+                entries = []
+                for coord in coords:
+                    if coord is None:
+                        entries.append(coord)
+                    else:
+                        x, y = coord
+                        entries.append(self._spritesheet.image_at_tile(x, y, tile_size))
+            else:
+                x, y = coords
+                entries = self._spritesheet.image_at_tile(x, y, tile_size)
+            cache[name] = entries
+        return cache
 
     def _tile_to_screen(self, x: int, y: int):
         return x - self._pad_width, (self._tile_height - 1 - y) + self._pad_height
@@ -212,8 +234,46 @@ class GridworldRenderer:
         self.screen.blit(self.vision, (0, 0))
         pygame.display.flip()
 
-    def render_agent_view(self, rs: GridRenderState, agent_id: int = 0):
-        pass
+    def render_agent_view(self, rs: GridRenderState):
+        self._ensure_layout()
+
+        tiles = rs.tilemap.tolist()
+        agent_positions = rs.agent_positions.tolist()
+
+        if not agent_positions:
+            return
+
+        agent_x, agent_y = agent_positions[self._focused_agent or 0]
+
+        start_x = agent_x - self._pad_width
+        start_y = agent_y - self._pad_height
+
+        tilecache = self._agent_tilecache or {}
+        tile_size = self._agent_tile_size or 1
+
+        self.screen.fill((0, 0, 0))
+
+        for vx in range(self._view_width):
+            tx = start_x + vx
+            for vy in range(self._view_height):
+                ty = start_y + vy
+                tile_data = tiles[tx][ty]
+                tile_type_id = tile_data[0]
+
+                image = tilecache.get(tile_type_id)
+                if isinstance(image, list):
+                    image = image[tile_data[2]]
+
+                if image is None:
+                    continue
+
+                px = self._agent_view_offset_x + vx * tile_size
+                py = self._agent_view_offset_y + (self._view_height - 1 - vy) * tile_size
+                dest = pygame.Rect(px, py, tile_size, tile_size)
+                self.screen.blit(image, dest)
+
+        self.clock.tick(self.fps)
+        pygame.display.flip()
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         return False
@@ -247,10 +307,10 @@ class GridworldClient:
         rs: GridRenderState = self.env.get_render_state(state)
         self.renderer.render(rs)
 
-    def render_pov(self, state, timestep, agent_id: int = 0):
+    def render_pov(self, state, timestep):
         """Render only the focused agent's point-of-view, filling the screen."""
         rs: GridRenderState = self.env.get_render_state(state)
-        self.renderer.render_agent_view(rs, agent_id=agent_id)
+        self.renderer.render_agent_view(rs)
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         return self.renderer.handle_event(event)
@@ -260,3 +320,6 @@ class GridworldClient:
 
     def save_video(self, file_name: str):
         self.renderer.save_video(file_name)
+    
+    def focus_agent(self, agent_id: int | None):
+        self.renderer.focus_agent(agent_id)

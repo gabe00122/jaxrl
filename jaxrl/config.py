@@ -9,6 +9,9 @@ from jaxrl.envs.env_config import EnvironmentConfig, MultiTaskConfig
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
+    kernels: list[list[int]]
+    strides: list[list[int]]
+    channels: list[int]
 
 
 class FlattenedObsEncoderConfig(BaseModel):

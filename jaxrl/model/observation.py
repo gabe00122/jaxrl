@@ -55,44 +55,34 @@ class GridCnnObsEncoder(nnx.Module):
         self._one_hot_sizes = obs_spec.max_value
         self.num_classes = sum(self._one_hot_sizes) # todo this should support the int case again with no feature list
 
-        self.conv0 = nnx.Conv(
-            in_features=self.num_classes,
-            out_features=16,
-            kernel_size=(3, 3),
-            strides=(2, 2),
-            padding="VALID",
-            dtype=dtype,
-            param_dtype=params_dtype,
-            rngs=rngs,
-        )
-        self.conv1 = nnx.Conv(
-            in_features=16,
-            out_features=32,
-            kernel_size=(3, 3),
-            padding="VALID",
-            dtype=dtype,
-            param_dtype=params_dtype,
-            rngs=rngs,
-        )
-        self.conv2 = nnx.Conv(
-            in_features=32,
-            out_features=output_size,
-            kernel_size=(3, 3),
-            padding="VALID",
-            dtype=dtype,
-            param_dtype=params_dtype,
-            rngs=rngs,
-        )
+        channels = [*config.channels, output_size]
+
+        in_channel = self.num_classes
+        layers = []
+        for kernel_size, strides, channel in zip(config.kernels, config.strides, channels):
+            layers.append(
+                nnx.Conv(
+                    in_features=in_channel,
+                    out_features=channel,
+                    kernel_size=kernel_size,
+                    strides=strides,
+                    padding="VALID",
+                    dtype=dtype,
+                    param_dtype=params_dtype,
+                    rngs=rngs,
+                )
+            )
+            in_channel = channel
+        
+        self.layers = tuple(layers)
 
     def __call__(self, x) -> jax.Array:
         x = concat_one_hot(x, self._one_hot_sizes, self.dtype) # currently only supports the case with multiple components per tile
-        # x = jax.nn.one_hot(x, self.num_classes, dtype=self.params_dtype)
-
-        x = self.conv0(x)
-        x = jax.nn.gelu(x)
-        x = self.conv1(x)
-        x = jax.nn.gelu(x)
-        x = self.conv2(x)
+        
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+            if i < len(self.layers) - 1:
+                x = jax.nn.gelu(x)
 
         x = rearrange(x, "... w h c -> ... (w h c)")
 
