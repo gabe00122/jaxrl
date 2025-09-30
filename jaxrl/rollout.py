@@ -125,7 +125,7 @@ class Rollout:
         )
 
     def calculate_advantage(
-        self, state: RolloutState, discount: float, gae_lambda: float
+        self, state: RolloutState, discount: float, gae_lambda: float, norm_adv: bool
     ) -> RolloutState:
         def _body(acc, xs):
             rewards, discount, v_tp1 = xs

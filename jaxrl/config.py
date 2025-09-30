@@ -142,7 +142,6 @@ class LearnerConfig(BaseModel):
     model: TransformerActorCriticConfig
     trainer: PPOConfig
 
-
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -157,6 +156,8 @@ class Config(BaseModel):
     learner: LearnerConfig
     environment: EnvironmentConfig | MultiTaskConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
+
+    snapshot_league: bool = False
 
 
 def load_config(json_config: str) -> Config:

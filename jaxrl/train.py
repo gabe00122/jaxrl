@@ -66,7 +66,7 @@ def evaluate(
     rngs: nnx.Rngs,
     env: Environment,
     hypers: PPOConfig,
-    fictitious_model: TransformerActorCritic | None = None
+    league_model: TransformerActorCritic | None = None
 ):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
@@ -75,37 +75,37 @@ def evaluate(
     carry = model.initialize_carry(rollout.batch_size, rngs)
 
     agent_idx = None
-    fic_size = None
-    fic_carry = None
-    if fictitious_model is not None:
+    league_size = None
+    league_carry = None
+    if league_model is not None:
         agent_idx = jax.random.permutation(rngs.env(), env.num_agents)
         agent_inv_idx = jnp.zeros_like(agent_idx).at[agent_idx].set(jnp.arange(env.num_agents))
 
-        fic_size = env.num_agents - rollout.batch_size
-        fic_carry = fictitious_model.initialize_carry(fic_size, rngs)
+        league_size = env.num_agents - rollout.batch_size
+        league_carry = league_model.initialize_carry(league_size, rngs)
 
     def split_timestep(ts: TimeStep) -> tuple[TimeStep, TimeStep | None]:
         if agent_idx is None:
             return ts, None
 
         ts = jax.tree.map(lambda xs: xs[agent_idx], ts)
-        fic_timestep = jax.tree.map(lambda xs: xs[:fic_size], ts)
-        timestep = jax.tree.map(lambda xs: xs[fic_size:], ts)
-        return timestep, fic_timestep
+        league_timestep = jax.tree.map(lambda xs: xs[:league_size], ts)
+        timestep = jax.tree.map(lambda xs: xs[league_size:], ts)
+        return timestep, league_timestep
 
     def _step(i, x):
-        rollout_state, rngs, env_state, env_timestep, carry, fic_carry = x
+        rollout_state, rngs, env_state, env_timestep, carry, league_carry = x
 
         action_key = rngs.action()
         env_key = rngs.env()
 
         if agent_idx is not None:
-            timestep, fic_timestep = split_timestep(env_timestep)
+            timestep, league_timestep = split_timestep(env_timestep)
 
-            _, fic_policy, fic_carry = fictitious_model(add_seq_dim(fic_timestep), fic_carry)
-            fic_actions = fic_policy.sample(seed=rngs.action()).squeeze(axis=-1)
+            _, league_policy, league_carry = league_model(add_seq_dim(league_timestep), league_carry)
+            league_actions = league_policy.sample(seed=rngs.action()).squeeze(axis=-1)
         else:
-            fic_actions = None
+            league_actions = None
             timestep = env_timestep
 
         value_rep, policy, carry = model(add_seq_dim(timestep), carry)
@@ -115,8 +115,8 @@ def evaluate(
         action = action.squeeze(axis=-1)
         value = model.get_value(value_rep).squeeze(axis=-1)
 
-        if fic_actions is not None:
-            action = jnp.concatenate((fic_actions, action), axis=0)
+        if league_actions is not None:
+            action = jnp.concatenate((league_actions, action), axis=0)
             action = action[agent_inv_idx]
 
         env_state, next_timestep = env.step(env_state, action, env_key)
@@ -132,13 +132,13 @@ def evaluate(
             value=value,
         )
 
-        return rollout_state, rngs, env_state, next_timestep, carry, fic_carry
+        return rollout_state, rngs, env_state, next_timestep, carry, league_carry
 
     rollout_state, rngs, env_state, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
-        init_val=(rollout_state, rngs, env_state, timestep, carry, fic_carry),
+        init_val=(rollout_state, rngs, env_state, timestep, carry, league_carry),
     )
 
     # save the last value
@@ -148,7 +148,7 @@ def evaluate(
     rollout_state = rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
 
     rollout_state = rollout.calculate_advantage(
-        rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda
+        rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda, norm_adv=hypers.normalize_advantage
     )
 
     env_logs = env.create_logs(env_state)
@@ -173,11 +173,6 @@ def ppo_loss(
     batch_last_actions = rollout.last_actions
     batch_last_rewards = rollout.last_rewards
     batch_task_ids = rollout.task_ids
-
-    if hypers.normalize_advantage:
-        batch_advantage = (batch_advantage - batch_advantage.mean()) / (
-            batch_advantage.std() + 1e-8
-        )
 
     positions = jnp.arange(batch_obs.shape[1], dtype=jnp.int32)[None, :]
 
@@ -325,6 +320,7 @@ def train_run(
     console = Console()
 
     max_steps = experiment.config.max_env_steps
+    has_league = experiment.config.snapshot_league
 
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
@@ -335,9 +331,13 @@ def train_run(
 
     batch_size = env.num_agents
 
-    # todo the rollout is smaller because half the agents are the fictitus copy, these are not used for training
+    # todo the rollout is smaller because half the agents are the factious copy, these are not used for training
+    rollout_size = batch_size
+    if has_league:
+        rollout_size //= 2
+
     rngs = nnx.Rngs(default=experiment.default_seed)
-    rollout = Rollout(batch_size, max_steps, env.observation_spec, env.action_spec)
+    rollout = Rollout(rollout_size, max_steps, env.observation_spec, env.action_spec)
 
     model = TransformerActorCritic(
         experiment.config.learner.model,
@@ -375,7 +375,9 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
     console.print(f"Agent Count: {env.num_agents}")
 
-    # snapshot_league = [model]
+    snapshot_league = None
+    if has_league:
+        snapshot_league = [nnx.clone(model)]
 
     checkpoint_interval: int | None = None
     if experiment.config.num_checkpoints > 0 and outer_updates > 0:
@@ -389,9 +391,12 @@ def train_run(
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        fic = None #random.choice(snapshot_league)
+        league_model = None
+        if snapshot_league is not None:
+            league_model = random.choice(snapshot_league)
+
         optimizer, rngs, step, logs = jitted_train(
-            optimizer, rngs, step, rollout, env, experiment.config, fic
+            optimizer, rngs, step, rollout, env, experiment.config, league_model
         )
 
         if profile and i >= 4:
@@ -425,7 +430,9 @@ def train_run(
         ):
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
-            # snapshot_league.append(nnx.clone(optimizer.model))
+
+            if snapshot_league is not None:
+                snapshot_league.append(nnx.clone(optimizer.model))
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
 
