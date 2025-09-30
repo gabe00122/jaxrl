@@ -77,7 +77,6 @@ You can test out a environment without training a model using the `play` command
 uv run pmarl play ./config/return_baseline.json
 ```
 
-You can also record a video when testing by supplying `--video-path`.
 ---
 
 ## 🏋️‍♂️ Environments
