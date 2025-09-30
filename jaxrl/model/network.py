@@ -108,7 +108,6 @@ class TransformerBlock(nnx.Module):
                 config.history.num_kv_heads,
                 max_seq_length=max_seq_length,
                 rope_max_wavelength=config.history.rope_max_wavelength,
-                attention_impl=config.history.attention_impl,
                 use_qk_norm=config.history.use_qk_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,

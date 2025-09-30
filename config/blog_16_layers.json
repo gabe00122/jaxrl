@@ -30,7 +30,6 @@
           "num_kv_heads": 1,
           "head_dim": 32,
           "sliding_window": null,
-          "attention_impl": "cudnn",
           "rope_max_wavelength": 10000.0,
           "use_qk_norm": false
         },
