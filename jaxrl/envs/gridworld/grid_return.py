@@ -13,7 +13,7 @@ from jaxrl.envs.map_generator import (
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -26,8 +26,8 @@ class ReturnDiggingConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
     mapgen_threshold: float = 0.3
     digging_timeout: int = 5
@@ -70,6 +70,16 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         self.mapgen_threshold = config.mapgen_threshold
         self.digging_timeout = config.digging_timeout
         self.treasure_reward = config.treasure_reward
+
+        self._action_mask = GW.make_action_mask(
+            [
+                GW.MOVE_UP,
+                GW.MOVE_RIGHT,
+                GW.MOVE_DOWN,
+                GW.MOVE_LEFT,
+            ],
+            self.num_agents,
+        )
 
     def _generate_map(self, rng_key):
         walls_key, decor_key, rng_key = jax.random.split(rng_key, 3)
@@ -146,11 +156,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -239,7 +245,15 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
     def _render_tiles(self, state: ReturnDiggingState):
         tiles = state.map
         tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
-        return tiles
+
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
 
     def encode_observations(
         self, state: ReturnDiggingState, actions, rewards
@@ -248,8 +262,12 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                positions - jnp.array([self.view_width // 2, self.view_height // 2]),
-                (self.view_width, self.view_height),
+                (
+                    positions[0] - self.view_width // 2,
+                    positions[1] - self.view_height // 2,
+                    0,
+                ),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
         tiles = self._render_tiles(state)
@@ -262,7 +280,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -277,12 +295,13 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
 
         return GridRenderState(
             tilemap=tiles,
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.unpadded_width,
-            unpadded_height=self.unpadded_height,
             agent_positions=state.agents_pos,
+        )
+
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.unpadded_width,
+            tile_height=self.unpadded_height,
             view_width=self.view_width,
             view_height=self.view_height,
         )
-

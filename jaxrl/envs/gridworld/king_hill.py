@@ -8,7 +8,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import choose_positions_in_rect, generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -21,8 +21,8 @@ class KingHillConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
     dig_timeout: int = 5
     reward_per_turn: float = 10.0 / 512
@@ -70,9 +70,18 @@ class KingHillEnv(Environment[KingHillState]):
         self.padded_width = self.width + self.pad_width * 2
         self.padded_height = self.height + self.pad_height * 2
 
-        self._teams = self._repeat_for_team(jnp.int32(0), jnp.int32(1))
+        self._teams = self._repeat_for_team(jnp.int8(0), jnp.int8(1))
 
-        self._agent_type_health = jnp.array([2, 1], jnp.int32)
+        self._agent_type_health = jnp.array([2, 1], jnp.int8)
+        self._action_mask = GW.make_action_mask([
+            GW.MOVE_UP,
+            GW.MOVE_RIGHT,
+            GW.MOVE_DOWN,
+            GW.MOVE_LEFT,
+            GW.STAY,
+            GW.PRIMARY_ACTION,
+            GW.DIG_ACTION,
+        ], self.num_agents)
 
 
     def _pad_tiles(self, tiles, fill):
@@ -91,7 +100,7 @@ class KingHillEnv(Environment[KingHillState]):
         decor_key, wall_key = jax.random.split(rng_key)
         tiles = generate_decor_tiles(self.width, self.height, decor_key)
 
-        noise = generate_perlin_noise_2d((self.width, self.height), (10, 10), rng_key=wall_key) > 0.25
+        noise = generate_perlin_noise_2d((self.width, self.height), (8, 8), rng_key=wall_key) > 0.20
         noise = noise.at[:, 0].set(False) # clear the starting edges so agents are not stuck in the walls
         noise = noise.at[:, self.height-1].set(False)
 
@@ -119,22 +128,22 @@ class KingHillEnv(Environment[KingHillState]):
         blue_agent_pos = jnp.stack((xs, ys + self.height - 1), axis=-1)
         agent_pos = jnp.concatenate((red_agent_pos, blue_agent_pos), axis=0)
 
-        agent_types = jax.random.randint(agent_type_key, team_size, 0, 2, jnp.int32)
+        agent_types = jax.random.randint(agent_type_key, team_size, 0, 2, jnp.int8)
         agent_types = jnp.tile(agent_types, 2)
 
         state = KingHillState(
             agents_start_pos=agent_pos,
             agents_pos=agent_pos,
-            agents_direction=jnp.zeros((self.num_agents,), jnp.int32),
-            agents_timeouts=jnp.zeros((self.num_agents,), jnp.int32),
+            agents_direction=jnp.zeros((self.num_agents,), jnp.int8),
+            agents_timeouts=jnp.zeros((self.num_agents,), jnp.int8),
             agents_types=agent_types,
             agents_health=self._agent_type_health[agent_types], # archers 1, melee 2
             arrows_pos=jnp.zeros((self._num_agents, 2), jnp.int32),
-            arrows_direction=jnp.zeros((self._num_agents,), jnp.int32),
-            arrows_timeouts=jnp.zeros((self._num_agents,), jnp.int32),
+            arrows_direction=jnp.zeros((self._num_agents,), jnp.int8),
+            arrows_timeouts=jnp.zeros((self._num_agents,), jnp.int8),
             arrows_mask=jnp.zeros((self._num_agents,), jnp.bool_),
             control_point_pos=control_point_pos,
-            control_point_team=jnp.zeros((self._config.num_flags,), jnp.int32), # team index that controls the point
+            control_point_team=jnp.zeros((self._config.num_flags,), jnp.int8), # team index that controls the point
             tiles=tiles,
             time=jnp.int32(0),
             rewards=jnp.float32(0.0),
@@ -147,11 +156,7 @@ class KingHillEnv(Environment[KingHillState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -215,7 +220,7 @@ class KingHillEnv(Environment[KingHillState]):
         return flag_control
     
     def _calculate_directions(self, state: KingHillState, action: jax.Array) -> jax.Array:
-        return jnp.where(action < 4, action, state.agents_direction)
+        return jnp.astype(jnp.where(action < 4, action, state.agents_direction), jnp.int8)
     
     def _indices_to_mask(self, indices: jax.Array, size: int) -> jax.Array:
         one_hot = jax.nn.one_hot(indices, size, dtype=jnp.bool_)
@@ -340,21 +345,17 @@ class KingHillEnv(Environment[KingHillState]):
         return state, self.encode_observations(state, action, rewards)
     
     def _get_agent_type_tiles(self, state: KingHillState):
-        red_agent_types, blue_agent_types = jnp.split(state.agents_types, 2, axis=-1)
-        red_type_map = jnp.array([GW.AGENT_RED_KNIGHT_RIGHT, GW.AGENT_RED_ARCHER_RIGHT], jnp.int8)
-        blue_type_map = jnp.array([GW.AGENT_BLUE_KNIGHT_RIGHT, GW.AGENT_BLUE_ARCHER_RIGHT], jnp.int8)
-        red_agent_types = red_type_map[red_agent_types]
-        blue_agent_types = blue_type_map[blue_agent_types]
-        agent_types = jnp.concatenate((red_agent_types, blue_agent_types), axis=-1)
+        agent_types_map = jnp.array([GW.AGENT_KNIGHT, GW.AGENT_ARCHER], jnp.int8)
+        agent_types = agent_types_map[state.agents_types]
 
         return agent_types
 
     def _render_tiles(self, state: KingHillState):
         tiles = state.tiles
 
-        flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
+        # flag_tiles = jnp.array([GW.TILE_FLAG, GW.TILE_FLAG_RED_TEAM, GW.TILE_FLAG_BLUE_TEAM], jnp.int8)
         tiles = tiles.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(
-            flag_tiles[state.control_point_team]
+            GW.TILE_FLAG
         )
 
         agent_types = self._get_agent_type_tiles(state)
@@ -364,7 +365,22 @@ class KingHillEnv(Environment[KingHillState]):
             jnp.where(state.arrows_mask, jnp.int8(GW.TILE_ARROW), tiles[state.arrows_pos[:, 0], state.arrows_pos[:, 1]])
         )
 
-        return tiles
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
+        directions = directions.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_direction+1)
+        directions = directions.at[state.arrows_pos[:, 0], state.arrows_pos[:, 1]].set(state.arrows_direction+1) #todo this is the int32 to int8 scatter
+
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = teams.at[state.control_point_pos[:, 0], state.control_point_pos[:, 1]].set(state.control_point_team)
+        teams = teams.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(self.teams+1) # add one to account for none team
+        # todo: add flag team
+
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
+        health = health.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(state.agents_health)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
 
     def encode_observations(
         self, state: KingHillState, actions, rewards
@@ -373,8 +389,8 @@ class KingHillEnv(Environment[KingHillState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
-                (self.view_width, self.view_height),
+                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2, 0),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
         tiles = self._render_tiles(state)
@@ -387,7 +403,7 @@ class KingHillEnv(Environment[KingHillState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -402,16 +418,17 @@ class KingHillEnv(Environment[KingHillState]):
 
         return GridRenderState(
             tilemap=tiles,
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.width,
-            unpadded_height=self.height,
             agent_positions=state.agents_pos,
+        )
+    
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.width,
+            tile_height=self.height,
             view_width=self.view_width,
             view_height=self.view_height,
         )
 
-    @override
     @property
     def teams(self) -> jax.Array:
         return self._teams

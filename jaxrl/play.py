@@ -1,5 +1,3 @@
-from pdb import run
-from xmlrpc.client import boolean
 import pygame
 from jax import numpy as jnp
 from flax import nnx
@@ -40,12 +38,13 @@ def get_action_from_keydown(event: pygame.event.Event | None):
     return None
 
 
-def load_policy(experiment: Experiment, env, max_steps, load: bool, rngs: nnx.Rngs):
+def load_policy(experiment: Experiment, env, max_steps, task_count, load: bool, rngs: nnx.Rngs):
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
+        task_count=task_count,
         rngs=rngs,
     )
 
@@ -91,12 +90,12 @@ def play(
 ):
     max_steps = experiment.config.max_env_steps
 
-    env = create_env(
+    env, task_count = create_env(
         experiment.config.environment, max_steps, env_name=env_name
     )
     rngs = nnx.Rngs(default=seed)
 
-    model = load_policy(experiment, env, max_steps, load, rngs)
+    model = load_policy(experiment, env, max_steps, task_count, load, rngs)
 
     client = GridworldClient(env, fps=6)
     if human_control:

@@ -21,6 +21,7 @@ dependencies = [
     "pygame-ce>=2.5.4",
     "python-ffmpeg>=2.0.12",
     "rich>=14.0.0",
+    "seaborn>=0.13.2",
     "tensorboardx>=2.6.2.2",
     "tensorflow-probability>=0.25.0",
     "trueskill>=0.4.5",

@@ -28,6 +28,7 @@ class RolloutState(NamedTuple):
     # these are used as part of the observation
     last_actions: jax.Array
     last_rewards: jax.Array
+    task_ids: jax.Array
 
 
 class Rollout:
@@ -85,6 +86,9 @@ class Rollout:
             last_rewards=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
+            task_ids=jnp.zeros(
+                (self.batch_size, self.trajectory_length), dtype=jnp.int32
+            )
         )
 
     def store(
@@ -113,10 +117,15 @@ class Rollout:
             ),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
             last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
+            task_ids=(
+                state.task_ids.at[:, step].set(timestep.task_ids)
+                if timestep.task_ids is not None
+                else state.task_ids
+            ),
         )
 
     def calculate_advantage(
-        self, state: RolloutState, discount: float, gae_lambda: float
+        self, state: RolloutState, discount: float, gae_lambda: float, norm_adv: bool
     ) -> RolloutState:
         def _body(acc, xs):
             rewards, discount, v_tp1 = xs
@@ -138,6 +147,11 @@ class Rollout:
 
         targets = jnp.swapaxes(targets, 0, 1)
         advantages = jnp.swapaxes(advantage, 0, 1)
+
+        # rollout norm
+        advantages = (advantages - advantages.mean()) / (
+            advantages.std() + 1e-8
+        )
 
         return state._replace(
             advantages=advantages,

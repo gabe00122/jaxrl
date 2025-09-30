@@ -8,7 +8,7 @@ from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import generate_decor_tiles
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
 from jaxrl.types import TimeStep
-from jaxrl.envs.gridworld.renderer import GridRenderState
+from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
 
@@ -23,8 +23,8 @@ class TravelingSalesmanConfig(BaseModel):
 
     width: int = 40
     height: int = 40
-    view_width: int = 5
-    view_height: int = 5
+    view_width: int = 11
+    view_height: int = 11
 
 
 class TravelingSalesmanState(NamedTuple):
@@ -54,6 +54,17 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         self.view_height = config.view_height
         self.pad_width = self.view_width // 2
         self.pad_height = self.view_height // 2
+
+        self._action_mask = GW.make_action_mask(
+            [
+                GW.MOVE_UP,
+                GW.MOVE_RIGHT,
+                GW.MOVE_DOWN,
+                GW.MOVE_LEFT,
+                GW.STAY,
+            ],
+            self.num_agents,
+        )
 
 
     def _random_positions(self, rng_key: jax.Array, count: int, replace: bool = True, pad: bool = True) -> jax.Array:
@@ -127,11 +138,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
-        return ObservationSpec(
-            shape=(self.view_width, self.view_height),
-            max_value=GW.NUM_TYPES,
-            dtype=jnp.int8,
-        )
+        return GW.make_obs_spec(self.view_width, self.view_height)
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
@@ -207,6 +214,19 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
 
         return state, self.encode_observations(state, action, rewards)
 
+    def _render_tiles(self, state: TravelingSalesmanState):
+        tiles = state.map
+        tiles = tiles.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(GW.AGENT_GENERIC)
+
+        directions = jnp.zeros_like(tiles, dtype=jnp.int8)
+        teams = jnp.zeros_like(tiles, dtype=jnp.int8)
+        health = jnp.zeros_like(tiles, dtype=jnp.int8)
+
+        return jnp.concatenate(
+            (tiles[..., None], directions[..., None], teams[..., None], health[..., None]),
+            axis=-1,
+        )
+
     def encode_observations(
         self, state: TravelingSalesmanState, actions, rewards
     ) -> TimeStep:
@@ -214,14 +234,15 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         def _encode_view(tiles, positions):
             return jax.lax.dynamic_slice(
                 tiles,
-                (positions[0] - self.view_width // 2, positions[1] - self.view_height // 2),
-                (self.view_width, self.view_height),
+                (
+                    positions[0] - self.view_width // 2,
+                    positions[1] - self.view_height // 2,
+                    0,
+                ),
+                (self.view_width, self.view_height, self.observation_spec.shape[-1]),
             )
 
-        tiles = state.map.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
-        )
-
+        tiles = self._render_tiles(state)
         view = _encode_view(tiles, state.agents_pos)
 
         time = jnp.repeat(state.time[None], self.num_agents, axis=0)
@@ -231,7 +252,7 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
             time=time,
             last_action=actions,
             last_reward=rewards,
-            action_mask=None,
+            action_mask=self._action_mask,
             terminated=jnp.equal(time, self._length - 1),
         )
 
@@ -242,19 +263,15 @@ class TravelingSalesmanEnv(Environment[TravelingSalesmanState]):
         return {"rewards": state.rewards}
 
     def get_render_state(self, state: TravelingSalesmanState) -> GridRenderState:
-        tilemap = state.map
-
-        tilemap = tilemap.at[state.agents_pos[:, 0], state.agents_pos[:, 1]].set(
-            GW.AGENT_GENERIC
+        return GridRenderState(
+            tilemap=self._render_tiles(state),
+            agent_positions=state.agents_pos,
         )
 
-        return GridRenderState(
-            tilemap=tilemap,
-            pad_width=self.pad_width,
-            pad_height=self.pad_height,
-            unpadded_width=self.width,
-            unpadded_height=self.height,
-            agent_positions=state.agents_pos,
+    def get_render_settings(self) -> GridRenderSettings:
+        return GridRenderSettings(
+            tile_width=self.width,
+            tile_height=self.height,
             view_width=self.view_width,
             view_height=self.view_height,
         )

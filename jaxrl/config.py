@@ -128,6 +128,7 @@ class PPOConfig(BaseModel):
     vf_coef: float = 0.05
     obs_coef: float = 0.05
     entropy_coef: float = 0.005
+    entropy_coef_end: float | None = 0.0
     vf_clip: float = 0.2
     discount: float = 0.95
     gae_lambda: float = 0.95
@@ -141,7 +142,6 @@ class LearnerConfig(BaseModel):
     model: TransformerActorCriticConfig
     trainer: PPOConfig
 
-
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -151,10 +151,13 @@ class Config(BaseModel):
 
     updates_per_jit: int = 1
     update_steps: int
+    num_checkpoints: int = 50
 
     learner: LearnerConfig
     environment: EnvironmentConfig | MultiTaskConfig = Field(discriminator="env_type")
     logger: LoggerConfig = LoggerConfig()
+
+    snapshot_league: bool = False
 
 
 def load_config(json_config: str) -> Config:
