@@ -2,7 +2,7 @@
   "seed": "random",
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 3600,
+  "update_steps": 36000,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -73,25 +73,17 @@
       "vf_clip": 0.2827893540340816,
       "discount": 0.9660902557298033,
       "gae_lambda": 0.9123716252262187,
-      "normalize_advantage": false
+      "normalize_advantage": true
     }
   },
+  "num_envs": 512,
   "environment": {
-    "env_type": "multi",
-    "envs": [
-        {
-            "num": 1024,
-            "name": "koth",
-            "env": {
-                "env_type": "king_hill",
-                "num_agents": 8,
-                "width": 40,
-                "height": 40,
-                "view_width": 11,
-                "view_height": 11
-            }
-        }
-    ]
+    "env_type": "king_hill",
+    "num_agents": 8,
+    "width": 40,
+    "height": 40,
+    "view_width": 11,
+    "view_height": 11
   },
   "logger": {
     "use_console": true,
