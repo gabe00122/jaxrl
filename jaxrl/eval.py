@@ -63,7 +63,7 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
             task_ids = jnp.full((policy1_ts.obs.shape[0],), policy1_task_id)
         )
         policy2_ts = policy2_ts._replace(
-            task_ids = jnp.full((policy2_ts.obs.shape[0],), policy2_ts.task_ids, policy2_task_id)
+            task_ids = jnp.full((policy2_ts.obs.shape[0],), policy2_task_id)
         )
 
         _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
