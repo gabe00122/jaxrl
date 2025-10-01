@@ -63,9 +63,10 @@ def play_from_run(
     seed: int,
     env_name: str | None = None,
     video_path: str | None = None,
+    size: int = 960,
 ):
     experiment = Experiment.load(run_name, "results")
-    play(experiment, human_control, pov, seed, env_name, True, video_path)
+    play(experiment, human_control, pov, seed, env_name, True, video_path, size=size)
 
 
 def play_from_config(
@@ -75,9 +76,10 @@ def play_from_config(
     seed: int,
     env_name: str | None = None,
     video_path: str | None = None,
+    size: int = 960,
 ):
     experiment = Experiment.from_config_file(config_name, "", create_directories=False)
-    play(experiment, human_control, pov, seed, env_name, False, video_path)
+    play(experiment, human_control, pov, seed, env_name, False, video_path, size=size)
 
 
 def play(
@@ -88,6 +90,7 @@ def play(
     env_name: str | None = None,
     load: bool = True,
     video_path: str | None = None,
+    size: int = 960
 ):
     max_steps = experiment.config.max_env_steps
     focused_agent = 0
@@ -102,7 +105,7 @@ def play(
 
     model = load_policy(experiment, env, max_steps, task_count, load, rngs)
 
-    client = GridworldClient(env, fps=30 if human_control else 6)
+    client = GridworldClient(env, fps=30 if human_control else 6, screen_width=size, screen_height=size)
     if human_control:
         client.focus_agent(focused_agent)
 

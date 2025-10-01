@@ -22,8 +22,9 @@ def enjoy(
     video_path: str | None = typer.Option(
         None, help="Path to save video; if omitted, no video is recorded."
     ),
+    size: int = 960
 ):
-    play_from_run(name, human, pov, seed, env_name=env, video_path=video_path)
+    play_from_run(name, human, pov, seed, env_name=env, video_path=video_path, size=size)
 
 
 @app.command()
@@ -36,8 +37,9 @@ def play(
     video_path: str | None = typer.Option(
         None, help="Path to save video; if omitted, no video is recorded."
     ),
+    size: int = 960,
 ):
-    play_from_config(config, human, pov, seed, env_name=env, video_path=video_path)
+    play_from_config(config, human, pov, seed, env_name=env, video_path=video_path, size=size)
 
 
 @app.command("train")

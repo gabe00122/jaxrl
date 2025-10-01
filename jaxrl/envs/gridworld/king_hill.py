@@ -25,9 +25,10 @@ class KingHillConfig(BaseModel):
     view_height: int = 11
 
     dig_timeout: int = 5
+    melee_timeout: int = 3
     reward_per_turn: float = 10.0 / 512
 
-    arrow_timeout: int = 5
+    arrow_timeout: int = 6
 
 
 class KingHillState(NamedTuple):
@@ -229,6 +230,19 @@ class KingHillEnv(Environment[KingHillState]):
 
     
     def _calculate_attacks(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array):
+        # temp
+        # todo create constants for the agent types, melee = 0, ranged = 1
+        ranged_attack_mask = jnp.logical_and(action == GW.PRIMARY_ACTION, state.agents_types == 1)
+
+        arrow_attack = jnp.logical_and(state.arrows_timeouts == 0, ranged_attack_mask)
+        state = state._replace(
+            arrows_mask=jnp.logical_or(state.arrows_mask, arrow_attack),
+            arrows_pos=jnp.where(arrow_attack[:, None], agent_targets, state.arrows_pos),
+            arrows_direction=jnp.where(arrow_attack, state.agents_direction, state.arrows_direction),
+            arrows_timeouts=jnp.where(arrow_attack, self._config.arrow_timeout, state.arrows_timeouts)
+        )
+        # temp
+
         damage_map = jnp.zeros_like(state.tiles)
 
         melee_target_pos = state.agents_pos + GW.DIRECTIONS[state.agents_direction]
@@ -253,21 +267,8 @@ class KingHillEnv(Environment[KingHillState]):
         state = state._replace(
             agents_pos=jnp.where(killed_mask[:, None], state.agents_start_pos, state.agents_pos),
             agents_health=agents_health,
-            agents_timeouts=jnp.where(melee_attack_mask, 1, state.agents_timeouts)
+            agents_timeouts=jnp.where(melee_attack_mask, self._config.melee_timeout, state.agents_timeouts)
         )
-
-        # temp
-        # todo create constants for the agent types, melee = 0, ranged = 1
-        ranged_attack_mask = jnp.logical_and(action == GW.PRIMARY_ACTION, state.agents_types == 1)
-
-        arrow_attack = jnp.logical_and(state.arrows_timeouts == 0, ranged_attack_mask)
-        state = state._replace(
-            arrows_mask=jnp.logical_or(state.arrows_mask, arrow_attack),
-            arrows_pos=jnp.where(arrow_attack[:, None], state.agents_pos, state.arrows_pos),
-            arrows_direction=jnp.where(arrow_attack, state.agents_direction, state.arrows_direction),
-            arrows_timeouts=jnp.where(arrow_attack, self._config.arrow_timeout, state.arrows_timeouts)
-        )
-        # temp
 
         return state
     
@@ -318,10 +319,10 @@ class KingHillEnv(Environment[KingHillState]):
 
         agent_targets = state.agents_pos + GW.DIRECTIONS[state.agents_direction]
 
+        state = self._calculate_arrows(state)
+
         state = self._calculate_digs(state, action, agent_targets)
         state = self._calculate_attacks(state, action, agent_targets)
-
-        state = self._calculate_arrows(state)
 
         new_position = self._calculate_movement(state, action, rng_key)
         new_directions = self._calculate_directions(state, action)
