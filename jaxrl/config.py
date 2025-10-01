@@ -1,17 +1,20 @@
 import json
 import random
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Literal, Tuple
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from jaxrl.envs.env_config import EnvironmentConfig, MultiTaskConfig
-
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
-    kernels: list[list[int]]
-    strides: list[list[int]]
-    channels: list[int]
+    kernels: Tuple[Tuple[int, int], ...]
+    strides: Tuple[Tuple[int, int], ...]
+    channels: Tuple[int, ...]
+
+    @field_validator("kernels", "strides", "channels", mode="before")
+    def coerce_to_tuple(cls, v: Any):
+        return tuple(tuple(x) if isinstance(x, (list, tuple)) else x for x in v)
 
 
 class FlattenedObsEncoderConfig(BaseModel):
