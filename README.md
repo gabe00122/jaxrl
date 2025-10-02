@@ -1,22 +1,21 @@
 # Partially Observable Multi-Agent RL with Transformers
 
-This project provides a JAX-based framework for training Transformer-based agents in custom, partially observable multi-agent reinforcement learning (MARL) environments. The entire training pipeline, from environment stepping to parameter updates, is JIT-compiled for maximum performance.
+This project provides a JAX-based framework for training Transformer-based agents in custom, partially observable multi-agent reinforcement learning (MARL) environments. The custom grid environments are designed to test memory, planning, multi-task learning and cooperation.
 
-🚧 This project is under active development and some things might not be stable 🚧
+### ✨ Key features
 
-### ✨ Key Features
-
-* **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability.
-* **High Performance**: Small models train a **10 million+** steps per second and the medium sized transformer trains at **2 million** steps per second on a single 5090.
+* **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability. Uses updated transformer architecture such as rope and pre-layer norm. 
+* **High Performance**: Single layer transformers train a **10 million+** steps per second and the medium sized transformer trains at **2 million** steps per second on a single 5090. Cudnn, grouped query attention and bfloat16 training significantly boost performance.
 * **Custom Environments**: Includes several challenging MARL environments designed to test memory and coordination.
 * **PPO Implementation**: A clean and efficient Proximal Policy Optimization (PPO) implementation.
-* **Multi-task training**: One model can be trained on multiple environments simultaneously.
-
-* **Distributed Training**: Training can be distributed to several TPUs or GPUs (temporarily regressed)
+* **Multi-task training**: One model can be trained on multiple environments simultaneously with unique task id embeddings.  
+* **Snapshot League self play**: Policy snapshots can be rotated into the opponent poll during training.  
+* **Trueskill Evaluations**: Policies for zero sum games can be compared using a trueskill based evaluation system and a model checkpoint pool.  
+* **Discretized Value Functions**: Option to either minimize MSE or Hl-Gauss discretized values.  
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting started
 
 ### Prerequisites
 
@@ -35,7 +34,7 @@ uv sync --extra cuda
 
 
 ## 💻 Usage
-### Train an Agent
+### Train an agent
 To start a training run, use the train command and provide a configuration file.
 
 
@@ -45,37 +44,32 @@ uv run pmarl train --config ./config/return_baseline.json
 A unique run name will be generated for you (e.g., silly-camel-34). You will need this name to view the results.
 
 
-### Watch a Trained Agent
+### Watch a trained agent
 To render an environment with a trained agent, use the enjoy command with the run_name from your training session.
 
-
-```bash
-uv run pmarl enjoy "silly-camel-34"
 ```
-
-To save a recording, provide a path with `--video-path`:
-
-```bash
-uv run pmarl enjoy "silly-camel-34" --video-path my_run.mp4
-```
-
-To play as one of the agents:
-```bash
-uv run pmarl enjoy "silly-camel-34" --human --pov
-```
-* `--human` means you control one of the agents with keyboard controls and `--pov` renders the environment from the agents point of view
-
-If the agent was trained on multiple environments you can select the right one using the `--env` option. These correspond to the config.json
-```bash
-uv run pmarl enjoy "silly-camel-34" --env return40
+uv run pmarl enjoy young-shark-cff1bi --seed 5 --video-path ./videos/out.mp4
 ```
 
 ### Test out an environment
 You can test out a environment without training a model using the `play` command.
 
 ```
-uv run pmarl play ./config/return_baseline.json
+uv run pmarl play ./config/return_baseline.json --pov -- human
 ```
+
+The `pov` option renders from one agents point of pov
+The `human` option gives you keyboard controls for one of the agents
+
+Typical control scheme
+Keyboard:
+w: up
+d: right
+s: down
+a: left
+e: dig a wall
+space: attack
+n: cycle to the next agent
 
 ---
 
@@ -120,14 +114,37 @@ Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches 
 
 https://github.com/user-attachments/assets/01a20e6c-6a61-47ce-947b-8f0b22e27889
 
-### Traveling Salesman
+### Traveling salesman
 
 The several way points are randomly scattered and the agents and the agents get a reward for the first time they get each flag. When all flags are taken they all reset.
 
 https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
-### King of the Hill
+### King of the hill
 
 Two teams of agents compete to capture random control points in the center.
 
 https://github.com/user-attachments/assets/741df541-9df0-4331-9193-d4a7da7dfc89
+
+A multi-agent gridworld where two teams of Knights and Archers battle to capture and hold flags.
+
+Randomly generated maps with destructible walls and central control points
+
+Knights: melee fighters with higher HP
+
+Archers: ranged fighters with arrows and cooldowns
+
+Teams score points every turn for each flag they control
+
+Agents can move, attack, dig through walls, or fire arrows
+
+Rewards are fully team-shared, encouraging coordination
+
+---
+
+## 🙏 Acknowledgements
+
+This project was made possible thanks to:
+
+* **Google Research Cloud TPU Program** — for providing access to TPUs that enabled training and experimentation.  
+* **[Urizen Onebit Tileset](https://vurmux.itch.io/urizen-onebit-tileset)** by Vurmux — for the excellent pixel art tileset used in the gridworld environments.  
