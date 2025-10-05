@@ -74,21 +74,6 @@ n: cycle to the next agent
 ---
 
 ## 🏋️‍♂️ Environments
-### Variable n-back
-A single-agent memory task. The agent must determine if the current observation matches the observation from `n` steps ago. `n` is randomized and not part of the observation so must be deduced from the rewards via trial and error.
-
-* Observation: A discrete integer value.
-
-* Actions: [`match`, `no-match`]
-
-* Reward: `+1` for a correct action, `0` for an incorrect action.
-
-* Example (n=2):
-
-  * Observations: `[A, B, A, C, B, B, D, E]`
-
-  * Correct Actions: `[_, _, match, no-match, no-match, match, no-match, no-match]`
-
 ### Grid Return
 A multi-agent 2D grid world task requiring spatial memory.
 
