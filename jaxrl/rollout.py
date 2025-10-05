@@ -149,9 +149,10 @@ class Rollout:
         advantages = jnp.swapaxes(advantage, 0, 1)
 
         # rollout norm
-        advantages = (advantages - advantages.mean()) / (
-            advantages.std() + 1e-8
-        )
+        if norm_adv:
+            advantages = (advantages - advantages.mean()) / (
+                advantages.std() + 1e-8
+            )
 
         return state._replace(
             advantages=advantages,

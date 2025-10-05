@@ -1,24 +1,24 @@
 {
-  "seed": "random",
-  "num_envs": 512,
-  "max_env_steps": 1024, 
+  "seed": 75264,
+  "num_envs": 128,
+  "max_env_steps": 1024,
   "updates_per_jit": 1,
-  "update_steps": 3814,
+  "update_steps": 15000,
   "learner": {
     "optimizer": {
-      "type": "muon",
-      "learning_rate": 0.0005,
-      "weight_decay": 0.00010718901435954378,
-      "eps": 0.0003125,
-      "beta1": 0.9353521064414686,
-      "beta2": 0.9040155258546868,
-      "max_norm": 0.39644292421090327
+      "type": "adamw",
+      "learning_rate": 0.0002,
+      "weight_decay": 0.0,
+      "eps": 1e-8,
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "max_norm": 1.0
     },
     "model": {
       "obs_encoder": {
         "obs_type": "linear"
       },
-      "hidden_features": 128,
+      "hidden_features": 256,
       "layer": {
         "feed_forward": {
           "glu": true,
@@ -26,8 +26,8 @@
         },
         "history": {
           "type": "attention",
-          "num_heads": 4,
-          "num_kv_heads": 1,
+          "num_heads": 8,
+          "num_kv_heads": 4,
           "head_dim": 32,
           "sliding_window": null,
           "rope_max_wavelength": 10000.0,
@@ -36,14 +36,10 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
+      "num_layers": 2,
       "value_hidden_dim": 768,
       "value": {
-        "type": "hl_gauss",
-        "min": -20.0,
-        "max": 20.0,
-        "n_logits": 51,
-        "sigma": 0.2
+        "type": "mse"
       },
       "activation": "gelu",
       "norm": "rms_norm",
@@ -54,12 +50,12 @@
     "trainer": {
       "trainer_type": "ppo",
       "epoch_count": 4,
-      "minibatch_count": 16,
-      "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.001,
-      "vf_clip": 0.2827893540340816,
-      "discount": 0.99,
-      "gae_lambda": 0.9123716252262187,
+      "minibatch_count": 8,
+      "vf_coef": 0.5,
+      "entropy_coef": 0.002,
+      "vf_clip": 0.2,
+      "discount": 0.999,
+      "gae_lambda": 0.8,
       "normalize_advantage": true
     }
   },
@@ -68,6 +64,8 @@
   },
   "logger": {
     "use_console": true,
+    "use_tb": false,
+    "use_neptune": false,
     "use_wandb": true
   }
 }
