@@ -2,7 +2,7 @@
   "seed": "random",
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 36000,
+  "update_steps": 50000,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -48,7 +48,7 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
+      "num_layers": 16,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
