@@ -26,7 +26,7 @@ def print_new_achievements(old_achievements, new_achievements):
             )
 
 
-def main(name: str, base_dir: str = "results", seed: int = 111):
+def main(name: str, base_dir: str = "results", seed: int = 114):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -38,6 +38,7 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
         env.observation_spec,
         env.action_spec.num_actions,
         max_seq_length=max_steps,
+        task_count=1,
         rngs=rngs,
     )
 
@@ -69,44 +70,45 @@ def main(name: str, base_dir: str = "results", seed: int = 111):
 
         return env_state, timestep, kv_cache, rngs
 
-    # traj_history = {"state": [env_state], "action": [], "reward": [], "done": []}
-
     clock = pygame.time.Clock()
 
     carry = model.initialize_carry(1, rngs)
 
     frames = []
+    reward = 0.0
+    # total_reward = 0.0
+    total_episodes = 0
 
     time = 0
-    while not renderer.is_quit_requested() and time < experiment.config.max_env_steps:
-        # action = renderer.get_action_from_keypress(env_state)
-
-        # if action is not None:
-        # old_achievements = env_state.achievements
+    while not renderer.is_quit_requested():
         env_state, ts, carry, rngs = step(ts, carry, env_state, rngs)
-        # new_achievements = env_state.achievements
-        # print_new_achievements(old_achievements, new_achievements)
-        # if reward > 0.8:
-        #     print(f"Reward: {reward}\n")
-
-        # traj_history["state"].append(env_state)
-        # traj_history["action"].append(action)
-        # traj_history["reward"].append(reward)
-        # traj_history["done"].append(done)
 
         renderer.render(env_state.cstate)
         renderer.update()
         img_data = pygame.surfarray.array3d(pygame.display.get_surface())
         frames.append(img_data)
 
-        clock.tick(5)
+        # clock.tick(5)
         time += 1
+        reward += ts.last_reward.squeeze().item()
 
-    frames = np.array(frames)
-    frames = np.rot90(frames, -1, (1, 2))
-    frames = np.flip(frames, 2)
+        if ts.terminated or time >= experiment.config.max_env_steps:
+            print(time)
+
+            time = 0
+            carry = model.initialize_carry(1, rngs)
+            env_state, ts = env.reset(rngs.env())
+
+            # total_reward += reward
+            # reward = 0
+            total_episodes += 1
+            print(reward / total_episodes)
+
+            if total_episodes >= 1:
+                break
+
     save_video(frames, "videos/craftax.mp4", 5)
 
 
 if __name__ == "__main__":
-    main("noble-mouse-nq67s4")
+    main("bright-golem-tgse2e")

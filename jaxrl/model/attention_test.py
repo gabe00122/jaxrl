@@ -11,7 +11,7 @@ from jaxrl.model.attention import AttentionBlock
 def inference_output(layer: AttentionBlock, xs: jax.Array):
     batch, seq, dim = xs.shape
 
-    kv_cache = layer.create_kv_cache(batch)
+    kv_cache = layer.initialize_carry(batch, None)
     seq = jnp.arange(seq)
 
     @partial(nnx.scan, in_axes=(nnx.Carry, 1, 0), out_axes=(nnx.Carry, 1))
@@ -37,7 +37,7 @@ def test_impl():
     rngs = nnx.Rngs(random.PRNGKey(0))
 
     batch = 2
-    seq_length = 16
+    seq_length = 32
     d_model = 32
     sliding_window_size = 8
 
