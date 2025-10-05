@@ -143,7 +143,7 @@ Rewards are fully team-shared, encouraging coordination
 ## Bonus ##
 
 Currently training only supports episodes the entirly fit in context, this makes variable length episodes tricky to train on but you can still train on games like craftax if episodes are trunctated to fit within context.
-In this case I truncated episodes to fit within 1024 steps of context and still acheived a score of 17.7% with 1b samples. In the future the kv cache at the start of the rollout could be saved and reused in training with sliding window attention to enable training on variable length or long episodes.
+In this case I truncated episodes to fit within 1024 steps of context and still acheived a score of 17.7% with 1b samples. In the future the kv cache at the start of the rollout could be saved and reused in training with sliding window attention to enable learning with variable length or long episodes.
 
 https://github.com/user-attachments/assets/d667e777-c480-4b40-b190-46946d3548d5
 
