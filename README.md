@@ -74,21 +74,6 @@ n: cycle to the next agent
 ---
 
 ## 🏋️‍♂️ Environments
-### Variable n-back
-A single-agent memory task. The agent must determine if the current observation matches the observation from `n` steps ago. `n` is randomized and not part of the observation so must be deduced from the rewards via trial and error.
-
-* Observation: A discrete integer value.
-
-* Actions: [`match`, `no-match`]
-
-* Reward: `+1` for a correct action, `0` for an incorrect action.
-
-* Example (n=2):
-
-  * Observations: `[A, B, A, C, B, B, D, E]`
-
-  * Correct Actions: `[_, _, match, no-match, no-match, match, no-match, no-match]`
-
 ### Grid Return
 A multi-agent 2D grid world task requiring spatial memory.
 
@@ -124,7 +109,7 @@ https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
 Two teams of agents compete to capture random control points in the center.
 
-https://github.com/user-attachments/assets/741df541-9df0-4331-9193-d4a7da7dfc89
+https://github.com/user-attachments/assets/a3acfbbc-f26e-4c37-babb-6b146ae478c4
 
 A multi-agent gridworld where two teams of Knights and Archers battle to capture and hold flags.
 
@@ -139,6 +124,13 @@ Teams score points every turn for each flag they control
 Agents can move, attack, dig through walls, or fire arrows
 
 Rewards are fully team-shared, encouraging coordination
+
+## Bonus ##
+
+Currently training only supports episodes the entirly fit in context, this makes variable length episodes tricky to train on but you can still train on games like craftax if episodes are trunctated to fit within context.
+In this case I truncated episodes to fit within 1024 steps of context and still acheived a score of 17.7% with 1b samples. In the future the kv cache at the start of the rollout could be saved and reused in training with sliding window attention to enable learning with variable length or long episodes.
+
+https://github.com/user-attachments/assets/d667e777-c480-4b40-b190-46946d3548d5
 
 ---
 
