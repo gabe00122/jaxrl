@@ -2,6 +2,9 @@ import orbax.checkpoint as ocp
 from flax import nnx
 from pathlib import Path
 
+import jax
+from jax.sharding import Mesh
+
 
 class Checkpointer:
     def __init__(self, directory: str):
@@ -14,8 +17,10 @@ class Checkpointer:
         self.mngr.save(global_step, args=ocp.args.StandardSave(state))
 
     def restore[T](self, model: T, step: int) -> T:
-        abstract_model = nnx.eval_shape(lambda: model)
-        graphdef, abstract_state = nnx.split(abstract_model)
+        device = jax.devices()[0]
+        mesh = Mesh((device,), ("batch",))
+
+        graphdef, abstract_state = nnx.get_abstract_model(lambda: model, mesh)
         restored_state = self.mngr.restore(
             step, args=ocp.args.StandardRestore(abstract_state)
         )
