@@ -2,7 +2,8 @@ from functools import cached_property, partial
 from typing import NamedTuple, Literal
 
 import jax
-from jax import numpy as jnp
+from jax import config, numpy as jnp
+import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from jaxrl.envs.map_generator import (
@@ -33,6 +34,8 @@ class ReturnDiggingConfig(BaseModel):
     digging_timeout: int = 5
     treasure_reward: float = 1.0
 
+    eval_map: bool = False
+
 
 class ReturnDiggingState(NamedTuple):
     agents_pos: jax.Array
@@ -52,6 +55,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
     def __init__(self, config: ReturnDiggingConfig, length: int) -> None:
         super().__init__()
 
+        self._config = config
         self._length = length
         self._num_agents = config.num_agents
         self.num_flags = config.num_flags
@@ -136,7 +140,14 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         flag_pos = positions[: self.num_flags]
         agents_pos = positions[self.num_flags :]
 
-        map = map.at[flag_pos[:, 0], flag_pos[:, 1]].set(GW.TILE_FLAG)
+        if self._config.eval_map:
+            o = map
+            map = map.at[36:45, 10:30].set(GW.TILE_DESTRUCTIBLE_WALL)
+            map = map.at[42:45, 17:23].set(o[42:45, 17:23])
+            agents_pos = agents_pos.at[0].set([44, 22])
+            map = map.at[43, 18].set(GW.TILE_FLAG)
+        else:
+            map = map.at[flag_pos[:, 0], flag_pos[:, 1]].set(GW.TILE_FLAG)
 
         state = ReturnDiggingState(
             map=map,
@@ -153,6 +164,61 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
 
         return state, self.encode_observations(state, actions, rewards)
+    
+    def load_map(self, map: str):
+        tiles = np.zeros((self.unpadded_width, self.unpadded_height), dtype=np.int8)
+
+        x = 0
+        y = self.unpadded_height
+
+        agent_positions = []
+        spawn_positions = []
+
+        for c in map:
+            if c == '\n':
+                x = 0
+                y -= 1
+            else:
+                match x:
+                    case 'x':
+                        tiles[x, y] = GW.TILE_DESTRUCTIBLE_WALL
+                    case 'a':
+                        agent_positions.append([self.pad_width+x, self.pad_height+y])
+                    case 'f':
+                        tiles[x, y] = GW.TILE_FLAG
+                    case _:
+                        spawn_positions.append([self.pad_width+x, self.pad_height+y])
+
+                x += 1
+        
+        tiles = jnp.asarray(tiles)
+        # pad the tiles
+        tiles = jnp.pad(
+            tiles,
+            pad_width=(
+                (self.pad_width, self.pad_width),
+                (self.pad_height, self.pad_height),
+            ),
+            mode="constant",
+            constant_values=GW.TILE_WALL,
+        )
+
+        state = ReturnDiggingState(
+            map=tiles,
+            spawn_pos=jnp.array(spawn_positions, jnp.int32),
+            spawn_count=jnp.int32(len(spawn_positions)),
+            agents_pos=jnp.arange(agent_positions, jnp.int32),
+            agents_timeout=jnp.zeros((self.num_agents,), dtype=jnp.int32),
+            found_reward=jnp.zeros((self.num_agents,), dtype=jnp.bool_),
+            time=jnp.int32(0),
+            rewards=jnp.float32(0.0),
+        )
+
+        actions = jnp.zeros((self.num_agents,), dtype=jnp.int32)
+        rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
+
+        return state, self.encode_observations(state, actions, rewards)
+
 
     @cached_property
     def observation_spec(self) -> ObservationSpec:
