@@ -46,6 +46,7 @@ A unique run name will be generated for you (e.g., silly-camel-34). You will nee
 
 ### Watch a trained agent
 To render an environment with a trained agent, use the enjoy command with the run_name from your training session.
+Note: it may take up to 2 minutes to start rendering
 
 ```
 uv run pmarl enjoy young-shark-cff1bi --seed 5 --video-path ./videos/out.mp4

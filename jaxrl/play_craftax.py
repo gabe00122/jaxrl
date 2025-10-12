@@ -26,7 +26,7 @@ def print_new_achievements(old_achievements, new_achievements):
             )
 
 
-def main(name: str, base_dir: str = "results", seed: int = 114):
+def main(name: str, base_dir: str = "models", seed: int = 114):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -111,4 +111,4 @@ def main(name: str, base_dir: str = "results", seed: int = 114):
 
 
 if __name__ == "__main__":
-    main("bright-golem-tgse2e")
+    main("craftax")

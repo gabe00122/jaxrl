@@ -57,13 +57,21 @@ tilemap = {
     GW.AGENT_GENERIC: (104, 0),
     GW.AGENT_HARVESTER: (13, 14),
     GW.AGENT_SCOUT: (3, 16),
-    GW.AGENT_KNIGHT: [None, (153, 5), (153, 11)],
-    GW.AGENT_ARCHER: [None, (156, 5), (156, 11)],
+    GW.AGENT_KNIGHT: [
+        None,
+        [[(35, 31), (31, 31)], [(36, 31), (32, 31)], [(37, 31), (33, 31)], [(38, 31), (34, 31)]], # red
+        [[(35, 32), (31, 32)], [(36, 32), (32, 32)], [(37, 32), (33, 32)], [(38, 32), (34, 32)]]  # blue
+    ],
+    GW.AGENT_ARCHER: [
+        None,
+        [(39, 31), (40, 31), (41, 31), (42, 31)], # red
+        [(39, 32), (40, 32), (41, 32), (42, 32)]  # blue
+    ],
     GW.TILE_DECOR_1: (15, 5),
     GW.TILE_DECOR_2: (16, 5),
     GW.TILE_DECOR_3: (17, 5),
     GW.TILE_DECOR_4: (14, 5),
-    GW.TILE_ARROW: (33, 10)
+    GW.TILE_ARROW: (80, 21)
 }
 
 
@@ -149,21 +157,15 @@ class GridworldRenderer:
         self._agent_view_offset_y = (self.screen_height - agent_pixel_height) // 2
 
     def _build_tilecache(self, tile_size: int):
-        cache = {}
-        for name, coords in tilemap.items():
-            if isinstance(coords, list):
-                entries = []
-                for coord in coords:
-                    if coord is None:
-                        entries.append(coord)
-                    else:
-                        x, y = coord
-                        entries.append(self._spritesheet.image_at_tile(x, y, tile_size))
-            else:
-                x, y = coords
-                entries = self._spritesheet.image_at_tile(x, y, tile_size)
-            cache[name] = entries
-        return cache
+        def _load_tiles(item: dict | list | tuple[int, int]):
+            if isinstance(item, tuple):
+                return self._spritesheet.image_at_tile(item[0], item[1], tile_size)
+            if isinstance(item, list):
+                return [_load_tiles(elm) for elm in item]
+            if isinstance(item, dict):
+                return {name: _load_tiles(elm) for name, elm in item.items()}
+
+        return _load_tiles(tilemap)
 
     def _tile_to_screen(self, x: int, y: int):
         return x - self._pad_width, (self._tile_height - 1 - y) + self._pad_height
@@ -217,11 +219,16 @@ class GridworldRenderer:
             for y in range(self._tile_height):
                 tx = self._pad_width + x
                 ty = self._pad_height + y
-                tile_type_id = tiles[tx][ty][0]
+                tile = tiles[tx][ty]
+                tile_type_id = tile[0]
 
                 image = self._tilecache[tile_type_id]
                 if isinstance(image, list):
-                    image = image[tiles[tx][ty][2]]
+                    image = image[tile[2]]
+                if isinstance(image, list):
+                    image = image[tile[1] - 1]
+                if isinstance(image, list):
+                    image = image[tile[3] - 1]
 
                 self._draw_tile(image, tx, ty)
 
