@@ -110,7 +110,7 @@ https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
 Two teams of agents compete to capture random control points in the center.
 
-https://github.com/user-attachments/assets/a3acfbbc-f26e-4c37-babb-6b146ae478c4
+https://github.com/user-attachments/assets/2fe15ed1-34f7-4cae-9a8a-a98e5079e970
 
 A multi-agent gridworld where two teams of Knights and Archers battle to capture and hold flags.
 
