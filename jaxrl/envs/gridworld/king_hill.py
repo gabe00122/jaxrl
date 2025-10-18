@@ -129,7 +129,7 @@ class KingHillEnv(Environment[KingHillState]):
         blue_agent_pos = jnp.stack((xs, ys + self.height - 1), axis=-1)
         agent_pos = jnp.concatenate((red_agent_pos, blue_agent_pos), axis=0)
 
-        agent_types = jax.random.randint(agent_type_key, team_size, 0, 2, jnp.int8)
+        agent_types = jax.random.randint(agent_type_key, (team_size, ), 0, 2, jnp.int8)
         agent_types = jnp.tile(agent_types, 2)
 
         state = KingHillState(

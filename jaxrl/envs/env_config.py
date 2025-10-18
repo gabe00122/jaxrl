@@ -73,7 +73,7 @@ def create_env(
         case "multi":
             out_envs = []
             out_env_names = []
-            num_tasks = len(env_config.env_type)
+            num_tasks = len(env_config.envs)
             for env_def in env_config.envs:
                 out_envs.append(create_env(env_def.env, length, env_def.num)[0])
                 out_env_names.append(env_def.name)

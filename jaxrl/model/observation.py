@@ -53,7 +53,7 @@ class GridCnnObsEncoder(nnx.Module):
         self.params_dtype = params_dtype
 
         self._one_hot_sizes = obs_spec.max_value
-        self.num_classes = sum(self._one_hot_sizes) # todo this should support the int case again with no feature list
+        self.num_classes = self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
 
         channels = [*config.channels, output_size]
 
@@ -107,7 +107,7 @@ class FlattenedObsEncoder(nnx.Module):
         embed_features = 4
 
         self.params_dtype = params_dtype
-        self.num_classes = 6  # obs_spec.max_value
+        self.num_classes = self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
         in_features = embed_features * obs_spec.shape[0] * obs_spec.shape[1]
 
         self.embedding = nnx.Linear(
@@ -150,7 +150,7 @@ class GridCnnObsDecoder(nnx.Module):
         )
 
         self.dtype = dtype
-        self.num_classes = obs_spec.max_value
+        self.num_classes = self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
         self.conv2 = nnx.ConvTranspose(
             in_features=output_size,
             out_features=16,
