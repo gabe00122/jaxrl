@@ -110,8 +110,6 @@ https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
 Two teams of agents compete to capture random control points in the center.
 
-https://github.com/user-attachments/assets/2fe15ed1-34f7-4cae-9a8a-a98e5079e970
-
 A multi-agent gridworld where two teams of Knights and Archers battle to capture and hold flags.
 
 Randomly generated maps with destructible walls and central control points
@@ -125,6 +123,8 @@ Teams score points every turn for each flag they control
 Agents can move, attack, dig through walls, or fire arrows
 
 Rewards are fully team-shared, encouraging coordination
+
+https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
 
 ## Bonus ##
 
