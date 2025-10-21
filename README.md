@@ -48,15 +48,23 @@ A unique run name will be generated for you (e.g., silly-camel-34). You will nee
 To render an environment with a trained agent, use the enjoy command with the run_name from your training session.
 Note: it may take up to 2 minutes to start rendering
 
-```
+```bash
 uv run pmarl enjoy young-shark-cff1bi --seed 5 --video-path ./videos/out.mp4
 ```
 
-### Test out an environment
-You can test out a environment without training a model using the `play` command.
+### Download the checkpoint files
 
+```bash
+uv tool install "huggingface_hub[cli]"
+
+huggingface-cli download gabe00122/grid-pomarl --local-dir ./results/
 ```
-uv run pmarl play ./config/return_baseline.json --pov -- human
+
+### Test out an environment
+You can test out a environment without training a model using the `play` command or play with trained models using the `enjoy` command.
+
+```bash
+uv run pmarl enjoy koth --pov --human
 ```
 
 The `pov` option renders from one agents point of pov
@@ -73,6 +81,17 @@ space: attack
 n: cycle to the next agent
 
 ---
+
+### Evaluating Zero Sum Games
+
+By definition because these games are zero sum the mean of the reward during self play remains zero, regardless of the sill level of the policy.
+To track progress and compare different training runs we can use trueskill to create a elo like score using a opponent pool.
+
+To build a trueskill graph from a series of runs you can use the following command.
+
+```bash
+uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
+```
 
 ## 🏋️‍♂️ Environments
 ### Grid Return

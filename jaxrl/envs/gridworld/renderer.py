@@ -268,9 +268,14 @@ class GridworldRenderer:
                 tile_type_id = tile_data[0]
 
                 image = tilecache.get(tile_type_id)
+
                 if isinstance(image, list):
                     image = image[tile_data[2]]
-
+                if isinstance(image, list):
+                    image = image[tile_data[1] - 1]
+                if isinstance(image, list):
+                    image = image[tile_data[3] - 1]
+                
                 if image is None:
                     continue
 
