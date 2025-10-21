@@ -93,6 +93,15 @@ To build a trueskill graph from a series of runs you can use the following comma
 uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
 ```
 
+---
+
+### Multi-task Training
+
+Is the observation and action space is shared by the environments then one policy can be trained on multiple environments simultaneously.
+See the `multitask.json` config for an example.
+
+If multitask training was used then for evaluation and playback the `--env name` argument is required to specify which task you are viewing/evaluating from the multi-task models.
+
 ## 🏋️‍♂️ Environments
 ### Grid Return
 A multi-agent 2D grid world task requiring spatial memory.
