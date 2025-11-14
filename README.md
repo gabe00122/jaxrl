@@ -93,7 +93,7 @@ To build a trueskill graph from a series of runs you can use the following comma
 uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
 ```
 
-Here's an example of a output evaluate of agents trained with different hyper parameters
+Here's an example of a output evaluate of agents trained with different hyper parameters on the king of the hill environment.
 <img width="900" height="600" alt="image" src="https://github.com/user-attachments/assets/b05a45be-b65d-4ea7-b65b-fec0ab369b8f" />
 
 ---
