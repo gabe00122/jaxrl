@@ -93,6 +93,9 @@ To build a trueskill graph from a series of runs you can use the following comma
 uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
 ```
 
+Here's an example of a output evaluate of agents trained with different hyper parameters
+<img width="900" height="600" alt="image" src="https://github.com/user-attachments/assets/b05a45be-b65d-4ea7-b65b-fec0ab369b8f" />
+
 ---
 
 ### Multi-task Training
@@ -153,6 +156,11 @@ Agents can move, attack, dig through walls, or fire arrows
 Rewards are fully team-shared, encouraging coordination
 
 https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
+
+## Scaling Results
+
+I found that seemingly preformace scales predictablly with network depth. Interestingly there was not a similar improvement with width scaling:
+<img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/698dc9d9-3a37-4959-aa2c-5e9f06e3ba59" />
 
 ## Bonus ##
 
