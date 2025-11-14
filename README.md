@@ -159,7 +159,7 @@ https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
 
 ## Scaling Results
 
-I found that seemingly preformace scales predictablly with network depth. Interestingly there was not a similar improvement with width scaling:
+I found that seemingly preformace scales predictablly with network depth. Interestingly there was not a similar improvement with width scaling. The following graph shows depth scaling on the grid return environment.
 <img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/698dc9d9-3a37-4959-aa2c-5e9f06e3ba59" />
 
 ## Bonus ##
