@@ -27,8 +27,8 @@ This project provides a JAX-based framework for training Transformer-based agent
 Clone the repository and install the dependencies:
 
 ```bash
-git clone [https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)
-cd your-repo
+git clone git@github.com:gabe00122/jaxrl.git
+cd jaxrl
 uv sync --extra cuda
 ```
 
