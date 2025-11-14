@@ -162,6 +162,11 @@ https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
 I found that seemingly preformace scales predictablly with network depth. Interestingly there was not a similar improvement with width scaling. The following graph shows depth scaling on the grid return environment.
 <img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/698dc9d9-3a37-4959-aa2c-5e9f06e3ba59" />
 
+## RNNs
+
+For the grid return task grouped query attention also outpreformed RNN layers while using roughly 1/4th the compute at a BPTT length of 512.
+<img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/bf1849ba-82ee-4f25-b8be-8614f030d1da" />
+
 ## Bonus ##
 
 Currently training only supports episodes the entirly fit in context, this makes variable length episodes tricky to train on but you can still train on games like craftax if episodes are trunctated to fit within context.
