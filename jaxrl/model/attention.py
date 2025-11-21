@@ -108,8 +108,18 @@ class AttentionBlock(nnx.Module):
         )
 
         if self.use_qk_norm:
-            self._query_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
-            self._key_norm = nnx.RMSNorm(self.head_dim, rngs=rngs)
+            self._query_norm = nnx.RMSNorm(
+                self.head_dim,
+                dtype=self.dtype,
+                param_dtype=self.param_dtype,
+                rngs=rngs
+            )
+            self._key_norm = nnx.RMSNorm(
+                self.head_dim,
+                dtype=self.dtype,
+                param_dtype=self.param_dtype,
+                rngs=rngs
+            )
 
     def initialize_carry(self, batch_size: int, rngs: nnx.Rngs) -> KVCache:
         shape = (batch_size, self.max_seq_length, self.num_kv_heads, self.head_dim)
