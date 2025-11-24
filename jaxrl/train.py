@@ -20,7 +20,7 @@ from jaxrl.model.network import TransformerActorCritic
 from jaxrl.rollout import Rollout, RolloutState
 from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.util import count_parameters, format_count
+from jaxrl.util import count_parameters, format_count, lerp
 
 
 class TrainingLogs(NamedTuple):
@@ -45,28 +45,14 @@ def add_seq_dim(ts: TimeStep):
     return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
 
 
-def compute_entropy_coef(hypers: PPOConfig, step: jax.Array, total_steps: int) -> jax.Array:
-    """Linearly anneal entropy coefficient to the configured end value."""
-    if hypers.entropy_coef_end is None:
-        return jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
-
-    start = jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
-    end = jnp.asarray(hypers.entropy_coef_end, dtype=jnp.float32)
-
-    # Guard against divide-by-zero when only a single step is requested.
-    denom = jnp.maximum(jnp.asarray(total_steps - 1, dtype=jnp.float32), 1.0)
-    progress = jnp.clip(step.astype(jnp.float32) / denom, a_min=0.0, a_max=1.0)
-
-    return start + (end - start) * progress
-
-
 def evaluate(
     model: TransformerActorCritic,
     rollout: Rollout,
     rngs: nnx.Rngs,
     env: Environment,
     hypers: PPOConfig,
-    league_model: TransformerActorCritic | None = None
+    league_model: TransformerActorCritic | None = None,
+    progress: jax.Array | None = None,
 ):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
@@ -160,7 +146,7 @@ def ppo_loss(
     model: TransformerActorCritic,
     rollout: RolloutState,
     hypers: PPOConfig,
-    entropy_coef: jax.Array | float | None = None,
+    progress: jax.Array,
 ):
     batch_obs = rollout.obs
     batch_target = rollout.targets
@@ -200,14 +186,9 @@ def ppo_loss(
 
     actor_loss = -jnp.minimum(pg_loss1, pg_loss2).mean()
 
-    # Entropy regularization
     entropy_loss = -policy.entropy().mean()
 
-    entropy_coef_value = (
-        jnp.asarray(hypers.entropy_coef, dtype=jnp.float32)
-        if entropy_coef is None
-        else jnp.asarray(entropy_coef, dtype=jnp.float32)
-    )
+    entropy_coef_value = lerp(hypers.entropy_coef, hypers.entropy_coef_end, progress)
 
     total_loss = (
         hypers.vf_coef * value_loss + actor_loss + entropy_coef_value * entropy_loss
@@ -236,36 +217,37 @@ def train(
     hypers = config.learner.trainer
 
     @partial(nnx.grad, has_aux=True)
-    def _vec_grad(model, rollout_state, entropy_coef_value):
-        return ppo_loss(model, rollout_state, hypers, entropy_coef_value)
+    def _vec_grad(model, rollout_state, progress):
+        return ppo_loss(model, rollout_state, hypers, progress)
 
     def _minibatch_step(carry, rollout_state):
-        optimizer, logs, entropy_coef_value = carry
-        grad, step_logs = _vec_grad(optimizer.model, rollout_state, entropy_coef_value)
+        optimizer, logs, progress = carry
+        grad, step_logs = _vec_grad(optimizer.model, rollout_state, progress)
 
         optimizer.update(grad)
         logs = jax.tree.map(lambda x, y: x + y, logs, step_logs)
 
-        return (optimizer, logs, entropy_coef_value)
+        return (optimizer, logs, progress)
 
     def _epoch_step(i, x):
-        optimizer, rollout_state, logs, rngs, entropy_coef_value = x
+        optimizer, rollout_state, logs, rngs, progress = x
 
         minibatch_rng = rngs.shuffle()
         minibatch_rollout_state = rollout.create_minibatches(
             rollout_state, hypers.minibatch_count, minibatch_rng
         )
-        optimizer, logs, entropy_coef_value = nnx.scan(
+        optimizer, logs, progress = nnx.scan(
             _minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry
-        )((optimizer, logs, entropy_coef_value), minibatch_rollout_state)
+        )((optimizer, logs, progress), minibatch_rollout_state)
 
-        return optimizer, rollout_state, logs, rngs, entropy_coef_value
+        return optimizer, rollout_state, logs, rngs, progress
 
     def _global_step(i, x):
         optimizer, logs, env_logs, rngs, step_value = x
-        entropy_coef_value = compute_entropy_coef(hypers, step_value, config.update_steps)
+        progress = step_value / config.update_steps
+
         rollout_state, env_log_update, rngs = evaluate(
-            optimizer.model, rollout, rngs, env, hypers, fictitious_model
+            optimizer.model, rollout, rngs, env, hypers, fictitious_model, progress
         )
         optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
@@ -276,7 +258,7 @@ def train(
                 rollout_state,
                 logs,
                 rngs,
-                entropy_coef_value,
+                progress,
             ),
         )
 

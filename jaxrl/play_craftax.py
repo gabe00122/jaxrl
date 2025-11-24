@@ -26,7 +26,7 @@ def print_new_achievements(old_achievements, new_achievements):
             )
 
 
-def main(name: str, base_dir: str = "models", seed: int = 114):
+def main(name: str, base_dir: str = "results", seed: int = 121):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
@@ -70,8 +70,6 @@ def main(name: str, base_dir: str = "models", seed: int = 114):
 
         return env_state, timestep, kv_cache, rngs
 
-    clock = pygame.time.Clock()
-
     carry = model.initialize_carry(1, rngs)
 
     frames = []
@@ -107,8 +105,8 @@ def main(name: str, base_dir: str = "models", seed: int = 114):
             if total_episodes >= 1:
                 break
 
-    save_video(frames, "videos/craftax.mp4", 5)
+    save_video(frames, "videos/craftax.mp4", 8)
 
 
 if __name__ == "__main__":
-    main("craftax")
+    main("great-spirit-8qf8n0")

@@ -118,3 +118,7 @@ def format_count(n: int | float) -> str:
     else:
         # Format for billions (B).
         return f"{n / 1_000_000_000:.2f}B"
+
+
+def lerp(a: jax.Array, b: jax.Array, progress: jax.Array) -> jax.Array:
+    return a + progress * (b - a)

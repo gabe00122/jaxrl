@@ -40,8 +40,8 @@
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
-        "min": -20.0,
-        "max": 20.0,
+        "min": -5.0,
+        "max": 35.0,
         "n_logits": 51,
         "sigma": 0.2
       },
@@ -56,7 +56,7 @@
       "epoch_count": 4,
       "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.001,
+      "entropy_coef": 0.002,
       "vf_clip": 0.2827893540340816,
       "discount": 0.99,
       "gae_lambda": 0.9123716252262187,
