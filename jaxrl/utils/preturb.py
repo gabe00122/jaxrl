@@ -9,7 +9,8 @@ def preturb(layer: nnx.Linear, alpha: float, rngs: nnx.Rngs):
         kernel_key, (layer.in_features, layer.out_features), layer.param_dtype
     )
 
-    layer.kernel.value = (1 - alpha) * layer.kernel.value + alpha * new_params
+    blended_kernel = (1 - alpha) * layer.kernel + alpha * new_params
+    layer.kernel[...] = layer.kernel.replace(value=blended_kernel)
 
 
 def preturb_genreal(layer: nnx.LinearGeneral, alpha: float, rngs: nnx.Rngs):
@@ -22,4 +23,5 @@ def preturb_genreal(layer: nnx.LinearGeneral, alpha: float, rngs: nnx.Rngs):
     )
     new_params = jnp.reshape(new_params, (*layer.in_features, *layer.out_features))
 
-    layer.kernel.value = (1 - alpha) * layer.kernel.value + alpha * new_params
+    blended_kernel = (1 - alpha) * layer.kernel + alpha * new_params
+    layer.kernel[...] = layer.kernel.replace(value=blended_kernel)
