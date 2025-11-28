@@ -1,30 +1,11 @@
 from typing import NamedTuple
+
 import jax
 import jax.numpy as jnp
-from jax.typing import DTypeLike
 from flax import nnx
-from jax.lib import xla_bridge
+from jax.typing import DTypeLike
 
 from jaxrl.model import positional_embeddings
-
-
-def _default_attention_impl() -> str:
-    """Select the default attention implementation for the current platform."""
-    backend = xla_bridge.get_backend()
-    platform = getattr(backend, "platform", "")
-    if platform == "gpu":
-        version = getattr(backend, "platform_version", "")
-        if "cuda" in version.lower():
-            return "cudnn"
-
-        # Fallback detection using device kinds for NVIDIA GPUs.
-        try:
-            if any("nvidia" in device.device_kind.lower() for device in jax.local_devices()):
-                return "cudnn"
-        except Exception:  # pragma: no cover - best effort hardware detection
-            pass
-
-    return "xla"
 
 
 class KVCache(NamedTuple):
@@ -56,7 +37,7 @@ class AttentionBlock(nnx.Module):
         self.use_qk_norm = use_qk_norm
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
-        self.attention_impl = attention_impl or _default_attention_impl()
+        self.attention_impl = attention_impl or "cudnn"
         self.dtype = dtype
         self.param_dtype = param_dtype
 
@@ -109,16 +90,10 @@ class AttentionBlock(nnx.Module):
 
         if self.use_qk_norm:
             self._query_norm = nnx.RMSNorm(
-                self.head_dim,
-                dtype=self.dtype,
-                param_dtype=self.param_dtype,
-                rngs=rngs
+                self.head_dim, dtype=self.dtype, param_dtype=self.param_dtype, rngs=rngs
             )
             self._key_norm = nnx.RMSNorm(
-                self.head_dim,
-                dtype=self.dtype,
-                param_dtype=self.param_dtype,
-                rngs=rngs
+                self.head_dim, dtype=self.dtype, param_dtype=self.param_dtype, rngs=rngs
             )
 
     def initialize_carry(self, batch_size: int, rngs: nnx.Rngs) -> KVCache:
