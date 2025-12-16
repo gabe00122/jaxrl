@@ -4,7 +4,7 @@ from jax.typing import DTypeLike
 from typing import Callable
 
 from flax import nnx
-import tensorflow_probability.substrates.jax.distributions as tfd
+import distrax
 
 from jaxrl.config import (
     LayerConfig,
@@ -322,7 +322,7 @@ class TransformerActorCritic(nnx.Module):
         action_logits = action_logits.astype(jnp.float32)
 
         policy = IdentityTransformation(
-            distribution=tfd.Categorical(logits=action_logits)
+            distribution=distrax.Categorical(logits=action_logits)
         )
 
         prevalue = x

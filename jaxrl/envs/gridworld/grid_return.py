@@ -2,7 +2,7 @@ from functools import cached_property, partial
 from typing import NamedTuple, Literal
 
 import jax
-from jax import config, numpy as jnp
+from jax import numpy as jnp
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
