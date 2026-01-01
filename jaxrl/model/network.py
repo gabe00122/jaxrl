@@ -290,7 +290,7 @@ class TransformerActorCritic(nnx.Module):
 
     def __call__(
         self, ts: TimeStep, carry=None
-    ) -> tuple[jax.Array, tfd.Distribution, tuple[KVCache, ...] | None]:
+    ) -> tuple[jax.Array, distrax.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.last_reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)

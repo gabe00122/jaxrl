@@ -1,12 +1,10 @@
 from typing import Any, Optional
 
 import chex
+import distrax
 import jax.numpy as jnp
-import tensorflow_probability.substrates.jax.bijectors as tfb
-import tensorflow_probability.substrates.jax.distributions as tfd
 
-
-class TanhTransformedDistribution(tfd.TransformedDistribution):
+class TanhTransformedDistribution(distrax.Transformed):
     """A distribution transformed using the `tanh` function.
 
     This transformation was adapted to acme's implementation.
@@ -15,7 +13,7 @@ class TanhTransformedDistribution(tfd.TransformedDistribution):
 
     def __init__(
         self,
-        distribution: tfd.Distribution,
+        distribution: distrax.Distribution,
         threshold: float = 0.999,
         validate_args: bool = False,
     ) -> None:
@@ -82,16 +80,16 @@ class TanhTransformedDistribution(tfd.TransformedDistribution):
         return td_properties
 
 
-class IdentityTransformation(tfd.TransformedDistribution):
+class IdentityTransformation(distrax.Transformed):
     """A distribution transformed using the `Identity()` bijector.
 
     We transform this distribution with the `Identity()` bijector to enable us to call
     `pi.entropy(seed)` and keep the API identical to the TanhTransformedDistribution.
     """
 
-    def __init__(self, distribution: tfd.Distribution) -> None:
+    def __init__(self, distribution: distrax.Distribution) -> None:
         """Initialises the IdentityTransformation."""
-        super().__init__(distribution=distribution, bijector=tfb.Identity())
+        super().__init__(distribution=distribution, bijector=distrax.Lambda(lambda x: x))
 
     def entropy(self, seed: chex.PRNGKey = None) -> chex.Array:
         """Computes the entropy of the distribution."""
