@@ -2,11 +2,10 @@ import pygame
 from jax import numpy as jnp
 from flax import nnx
 
-import jaxrl.envs.gridworld.constance as GW
+import mapox.envs.constance as GW
+from mapox import create_env, GridworldClient, MultiTaskWrapper
+
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.env_config import create_env
-from jaxrl.envs.gridworld.renderer import GridworldClient
-from jaxrl.envs.multitask import MultiTaskWrapper
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
@@ -188,7 +187,7 @@ def play(
             client.render_pov(env_state, timestep)
         else:
             client.render(env_state, timestep)
-    
+
     print(f"Cumulative reward: {cumulative_reward}")
 
     if video_path is not None:

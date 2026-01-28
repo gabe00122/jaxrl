@@ -31,3 +31,5 @@ wandb/
 
 jaxrl.egg-info
 jaxrl_study.db
+
+build/

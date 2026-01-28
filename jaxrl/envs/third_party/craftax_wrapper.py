@@ -9,7 +9,7 @@ from craftax.craftax_env import make_craftax_env_from_name
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 
 
 PREPROCESS_SHAPE = (65, 55, 1)

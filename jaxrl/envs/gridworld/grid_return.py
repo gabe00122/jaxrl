@@ -13,7 +13,7 @@ from jaxrl.envs.map_generator import (
 )
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
@@ -164,7 +164,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
         rewards = jnp.zeros((self.num_agents,), dtype=jnp.float32)
 
         return state, self.encode_observations(state, actions, rewards)
-    
+
     def load_map(self, map: str):
         tiles = np.zeros((self.unpadded_width, self.unpadded_height), dtype=np.int8)
 
@@ -190,7 +190,7 @@ class ReturnDiggingEnv(Environment[ReturnDiggingState]):
                         spawn_positions.append([self.pad_width+x, self.pad_height+y])
 
                 x += 1
-        
+
         tiles = jnp.asarray(tiles)
         # pad the tiles
         tiles = jnp.pad(

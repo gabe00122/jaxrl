@@ -5,7 +5,7 @@ import pygame
 import jax
 
 import jaxrl.envs.gridworld.constance as GW
-from jaxrl.utils.video_writter import save_video
+from mapox.utils.video_writter import save_video
 
 
 
@@ -275,7 +275,7 @@ class GridworldRenderer:
                     image = image[tile_data[1] - 1]
                 if isinstance(image, list):
                     image = image[tile_data[3] - 1]
-                
+
                 if image is None:
                     continue
 
@@ -332,6 +332,6 @@ class GridworldClient:
 
     def save_video(self, file_name: str):
         self.renderer.save_video(file_name)
-    
+
     def focus_agent(self, agent_id: int | None):
         self.renderer.focus_agent(agent_id)

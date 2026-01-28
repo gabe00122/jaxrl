@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from jaxrl.envs.map_generator import generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 

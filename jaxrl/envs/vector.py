@@ -5,7 +5,7 @@ from einops import rearrange
 
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.specs import ActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 
 
 class VectorWrapper[EnvState](Environment[EnvState]):
@@ -44,7 +44,7 @@ class VectorWrapper[EnvState](Environment[EnvState]):
     @property
     def num_agents(self) -> int:
         return self._vec_count * self.base_env.num_agents
-    
+
     @property
     def teams(self) -> jax.Array | None:
         if self.base_env.teams is None:

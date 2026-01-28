@@ -15,7 +15,7 @@ from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
-from jaxrl.utils.video_writter import save_video
+from mapox.utils.video_writter import save_video
 
 
 def print_new_achievements(old_achievements, new_achievements):

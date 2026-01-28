@@ -3,7 +3,7 @@ import random
 from typing import Any, Literal, Tuple
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from jaxrl.envs.env_config import EnvironmentConfig, MultiTaskConfig
+from mapox import EnvironmentConfig, MultiTaskConfig
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

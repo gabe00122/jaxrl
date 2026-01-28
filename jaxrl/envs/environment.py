@@ -5,7 +5,7 @@ from typing import Any
 import jax
 from jax import Array
 
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 from jaxrl.envs.specs import ObservationSpec, ActionSpec
 import enum
 

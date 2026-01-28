@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from jaxrl.envs.environment import Environment
 from jaxrl.envs.map_generator import choose_positions_in_rect, generate_decor_tiles, generate_perlin_noise_2d
 from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 from jaxrl.envs.gridworld.renderer import GridRenderSettings, GridRenderState
 import jaxrl.envs.gridworld.constance as GW
 
@@ -120,7 +120,7 @@ class KingHillEnv(Environment[KingHillState]):
         control_point_x, control_point_y = choose_positions_in_rect(tiles, self._config.num_flags, pos_key, 0, self.padded_height // 2 - 5, self.padded_width, 11) #jnp.array([[self.padded_width // 2, self.padded_height // 2]], jnp.int32)
         control_point_pos = jnp.stack((control_point_x, control_point_y), axis=-1)
         tiles = tiles.at[control_point_x, control_point_y].set(GW.TILE_FLAG)
-        
+
         team_size = self.num_agents // 2
 
         xs = jnp.arange(team_size, dtype=jnp.int32) + (self.width // 2 - self.num_agents // 4) + self.pad_width
@@ -171,7 +171,7 @@ class KingHillEnv(Environment[KingHillState]):
     def num_agents(self) -> int:
         return self._num_agents
 
-    
+
     def _calculate_movement(self, state: KingHillState, action: jax.Array, rng_key: jax.Array):
         # warning, with more than 128 agents this will break because of int8
         assert self._num_agents < 128
@@ -219,16 +219,16 @@ class KingHillEnv(Environment[KingHillState]):
         flag_control = jnp.where(blue_overlaps, 2, flag_control)
 
         return flag_control
-    
+
     def _calculate_directions(self, state: KingHillState, action: jax.Array) -> jax.Array:
         return jnp.astype(jnp.where(action < 4, action, state.agents_direction), jnp.int8)
-    
+
     def _indices_to_mask(self, indices: jax.Array, size: int) -> jax.Array:
         one_hot = jax.nn.one_hot(indices, size, dtype=jnp.bool_)
         mask = jnp.any(one_hot, axis=0)
         return mask
 
-    
+
     def _calculate_attacks(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array):
         # temp
         # todo create constants for the agent types, melee = 0, ranged = 1
@@ -271,7 +271,7 @@ class KingHillEnv(Environment[KingHillState]):
         )
 
         return state
-    
+
     def _calculate_arrows(self, state: KingHillState) -> KingHillState:
         target_pos = state.arrows_pos + GW.DIRECTIONS[state.arrows_direction]
 
@@ -296,7 +296,7 @@ class KingHillEnv(Environment[KingHillState]):
         blue_reward = jnp.repeat(blue_item[None], team_size)
 
         return jnp.concatenate((red_reward, blue_reward))
-    
+
     def _calculate_digs(self, state: KingHillState, action: jax.Array, agent_targets: jax.Array) -> KingHillState:
         target_tile = state.tiles[agent_targets[:, 0], agent_targets[:, 1]]
         execute_dig = jnp.logical_and(
@@ -344,7 +344,7 @@ class KingHillEnv(Environment[KingHillState]):
         )
 
         return state, self.encode_observations(state, action, rewards)
-    
+
     def _get_agent_type_tiles(self, state: KingHillState):
         agent_types_map = jnp.array([GW.AGENT_KNIGHT, GW.AGENT_ARCHER], jnp.int8)
         agent_types = agent_types_map[state.agents_types]
@@ -421,7 +421,7 @@ class KingHillEnv(Environment[KingHillState]):
             tilemap=tiles,
             agent_positions=state.agents_pos,
         )
-    
+
     def get_render_settings(self) -> GridRenderSettings:
         return GridRenderSettings(
             tile_width=self.width,

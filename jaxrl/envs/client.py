@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 
 
 class EnvironmentClient[State](ABC):

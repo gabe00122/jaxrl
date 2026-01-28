@@ -7,9 +7,9 @@ from flax import nnx
 import jax
 
 from jaxrl.config import load_config
-from jaxrl.envs.specs import ObservationSpec
+from mapox import ObservationSpec
 from jaxrl.model.network import TransformerActorCritic
-from jaxrl.types import TimeStep
+from mapox import TimeStep
 
 
 def _block_until_ready(out):

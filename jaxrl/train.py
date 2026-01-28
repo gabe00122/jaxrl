@@ -11,14 +11,13 @@ import optuna
 from rich.progress import track
 from rich.console import Console
 
+from mapox import create_env, TimeStep, Environment
+
 from jaxrl.config import Config, PPOConfig
-from jaxrl.envs.env_config import create_env
-from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.optimizer import create_optimizer
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.rollout import Rollout, RolloutState
-from jaxrl.types import TimeStep
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.util import count_parameters, format_count, lerp
 

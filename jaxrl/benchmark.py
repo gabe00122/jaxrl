@@ -7,7 +7,7 @@ from flax import nnx
 from rich.console import Console
 
 from jaxrl.experiment import Experiment
-from jaxrl.envs.env_config import create_env
+from mapox import create_env
 
 
 console = Console()

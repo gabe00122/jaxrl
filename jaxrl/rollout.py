@@ -5,8 +5,7 @@ import jax
 from jax import numpy as jnp
 
 from jaxrl.constants import index_type
-from jaxrl.envs.specs import ActionSpec, ObservationSpec
-from jaxrl.types import TimeStep
+from mapox import TimeStep, ActionSpec, ObservationSpec
 
 
 class RolloutState(NamedTuple):

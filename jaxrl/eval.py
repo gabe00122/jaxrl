@@ -14,13 +14,12 @@ import typer
 from rich import progress
 from rich.console import Console
 
+from mapox import create_env, Environment, TimeStep
+
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.env_config import create_env
-from jaxrl.envs.environment import Environment
 from jaxrl.experiment import Experiment
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.train import add_seq_dim
-from jaxrl.types import TimeStep
 from jaxrl.utils.ranking_plot import save_ranking_plot
 
 
@@ -136,7 +135,7 @@ def evaluate(
     env, task_count = create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
     rngs = nnx.Rngs(default=seed)
 
-    league: list[PolicyRecord] = [] 
+    league: list[PolicyRecord] = []
 
     for name in run_tokens:
         console.print(f"Loading: {name}")

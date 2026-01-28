@@ -6,14 +6,13 @@ from typing import Callable
 from flax import nnx
 import distrax
 
+from mapox import TimeStep, ObservationSpec
 from jaxrl.config import (
     LayerConfig,
     TransformerActorCriticConfig,
 )
 from jaxrl.distributions import IdentityTransformation
-from jaxrl.envs.specs import ObservationSpec
 from jaxrl.model.observation import create_obs_encoder
-from jaxrl.types import TimeStep
 from jaxrl.model.attention import AttentionBlock, KVCache
 from jaxrl.model.rnn import RnnBlock
 from jaxrl.model.feed_forward import GLUBlock, FFBlock

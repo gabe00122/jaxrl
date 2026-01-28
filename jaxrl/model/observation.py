@@ -7,8 +7,7 @@ from jaxrl.config import (
     GridCnnObsEncoderConfig,
     LinearObsEncoderConfig,
 )
-from jaxrl.envs.gridworld.util import concat_one_hot
-from jaxrl.envs.specs import ObservationSpec
+from mapox import concat_one_hot, ObservationSpec
 
 
 class LinearObsEncoder(nnx.Module):
@@ -73,12 +72,12 @@ class GridCnnObsEncoder(nnx.Module):
                 )
             )
             in_channel = channel
-        
+
         self.layers = nnx.List(layers)
 
     def __call__(self, x) -> jax.Array:
         x = concat_one_hot(x, self._one_hot_sizes, self.dtype) # currently only supports the case with multiple components per tile
-        
+
         for i, layer in enumerate(self.layers):
             x = layer(x)
             if i < len(self.layers) - 1:
