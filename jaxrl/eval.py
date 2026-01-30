@@ -14,7 +14,7 @@ import typer
 from rich import progress
 from rich.console import Console
 
-from mapox import create_env, Environment, TimeStep
+from mapox import EnvironmentFactory, Environment, TimeStep
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.experiment import Experiment
@@ -77,8 +77,8 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
 
         state, ts = env.step(state, actions, rngs.env())
 
-        policy1_reward = policy1_reward + policy1_ts.last_reward.sum()
-        policy2_reward = policy2_reward + policy2_ts.last_reward.sum()
+        policy1_reward = policy1_reward + policy1_ts.reward.sum()
+        policy2_reward = policy2_reward + policy2_ts.reward.sum()
 
         return state, ts, policy1_carry, policy2_carry, policy1_reward, policy2_reward, rngs
 
@@ -96,7 +96,7 @@ def load_policy(experiment: Experiment, env, env_name, max_steps: int, task_coun
     model_template = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
-        env.action_spec.num_actions,
+        env.action_spec.n,
         max_seq_length=max_steps,
         task_count=task_count,
         rngs=rngs,
@@ -132,7 +132,9 @@ def evaluate(
     experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
-    env, task_count = create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
+    env_factory = EnvironmentFactory()
+
+    env, task_count = env_factory.create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []

@@ -64,7 +64,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
 
     @cached_property
     def action_spec(self) -> DiscreteActionSpec:
-        return DiscreteActionSpec(num_actions=self._n_actions)
+        return DiscreteActionSpec(n=self._n_actions)
 
     @property
     def is_jittable(self) -> bool:
@@ -108,7 +108,7 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
             time=time,
             terminated=terminated[None],
             last_action=actions,
-            last_reward=rewards,
+            reward=rewards,
             action_mask=None,
         )
 

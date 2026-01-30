@@ -2,9 +2,8 @@ import os
 import typer
 import jax
 from jaxrl.experiment import Experiment
-from jaxrl.play import play_from_config, play_from_run
+from jaxrl.play import play_from_run
 from jaxrl.train import train_run
-from jaxrl.benchmark import main as benchmark_main
 from jaxrl.eval import main as eval_main
 import shutil
 
@@ -24,7 +23,7 @@ def enjoy(
     ),
     size: int = 960
 ):
-    play_from_run(name, human, pov, seed, env_name=env, video_path=video_path, size=size)
+    play_from_run(name, True, human, pov, seed, env_name=env, video_path=video_path, size=size)
 
 
 @app.command()
@@ -39,7 +38,7 @@ def play(
     ),
     size: int = 960,
 ):
-    play_from_config(config, human, pov, seed, env_name=env, video_path=video_path, size=size)
+    play_from_run(config, False, human, pov, seed, env_name=env, video_path=video_path, size=size)
 
 
 @app.command("train")
@@ -81,7 +80,6 @@ def clean():
             shutil.rmtree(folder)
 
 
-app.command("benchmark")(benchmark_main)
 app.command("eval")(eval_main)
 
 

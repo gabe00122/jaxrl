@@ -1,7 +1,9 @@
+from functools import partial
+from mapox.play import add_seq_dim
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
-from typing import Callable
+from typing import Callable, Any
 
 from flax import nnx
 import distrax
@@ -291,7 +293,7 @@ class TransformerActorCritic(nnx.Module):
         self, ts: TimeStep, carry=None
     ) -> tuple[jax.Array, distrax.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
-        reward_embedding = self.reward_encoder(ts.last_reward[..., None])
+        reward_embedding = self.reward_encoder(ts.reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
 
         x = obs_embedding + reward_embedding + action_embedding
@@ -320,9 +322,7 @@ class TransformerActorCritic(nnx.Module):
 
         action_logits = action_logits.astype(jnp.float32)
 
-        policy = IdentityTransformation(
-            distribution=distrax.Categorical(logits=action_logits)
-        )
+        policy = distrax.Categorical(logits=action_logits)
 
         prevalue = x
         if hasattr(self, "value_mlp"):
@@ -333,6 +333,15 @@ class TransformerActorCritic(nnx.Module):
         value_rep = value.astype(jnp.float32)
 
         return value_rep, policy, carry
+
+    @partial(jax.jit, static_argnums=(0,), donate_argnums=(1,3))
+    def sample_actions(self, agent_state: Any, timestep: TimeStep, rng_key: jax.Array) -> tuple[Any, jax.Array, jax.Array]:
+        _, policy, agent_state = self(add_seq_dim(timestep), agent_state)
+
+        sample_rng, rng_key = jax.random.split(rng_key)
+        actions = policy.sample(seed=sample_rng).squeeze(axis=-1)
+
+        return agent_state, actions, rng_key
 
     def get_value(self, value_rep: jax.Array) -> jax.Array:
         return self.value_head.get_value(value_rep)

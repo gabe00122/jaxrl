@@ -51,7 +51,7 @@ class Rollout:
                 dtype=self.obs_spec.dtype,
             ),
             action_mask=jnp.ones(
-                (self.batch_size, self.trajectory_length, self.action_spec.num_actions),
+                (self.batch_size, self.trajectory_length, self.action_spec.n),
                 dtype=jnp.bool_,
             ),
             actions=jnp.zeros(
@@ -109,13 +109,13 @@ class Rollout:
             actions=state.actions.at[:, step].set(next_timestep.last_action),
             log_prob=state.log_prob.at[:, step].set(log_prob),
             values=state.values.at[:, step].set(value),
-            rewards=state.rewards.at[:, step].set(next_timestep.last_reward),
+            rewards=state.rewards.at[:, step].set(next_timestep.reward),
             terminated=state.terminated.at[:, step].set(timestep.terminated),
             next_terminated=state.next_terminated.at[:, step].set(
                 next_timestep.terminated
             ),
             last_actions=state.last_actions.at[:, step].set(timestep.last_action),
-            last_rewards=state.last_rewards.at[:, step].set(timestep.last_reward),
+            last_rewards=state.last_rewards.at[:, step].set(timestep.reward),
             task_ids=(
                 state.task_ids.at[:, step].set(timestep.task_ids)
                 if timestep.task_ids is not None

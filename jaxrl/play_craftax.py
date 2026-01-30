@@ -36,7 +36,7 @@ def main(name: str, base_dir: str = "results", seed: int = 121):
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
-        env.action_spec.num_actions,
+        env.action_spec.n,
         max_seq_length=max_steps,
         task_count=1,
         rngs=rngs,
@@ -88,7 +88,7 @@ def main(name: str, base_dir: str = "results", seed: int = 121):
 
         # clock.tick(5)
         time += 1
-        reward += ts.last_reward.squeeze().item()
+        reward += ts.reward.squeeze().item()
 
         if ts.terminated or time >= experiment.config.max_env_steps:
             print(time)

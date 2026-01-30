@@ -11,7 +11,7 @@ import optuna
 from rich.progress import track
 from rich.console import Console
 
-from mapox import create_env, TimeStep, Environment
+from mapox import EnvironmentFactory, TimeStep, Environment
 
 from jaxrl.config import Config, PPOConfig
 from jaxrl.experiment import Experiment
@@ -167,7 +167,7 @@ def ppo_loss(
             time=positions,
             terminated=batch_terminated,
             last_action=batch_last_actions,
-            last_reward=batch_last_rewards,
+            reward=batch_last_rewards,
             action_mask=batch_action_masks,
             task_ids=batch_task_ids,
         ),
@@ -306,7 +306,8 @@ def train_run(
     logger = experiment.create_logger(console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env, task_count = create_env(
+    env_factory = EnvironmentFactory()
+    env, task_count = env_factory.create_env(
         experiment.config.environment, max_steps, experiment.config.num_envs
     )
 
@@ -323,7 +324,7 @@ def train_run(
     model = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
-        env.action_spec.num_actions,
+        env.action_spec.n,
         max_seq_length=max_steps,
         task_count=task_count,
         rngs=rngs,
