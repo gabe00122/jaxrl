@@ -1144,7 +1144,7 @@ wheels = [
 
 [[package]]
 name = "jaxrl"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "chex" },
@@ -1193,7 +1193,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.6.0" },
     { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'" },
     { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
-    { name = "mapox", specifier = ">=0.1.0" },
+    { name = "mapox", specifier = "==0.1.1" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "optax", specifier = ">=0.2.4" },
     { name = "optuna", specifier = ">=4.3.0" },
@@ -1306,7 +1306,7 @@ wheels = [
 
 [[package]]
 name = "mapox"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
@@ -1315,9 +1315,9 @@ dependencies = [
     { name = "pygame-ce" },
     { name = "python-ffmpeg" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/19/8efbbf91e18d168f45980df195277c69648dd372c074e44c520383382897/mapox-0.1.0.tar.gz", hash = "sha256:dfe8d5189630886c2187c41e6c686b7dcf6ee2f5c87d34d876c6c28d58415ff7", size = 51858, upload-time = "2026-01-30T01:21:39.466Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/06/a535c90a94d99d85826ff3eef5956104d39f45a17c6de257a309917d55e4/mapox-0.1.1.tar.gz", hash = "sha256:dce84e112af5f314ae2b30b081e3400502f489269b4956845e44971b44a639c7", size = 302885, upload-time = "2026-02-13T20:58:24.096Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/db/6c672d766e27e809d77e7859dcd8f8bfd112e90482033fab9a6647fc80d0/mapox-0.1.0-py3-none-any.whl", hash = "sha256:61fb7b1667f6001004c00e1d8b484ecc9bbf2910ccdda30aab32d2d1b8248653", size = 27427, upload-time = "2026-01-30T01:21:41.272Z" },
+    { url = "https://files.pythonhosted.org/packages/90/97/550941639fc62af8e4ee90667d81760dc432751ead843b30637592f70d01/mapox-0.1.1-py3-none-any.whl", hash = "sha256:6b6b3e4a2fed08ca3bb9e1b0faaa7e623d41806f03905baf8fc9ec141da092eb", size = 277381, upload-time = "2026-02-13T20:58:22.587Z" },
 ]
 
 [[package]]

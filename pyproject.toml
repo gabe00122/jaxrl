@@ -12,7 +12,7 @@ dependencies = [
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
     "jax>=0.6.0",
-    "mapox>=0.1.0",
+    "mapox==0.1.1",
     "matplotlib>=3.10.5",
     "optax>=0.2.4",
     "optuna>=4.3.0",

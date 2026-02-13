@@ -19,7 +19,7 @@ from jaxrl.optimizer import create_optimizer
 from jaxrl.model.network import TransformerActorCritic
 from jaxrl.rollout import Rollout, RolloutState
 from jaxrl.checkpointer import Checkpointer
-from jaxrl.util import count_parameters, format_count, lerp
+from jaxrl.util import count_parameters, format_count, lerp, add_seq_dim
 
 
 class TrainingLogs(NamedTuple):
@@ -38,11 +38,6 @@ def create_training_logs() -> TrainingLogs:
         total_loss=jnp.array(0.0),
         entropy_coef=jnp.array(0.0),
     )
-
-
-def add_seq_dim(ts: TimeStep):
-    return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
-
 
 def evaluate(
     model: TransformerActorCritic,

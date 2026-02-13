@@ -1,3 +1,5 @@
+from einops import rearrange
+from mapox import TimeStep
 import jax
 from flax import nnx
 
@@ -122,3 +124,7 @@ def format_count(n: int | float) -> str:
 
 def lerp(a: jax.Array, b: jax.Array, progress: jax.Array) -> jax.Array:
     return a + progress * (b - a)
+
+
+def add_seq_dim(ts: TimeStep):
+    return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)

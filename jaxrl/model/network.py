@@ -1,5 +1,5 @@
 from functools import partial
-from mapox.play import add_seq_dim
+from jaxrl.util import add_seq_dim
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike

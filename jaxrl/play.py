@@ -3,7 +3,8 @@ from jax import numpy as jnp
 from flax import nnx
 
 import mapox.envs.constance as GW
-from mapox import GridworldClient, MultiTaskWrapper, play, EnvironmentFactory
+from mapox import GridworldClient, MultiTaskWrapper, EnvironmentFactory
+from mapox.play import enjoy
 
 from jaxrl.checkpointer import Checkpointer
 from jaxrl.experiment import Experiment
@@ -49,4 +50,4 @@ def play_from_run(
     agent = load_policy(experiment, env, config.max_env_steps, task_count, load_experiement, rngs)
     agent_state = agent.initialize_carry(env.num_agents, rngs=rngs)
 
-    play(env, agent, agent_state, rngs.env(), video_path, size, human_control, pov)
+    enjoy(env, agent, agent_state, rngs.env(), video_path, size, human_control, pov)
