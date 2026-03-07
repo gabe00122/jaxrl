@@ -12,7 +12,6 @@ def load_policy(
     env,
     max_steps,
     task_count,
-    load: bool,
     rngs: nnx.Rngs,
 ) -> TransformerActorCritic:
     model = TransformerActorCritic(
@@ -24,9 +23,8 @@ def load_policy(
         rngs=rngs,
     )
 
-    if load:
-        with Checkpointer(experiment.checkpoints_url) as checkpointer:
-            model = checkpointer.restore_latest(model)
+    with Checkpointer(experiment.checkpoints_url) as checkpointer:
+        model = checkpointer.restore_latest(model)
 
     return model
 
@@ -54,7 +52,6 @@ def play_from_run(
         env,
         config.max_env_steps,
         task_count,
-        True,
         rngs,
     )
     agent_state = agent.initialize_carry(env.num_agents, rngs=rngs)

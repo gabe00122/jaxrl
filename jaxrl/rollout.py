@@ -1,11 +1,11 @@
 from typing import NamedTuple
 
-from einops import rearrange
 import jax
+from einops import rearrange
 from jax import numpy as jnp
+from mapox import ActionSpec, ObservationSpec, TimeStep
 
 from jaxrl.constants import index_type
-from mapox import TimeStep, ActionSpec, ObservationSpec
 
 
 class RolloutState(NamedTuple):
@@ -87,7 +87,7 @@ class Rollout:
             ),
             task_ids=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.int32
-            )
+            ),
         )
 
     def store(
@@ -114,7 +114,9 @@ class Rollout:
             next_terminated=state.next_terminated.at[:, step].set(
                 next_timestep.terminated
             ),
-            last_actions=state.last_actions.at[:, step].set(timestep.last_action),
+            last_actions=state.last_actions.at[:, step].set(
+                timestep.last_action
+            ),
             last_rewards=state.last_rewards.at[:, step].set(timestep.reward),
             task_ids=(
                 state.task_ids.at[:, step].set(timestep.task_ids)
@@ -124,11 +126,17 @@ class Rollout:
         )
 
     def calculate_advantage(
-        self, state: RolloutState, discount: float, gae_lambda: float, norm_adv: bool
+        self,
+        state: RolloutState,
+        discount: float,
+        gae_lambda: float,
+        norm_adv: bool,
     ) -> RolloutState:
         def _body(acc, xs):
             rewards, discount, v_tp1 = xs
-            acc = rewards + discount * ((1 - gae_lambda) * v_tp1 + gae_lambda * acc)
+            acc = rewards + discount * (
+                (1 - gae_lambda) * v_tp1 + gae_lambda * acc
+            )
             return acc, acc
 
         # swap to time major
@@ -142,10 +150,9 @@ class Rollout:
             (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
             reverse=True,
         )
-        advantage = targets - values[:-1]
 
         targets = jnp.swapaxes(targets, 0, 1)
-        advantages = jnp.swapaxes(advantage, 0, 1)
+        advantages = targets - values[:, :-1]
 
         # rollout norm
         if norm_adv:
