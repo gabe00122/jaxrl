@@ -1,10 +1,10 @@
 from typing import Any
+
+import jax.numpy as jnp
+import optax
 from einops import rearrange
 from flax import nnx
-import jax.numpy as jnp
 from jax.scipy.stats import norm
-import optax
-
 
 from jaxrl.config import HlGaussConfig
 
@@ -21,21 +21,30 @@ def calculate_supports(config: HlGaussConfig):
 
 class HlGaussValue(nnx.Module):
     def __init__(
-        self, in_features: int, hl_gauss_config: HlGaussConfig, *, rngs: nnx.Rngs
+        self,
+        in_features: int,
+        hl_gauss_config: HlGaussConfig,
+        *,
+        rngs: nnx.Rngs,
     ) -> None:
         self._min = hl_gauss_config.min
         self._max = hl_gauss_config.max
         self._sigma = hl_gauss_config.sigma
 
-        self.dense = nnx.Linear(in_features, hl_gauss_config.n_logits, rngs=rngs)
-        self._supports, self._centers = calculate_supports(hl_gauss_config)
+        self.dense = nnx.Linear(
+            in_features, hl_gauss_config.n_logits, rngs=rngs
+        )
+        supports, centers = calculate_supports(hl_gauss_config)
+
+        self._supports = nnx.Variable(supports)
+        self._centers = nnx.Variable(centers)
 
     def __call__(self, x) -> Any:
         return self.dense(x)
 
     def get_value(self, logits):
         probs = nnx.softmax(logits, axis=-1)
-        return (probs * self._centers).sum(-1)
+        return (probs * self._centers[...]).sum(-1)
 
     def get_loss(self, logits, target_values):
         logits = rearrange(logits, "b t l -> (b t) l")
@@ -43,7 +52,9 @@ class HlGaussValue(nnx.Module):
 
         targets = jnp.clip(target_values, self._min, self._max)
 
-        cdf_evals = norm.cdf(self._supports, loc=targets[:, None], scale=self._sigma)
+        cdf_evals = norm.cdf(
+            self._supports[...], loc=targets[:, None], scale=self._sigma
+        )
 
         z = cdf_evals[:, -1] - cdf_evals[:, 0]
 
