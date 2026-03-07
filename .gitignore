@@ -33,3 +33,8 @@ jaxrl.egg-info
 jaxrl_study.db
 
 build/
+
+# TF.js PoC
+tfjs_poc/weights/
+tfjs_poc/dist/
+node_modules/

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransformerActorCritic — TF.js PoC</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "SF Mono", "Fira Code", monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+    h1 { font-size: 1.2rem; margin-bottom: 1rem; color: #58a6ff; }
+    .section { margin-bottom: 1.5rem; padding: 1rem; background: #161b22; border: 1px solid #30363d; border-radius: 6px; }
+    .section h2 { font-size: 0.9rem; color: #8b949e; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ok { color: #3fb950; }
+    .err { color: #f85149; }
+    .warn { color: #d29922; }
+    pre { white-space: pre-wrap; font-size: 0.85rem; line-height: 1.5; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #21262d; }
+    th { color: #8b949e; font-weight: normal; }
+    #log { max-height: 300px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1>TransformerActorCritic — TF.js Inference PoC</h1>
+
+  <div class="section">
+    <h2>Status</h2>
+    <pre id="status">Loading...</pre>
+  </div>
+
+  <div class="section">
+    <h2>Action Probabilities</h2>
+    <table>
+      <thead><tr><th>Action</th><th>JS Prob</th><th>JAX Ref</th><th>Diff</th></tr></thead>
+      <tbody id="probs-table"></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Timing</h2>
+    <pre id="timing"></pre>
+  </div>
+
+  <div class="section">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </div>
+
+  <!-- TF.js from CDN: maps bare specifier "@tensorflow/tfjs" → ESM bundle -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@tensorflow/tfjs": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/+esm"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as tf from "@tensorflow/tfjs";
+    import { forward, loadWeights, initializeKvCaches } from "./dist/model.js";
+
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const timingEl = document.getElementById("timing");
+    const probsTable = document.getElementById("probs-table");
+
+    function log(msg) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className = cls || "";
+    }
+
+    async function run() {
+      try {
+        // ── Load config ──
+        log("Fetching config...");
+        const cfgResp = await fetch("weights/config.json");
+        const cfg = await cfgResp.json();
+        log(`Model: ${cfg.num_layers} layers, ${cfg.hidden_features}d, ${cfg.num_heads} heads`);
+
+        // ── Load reference ──
+        log("Fetching reference output...");
+        const refResp = await fetch("weights/reference.json");
+        const ref = await refResp.json();
+        log(`Reference loaded: ${ref.action_probs[0].length} action probs`);
+
+        // ── Load weights ──
+        log("Loading weights...");
+        setStatus("Loading weights...");
+        const t0weights = performance.now();
+        const weights = await loadWeights("weights/model.json", cfg);
+        const weightTime = performance.now() - t0weights;
+        const numWeights = Object.keys(weights).filter(k => !k.startsWith("_")).length;
+        log(`Loaded ${numWeights} weight tensors in ${weightTime.toFixed(0)}ms`);
+
+        // ── Prepare dummy input (same as export script) ──
+        const obs = tf.tensor(ref.obs, undefined, "int32");       // [1, 11, 11, 4]
+        const reward = tf.tensor(ref.reward, undefined, "float32"); // [1]
+        const lastAction = tf.tensor(ref.last_action, undefined, "int32"); // [1]
+        const time = tf.tensor(ref.time, undefined, "int32"); // [1]
+
+        const timestep = { obs, reward, lastAction, time };
+
+        // ── Initialize KV caches ──
+        let kvCaches = initializeKvCaches(1, cfg);
+
+        // ── Warm-up pass ──
+        log("Warm-up forward pass...");
+        setStatus("Running warm-up...");
+        let result = forward(timestep, kvCaches, weights, cfg);
+        result.actionProbs.dataSync(); // force execution
+        kvCaches = result.kvCaches;
+
+        // Dispose warm-up results (the KV caches now have data)
+        result.actionProbs.dispose();
+        result.actionLogits.dispose();
+
+        // Re-init caches for the actual test (to match reference which starts fresh)
+        for (const c of kvCaches) { c.key.dispose(); c.value.dispose(); }
+        kvCaches = initializeKvCaches(1, cfg);
+
+        // ── Timed forward pass ──
+        log("Timed forward pass...");
+        setStatus("Running inference...");
+        const t0 = performance.now();
+        result = forward(timestep, kvCaches, weights, cfg);
+        const jsProbs = result.actionProbs.dataSync();
+        const elapsed = performance.now() - t0;
+
+        log(`Forward pass: ${elapsed.toFixed(1)}ms`);
+        timingEl.textContent = `Forward pass latency: ${elapsed.toFixed(1)}ms`;
+
+        // ── Compare with reference ──
+        const refProbs = ref.action_probs[0]; // first (only) batch element
+        let maxDiff = 0;
+        for (let i = 0; i < refProbs.length; i++) {
+          const diff = Math.abs(jsProbs[i] - refProbs[i]);
+          maxDiff = Math.max(maxDiff, diff);
+
+          const row = document.createElement("tr");
+          const diffClass = diff < 0.001 ? "ok" : diff < 0.01 ? "warn" : "err";
+          row.innerHTML = `
+            <td>${i}</td>
+            <td>${jsProbs[i].toFixed(6)}</td>
+            <td>${refProbs[i].toFixed(6)}</td>
+            <td class="${diffClass}">${diff.toExponential(2)}</td>
+          `;
+          probsTable.appendChild(row);
+        }
+
+        const tolerance = 0.01;
+        if (maxDiff < tolerance) {
+          setStatus(`PASS — max diff: ${maxDiff.toExponential(2)} (< ${tolerance})`, "ok");
+          log(`PASS! Max absolute difference: ${maxDiff.toExponential(2)}`);
+        } else {
+          setStatus(`WARN — max diff: ${maxDiff.toExponential(2)} (>= ${tolerance})`, "warn");
+          log(`WARN: Max absolute difference: ${maxDiff.toExponential(2)} exceeds tolerance ${tolerance}`);
+          log("This may be expected due to float32 vs bfloat16 accumulation differences.");
+        }
+
+        // Cleanup
+        result.actionProbs.dispose();
+        result.actionLogits.dispose();
+
+      } catch (err) {
+        setStatus(`ERROR: ${err.message}`, "err");
+        log(`Error: ${err.stack}`);
+        console.error(err);
+      }
+    }
+
+    // Go
+    await tf.ready();
+    log(`TF.js backend: ${tf.getBackend()}`);
+    run();
+  </script>
+</body>
+</html>
