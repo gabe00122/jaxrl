@@ -114,7 +114,9 @@ class Rollout:
             next_terminated=state.next_terminated.at[:, step].set(
                 next_timestep.terminated
             ),
-            last_actions=state.last_actions.at[:, step].set(timestep.last_action),
+            last_actions=state.last_actions.at[:, step].set(
+                timestep.last_action
+            ),
             last_rewards=state.last_rewards.at[:, step].set(timestep.reward),
             task_ids=(
                 state.task_ids.at[:, step].set(timestep.task_ids)
@@ -132,7 +134,9 @@ class Rollout:
     ) -> RolloutState:
         def _body(acc, xs):
             rewards, discount, v_tp1 = xs
-            acc = rewards + discount * ((1 - gae_lambda) * v_tp1 + gae_lambda * acc)
+            acc = rewards + discount * (
+                (1 - gae_lambda) * v_tp1 + gae_lambda * acc
+            )
             return acc, acc
 
         # swap to time major
@@ -146,13 +150,16 @@ class Rollout:
             (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
             reverse=True,
         )
+        advantages = targets - values[:, :-1]
 
         targets = jnp.swapaxes(targets, 0, 1)
-        advantages = targets - values[:, :-1]
+        advantages = jnp.swapaxes(advantages, 0, 1)
 
         # rollout norm
         if norm_adv:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            advantages = (advantages - advantages.mean()) / (
+                advantages.std() + 1e-8
+            )
 
         return state._replace(
             advantages=advantages,
