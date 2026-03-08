@@ -1,3 +1,4 @@
+import json
 from abc import ABC, abstractmethod
 import os
 from pathlib import Path
@@ -10,8 +11,6 @@ from tensorboardX import SummaryWriter
 from jaxrl.config import Config
 from jaxrl.util import json_normalize
 
-# import neptune
-# from neptune.utils import stringify_unsupported
 import wandb
 
 Metrics = dict[str, jax.Array | nnx.Metric]
@@ -100,22 +99,23 @@ class ConsoleLogger(BaseLogger):
         self._console.print(log_str)
 
 
-# class NeptuneLogger(BaseLogger):
-#     def __init__(self, unique_token: str):
-#         self.logger = neptune.init_run(
-#             project="gabe00122/sentiment-lm",
-#         )
+class JsonLogger(BaseLogger):
+    def __init__(self, experiement_path: str) -> None:
+        self._file = None
+        self._experiement_path = f"{experiement_path}/logs.jsonl"
 
-#         self.logger["config"] = dump_settings(cfg)
+    def start(self):
+        self._file = open(f"{self._experiement_path}.jsonl", "w")
 
-#     def log_dict(self, data: Metrics, step: int) -> None:
-#         data = json_normalize(data, sep="/")
+    def close(self):
+        if self._file is not None:
+            self._file.close()
+            self._file = None
 
-#         for key, value in data.items():
-#             self.logger[key].log(value, step=step)
-
-#     def close(self) -> None:
-#         self.logger.stop()
+    def log_dict(self, data: Metrics, step: int) -> None:
+        if self._file is not None:
+            self._file.write(json.dumps(data) + "\n")
+            self._file.flush()
 
 
 class WandbLogger(BaseLogger):

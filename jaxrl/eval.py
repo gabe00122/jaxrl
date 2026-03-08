@@ -138,6 +138,7 @@ def evaluate(
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []
+    run_tokens = list(dict.fromkeys(run_tokens))
 
     for name in run_tokens:
         console.print(f"Loading: {name}")
