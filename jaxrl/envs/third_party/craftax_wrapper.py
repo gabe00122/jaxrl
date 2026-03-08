@@ -49,7 +49,9 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         rewards = jnp.zeros(1)
         time = jnp.zeros(1, dtype=jnp.int32)
 
-        state = CraftaxWrapperState(cstate, time, jnp.float32(0.0), jnp.float32(0), jnp.int32(0))
+        state = CraftaxWrapperState(
+            cstate, time, jnp.float32(0.0), jnp.float32(0), jnp.int32(0)
+        )
 
         return state, self._encode_timestep(
             obs, jnp.array(False, dtype=jnp.bool_), actions, rewards, time
@@ -83,7 +85,9 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
 
         rewards = state.rewards + jnp.squeeze(reward)
 
-        total_rewards = jnp.where(done, state.total_rewards + rewards, state.total_rewards)
+        total_rewards = jnp.where(
+            done, state.total_rewards + rewards, state.total_rewards
+        )
         total_episodes = jnp.where(done, state.total_episodes + 1, state.total_episodes)
         rewards = jnp.where(done, 0, rewards)
 
@@ -113,17 +117,15 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         )
 
     def create_placeholder_logs(self):
-        return {
-            "rewards": jnp.float32(0.0),
-            "episodes": jnp.float32(0.0)
-        }
+        return {"rewards": jnp.float32(0.0), "episodes": jnp.float32(0.0)}
 
     def create_logs(self, state: CraftaxWrapperState):
-        reward = jnp.where(state.total_episodes > 0, state.total_rewards / state.total_episodes, state.rewards)
-        return {
-            "rewards": reward,
-            "episodes": state.total_episodes.astype(jnp.float32)
-        }
+        reward = jnp.where(
+            state.total_episodes > 0,
+            state.total_rewards / state.total_episodes,
+            state.rewards,
+        )
+        return {"rewards": reward, "episodes": state.total_episodes.astype(jnp.float32)}
 
 
 class CraftaxConfig(BaseModel):

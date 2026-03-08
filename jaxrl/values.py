@@ -31,9 +31,7 @@ class HlGaussValue(nnx.Module):
         self._max = hl_gauss_config.max
         self._sigma = hl_gauss_config.sigma
 
-        self.dense = nnx.Linear(
-            in_features, hl_gauss_config.n_logits, rngs=rngs
-        )
+        self.dense = nnx.Linear(in_features, hl_gauss_config.n_logits, rngs=rngs)
         supports, centers = calculate_supports(hl_gauss_config)
 
         self._supports = nnx.Variable(supports)

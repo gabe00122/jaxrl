@@ -1,4 +1,3 @@
-from typing import Union
 import jax
 import optax
 
@@ -39,13 +38,22 @@ def create_optimizer(
         case _:
             raise ValueError(f"Unknown optimizer type: {optimizer_config.type}")
 
-EXCLUDE_TOP = {"value_head", "action_encoder", "reward_encoder", "obs_encoder", "obs_decoder"}
+
+EXCLUDE_TOP = {
+    "value_head",
+    "action_encoder",
+    "reward_encoder",
+    "obs_encoder",
+    "obs_decoder",
+}
+
 
 def muon_dim_numbers_fn(params):
     """Return a pytree mirroring `params` with:
-       - MuonDimensionNumbers() for leaves you want Muon on
-       - None for leaves you want AdamW on
+    - MuonDimensionNumbers() for leaves you want Muon on
+    - None for leaves you want AdamW on
     """
+
     def decide(path, x):
         # ignore whole subtrees by their top-level module name
         top = path[0].key if path else None
@@ -53,6 +61,9 @@ def muon_dim_numbers_fn(params):
             return None
         # Only 2D weights are eligible for Muon by default
         if hasattr(x, "ndim") and x.ndim == 2:
-            return optax.contrib.MuonDimensionNumbers()  # default: treat as a matrix (no reshape)
+            return (
+                optax.contrib.MuonDimensionNumbers()
+            )  # default: treat as a matrix (no reshape)
         return None  # biases, vectors, embeddings, 3D/4D kernels -> AdamW
+
     return jax.tree.map_with_path(decide, params)

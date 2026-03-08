@@ -1,9 +1,10 @@
 import json
 import random
 from typing import Any, Literal, Tuple
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mapox import EnvironmentConfig, MultiTaskConfig
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -108,6 +109,7 @@ class LoggerConfig(BaseModel):
     use_tb: bool = False
     use_neptune: bool = False
     use_wandb: bool = False
+    use_jsonl: bool = True
 
 
 class OptimizerConfig(BaseModel):
@@ -144,6 +146,7 @@ class LearnerConfig(BaseModel):
     optimizer: OptimizerConfig
     model: TransformerActorCriticConfig
     trainer: PPOConfig
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

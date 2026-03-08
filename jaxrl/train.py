@@ -1,25 +1,25 @@
 import math
-from functools import partial
 import random
 import time
+from functools import partial
 from typing import NamedTuple
+
 import jax
 import jax.numpy as jnp
-from flax import nnx
-from einops import rearrange
 import optuna
-from rich.progress import track
+from flax import nnx
+from mapox import Environment, EnvironmentFactory, TimeStep
 from rich.console import Console
+from rich.progress import track
 
-from mapox import EnvironmentFactory, TimeStep, Environment
-
+from jaxrl.checkpointer import Checkpointer
 from jaxrl.config import Config, PPOConfig
 from jaxrl.experiment import Experiment
-from jaxrl.optimizer import create_optimizer
+from jaxrl.logger import JaxLogger
 from jaxrl.model.network import TransformerActorCritic
+from jaxrl.optimizer import create_optimizer
 from jaxrl.rollout import Rollout, RolloutState
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.util import count_parameters, format_count, lerp, add_seq_dim
+from jaxrl.util import add_seq_dim, count_parameters, format_count, lerp
 
 
 class TrainingLogs(NamedTuple):
@@ -38,6 +38,7 @@ def create_training_logs() -> TrainingLogs:
         total_loss=jnp.array(0.0),
         entropy_coef=jnp.array(0.0),
     )
+
 
 def evaluate(
     model: TransformerActorCritic,
@@ -59,7 +60,9 @@ def evaluate(
     league_carry = None
     if league_model is not None:
         agent_idx = jax.random.permutation(rngs.env(), env.num_agents)
-        agent_inv_idx = jnp.zeros_like(agent_idx).at[agent_idx].set(jnp.arange(env.num_agents))
+        agent_inv_idx = (
+            jnp.zeros_like(agent_idx).at[agent_idx].set(jnp.arange(env.num_agents))
+        )
 
         league_size = env.num_agents - rollout.batch_size
         league_carry = league_model.initialize_carry(league_size, rngs)
@@ -82,7 +85,9 @@ def evaluate(
         if agent_idx is not None:
             timestep, league_timestep = split_timestep(env_timestep)
 
-            _, league_policy, league_carry = league_model(add_seq_dim(league_timestep), league_carry)
+            _, league_policy, league_carry = league_model(
+                add_seq_dim(league_timestep), league_carry
+            )
             league_actions = league_policy.sample(seed=rngs.action()).squeeze(axis=-1)
         else:
             league_actions = None
@@ -112,23 +117,42 @@ def evaluate(
             value=value,
         )
 
-        return rollout_state, rngs, env_state, next_timestep, carry, league_carry
+        return (
+            rollout_state,
+            rngs,
+            env_state,
+            next_timestep,
+            carry,
+            league_carry,
+        )
 
     rollout_state, rngs, env_state, _, _, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
-        init_val=(rollout_state, rngs, env_state, timestep, carry, league_carry),
+        init_val=(
+            rollout_state,
+            rngs,
+            env_state,
+            timestep,
+            carry,
+            league_carry,
+        ),
     )
 
     # save the last value
     timestep, _ = split_timestep(timestep)
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
-    rollout_state = rollout_state._replace(values=rollout_state.values.at[:, -1].set(value))
+    rollout_state = rollout_state._replace(
+        values=rollout_state.values.at[:, -1].set(value)
+    )
 
     rollout_state = rollout.calculate_advantage(
-        rollout_state, discount=hypers.discount, gae_lambda=hypers.gae_lambda, norm_adv=hypers.normalize_advantage
+        rollout_state,
+        discount=hypers.discount,
+        gae_lambda=hypers.gae_lambda,
+        norm_adv=hypers.normalize_advantage,
     )
 
     env_logs = env.create_logs(env_state)
@@ -206,7 +230,7 @@ def train(
     rollout: Rollout,
     env: Environment,
     config: Config,
-    fictitious_model: TransformerActorCritic | None = None
+    fictitious_model: TransformerActorCritic | None = None,
 ):
     hypers = config.learner.trainer
 
@@ -241,7 +265,13 @@ def train(
         progress = step_value / config.update_steps
 
         rollout_state, env_log_update, rngs = evaluate(
-            optimizer.model, rollout, rngs, env, hypers, fictitious_model, progress
+            optimizer.model,
+            rollout,
+            rngs,
+            env,
+            hypers,
+            fictitious_model,
+            progress,
         )
         optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
@@ -291,14 +321,16 @@ def block_all(xs):
 
 
 def train_run(
-    experiment: Experiment, trial: optuna.Trial | None = None, profile: bool = False
+    experiment: Experiment,
+    trial: optuna.Trial | None = None,
+    profile: bool = False,
 ):
     console = Console()
 
     max_steps = experiment.config.max_env_steps
     has_league = experiment.config.snapshot_league
 
-    logger = experiment.create_logger(console)
+    logger = JaxLogger(experiment, console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
     env_factory = EnvironmentFactory()
@@ -401,10 +433,7 @@ def train_run(
         if trial:
             trial.report(logs.rewards.item(), i)
 
-        if (
-            checkpoint_interval is not None
-            and (i + 1) % checkpoint_interval == 0
-        ):
+        if checkpoint_interval is not None and (i + 1) % checkpoint_interval == 0:
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
 

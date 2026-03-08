@@ -37,7 +37,15 @@ class PolicyRecord:
 
 
 @partial(nnx.jit, static_argnums=(0, 3, 4, 5))
-def _round(env: Environment, policy1: TransformerActorCritic, policy2: TransformerActorCritic, policy1_task_id: int, policy2_task_id: int, max_steps: int, rngs: nnx.Rngs):
+def _round(
+    env: Environment,
+    policy1: TransformerActorCritic,
+    policy2: TransformerActorCritic,
+    policy1_task_id: int,
+    policy2_task_id: int,
+    max_steps: int,
+    rngs: nnx.Rngs,
+):
     teams = env.teams
     team_size = env.num_agents // 2
 
@@ -50,7 +58,15 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
     state, ts = env.reset(rngs.env())
 
     def _step(_, x):
-        state, ts, policy1_carry, policy2_carry, policy1_reward, policy2_reward, rngs = x
+        (
+            state,
+            ts,
+            policy1_carry,
+            policy2_carry,
+            policy1_reward,
+            policy2_reward,
+            rngs,
+        ) = x
 
         ts = add_seq_dim(ts)
 
@@ -59,10 +75,10 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
 
         # override the task id's in case they are different for different models
         policy1_ts = policy1_ts._replace(
-            task_ids = jnp.full((policy1_ts.obs.shape[0],), policy1_task_id)
+            task_ids=jnp.full((policy1_ts.obs.shape[0],), policy1_task_id)
         )
         policy2_ts = policy2_ts._replace(
-            task_ids = jnp.full((policy2_ts.obs.shape[0],), policy2_task_id)
+            task_ids=jnp.full((policy2_ts.obs.shape[0],), policy2_task_id)
         )
 
         _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
@@ -80,19 +96,42 @@ def _round(env: Environment, policy1: TransformerActorCritic, policy2: Transform
         policy1_reward = policy1_reward + policy1_ts.reward.sum()
         policy2_reward = policy2_reward + policy2_ts.reward.sum()
 
-        return state, ts, policy1_carry, policy2_carry, policy1_reward, policy2_reward, rngs
+        return (
+            state,
+            ts,
+            policy1_carry,
+            policy2_carry,
+            policy1_reward,
+            policy2_reward,
+            rngs,
+        )
 
     _, _, _, _, policy1_reward, policy2_reward, rngs = nnx.fori_loop(
         0,
         max_steps,
         _step,
-        (state, ts, policy1_carry, policy2_carry, jnp.float32(0.0), jnp.float32(0.0), rngs)
+        (
+            state,
+            ts,
+            policy1_carry,
+            policy2_carry,
+            jnp.float32(0.0),
+            jnp.float32(0.0),
+            rngs,
+        ),
     )
 
     return policy1_reward, policy2_reward, rngs
 
 
-def load_policy(experiment: Experiment, env, env_name, max_steps: int, task_count: int, rngs: nnx.Rngs) -> list[PolicyRecord]:
+def load_policy(
+    experiment: Experiment,
+    env,
+    env_name,
+    max_steps: int,
+    task_count: int,
+    rngs: nnx.Rngs,
+) -> list[PolicyRecord]:
     model_template = TransformerActorCritic(
         experiment.config.learner.model,
         env.observation_spec,
@@ -115,17 +154,20 @@ def load_policy(experiment: Experiment, env, env_name, max_steps: int, task_coun
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
             model = checkpointer.restore(model_template, step)
-            policy = PolicyRecord(experiment.unique_token, step, trueskill.Rating(), model, task_id)
+            policy = PolicyRecord(
+                experiment.unique_token, step, trueskill.Rating(), model, task_id
+            )
             policies.append(policy)
 
     return policies
+
 
 def evaluate(
     run_tokens: list[str],
     env_name: Optional[str],
     seed: int,
     rounds: int,
-    output_name: str
+    output_name: str,
 ):
     console = Console()
 
@@ -134,7 +176,9 @@ def evaluate(
 
     env_factory = EnvironmentFactory()
 
-    env, task_count = env_factory.create_env(experiment.config.environment, max_steps, vec_count=32, env_name=env_name)
+    env, task_count = env_factory.create_env(
+        experiment.config.environment, max_steps, vec_count=32, env_name=env_name
+    )
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []
@@ -146,28 +190,46 @@ def evaluate(
         policies = load_policy(experiment, env, env_name, max_steps, task_count, rngs)
         league.extend(policies)
 
-    for _ in progress.track(range(rounds), description="Ranking rounds", console=console):
+    for _ in progress.track(
+        range(rounds), description="Ranking rounds", console=console
+    ):
         agents = random.choices(league, k=2)
 
-        policy1_reward, policy2_reward, rngs = _round(env, agents[0].model, agents[1].model, agents[0].task_id, agents[1].task_id, max_steps, rngs)
-        winner, loser = agents if policy1_reward > policy2_reward else (agents[1], agents[0])
+        policy1_reward, policy2_reward, rngs = _round(
+            env,
+            agents[0].model,
+            agents[1].model,
+            agents[0].task_id,
+            agents[1].task_id,
+            max_steps,
+            rngs,
+        )
+        winner, loser = (
+            agents if policy1_reward > policy2_reward else (agents[1], agents[0])
+        )
 
         winner_rating, loser_rating = trueskill.rate_1vs1(winner.rating, loser.rating)
         winner.rating = winner_rating
         loser.rating = loser_rating
 
-    df = pd.DataFrame([
-        (policy.name, policy.step, policy.rating.mu, policy.rating.sigma) for policy in league
-    ], columns=["run", "step", "mu", "sigma"])
+    df = pd.DataFrame(
+        [
+            (policy.name, policy.step, policy.rating.mu, policy.rating.sigma)
+            for policy in league
+        ],
+        columns=["run", "step", "mu", "sigma"],
+    )
 
-    df.to_csv(output_name + '.csv')
-    save_ranking_plot(df, output_name + '.png')
+    df.to_csv(output_name + ".csv")
+    save_ranking_plot(df, output_name + ".png")
 
 
 @app.command()
 def main(
     run: list[str] = typer.Option(
-        ..., help="Existing experiment run token (under results/)", rich_help_panel="Input"
+        ...,
+        help="Existing experiment run token (under results/)",
+        rich_help_panel="Input",
     ),
     env: Optional[str] = typer.Option(
         None, help="Select a specific env when using a multi env config."

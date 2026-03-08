@@ -1,17 +1,18 @@
 import json
-from abc import ABC, abstractmethod
 import os
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-from rich.console import Console
 import jax
-from flax import nnx
 import numpy as np
+from flax import nnx
+from rich.console import Console
 from tensorboardX import SummaryWriter
-from jaxrl.config import Config
-from jaxrl.util import json_normalize
 
 import wandb
+from jaxrl.config import Config
+from jaxrl.experiment import Experiment
+from jaxrl.util import json_normalize
 
 Metrics = dict[str, jax.Array | nnx.Metric]
 
@@ -42,17 +43,19 @@ class MultiLogger(BaseLogger):
 
 
 class JaxLogger:
-    def __init__(self, settings: Config, unique_token: str, console: Console):
+    def __init__(self, experiement: Experiment, console: Console):
         loggers: list[BaseLogger] = []
+        logger_config = experiement.config.logger
+        unique_token = experiement.unique_token
 
-        if settings.logger.use_tb:
+        if logger_config.use_tb:
             loggers.append(TensorboardLogger(unique_token))
-        if settings.logger.use_console:
+        if logger_config.use_console:
             loggers.append(ConsoleLogger(unique_token, console))
-        # if cfg.logger.use_neptune:
-        #     loggers.append(NeptuneLogger(cfg, unique_token))
-        if settings.logger.use_wandb:
-            loggers.append(WandbLogger(unique_token, settings))
+        if logger_config.use_jsonl:
+            loggers.append(JsonLogger(experiement.experiment_url))
+        if logger_config.use_wandb:
+            loggers.append(WandbLogger(unique_token, experiement.config))
 
         self.logger = MultiLogger(loggers)
 
@@ -135,7 +138,12 @@ def describe(x: dict) -> dict:
     if not isinstance(x, jax.Array) or x.size <= 1:
         return x
 
-    return {"mean": np.mean(x), "std": np.std(x), "min": np.min(x), "max": np.max(x)}
+    return {
+        "mean": np.mean(x),
+        "std": np.std(x),
+        "min": np.min(x),
+        "max": np.max(x),
+    }
 
 
 def dump_settings(settings: Config):

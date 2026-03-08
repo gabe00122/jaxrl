@@ -22,9 +22,7 @@ class Checkpointer:
 
         value_state = nnx.state(model, nnx.Param)
         abstract_state = jax.tree.map(
-            lambda x, s: jax.ShapeDtypeStruct(
-                shape=x.shape, dtype=x.dtype, sharding=s
-            ),
+            lambda x, s: jax.ShapeDtypeStruct(shape=x.shape, dtype=x.dtype, sharding=s),
             value_state,
             nnx.get_named_sharding(value_state, mesh),
         )

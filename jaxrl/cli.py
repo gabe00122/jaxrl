@@ -65,9 +65,7 @@ def profile(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(
-        config, base_dir, create_directories=False
-    )
+    experiment = Experiment.from_config_file(config, base_dir, create_directories=False)
 
     train_run(experiment, profile=True)
 

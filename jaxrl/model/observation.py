@@ -52,13 +52,19 @@ class GridCnnObsEncoder(nnx.Module):
         self.params_dtype = params_dtype
 
         self._one_hot_sizes = obs_spec.max_value
-        self.num_classes = self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
+        self.num_classes = self.num_classes = (
+            int(obs_spec.max_value)
+            if isinstance(obs_spec.max_value, int)
+            else sum(obs_spec.max_value)
+        )
 
         channels = [*config.channels, output_size]
 
         in_channel = self.num_classes
         layers = []
-        for kernel_size, strides, channel in zip(config.kernels, config.strides, channels):
+        for kernel_size, strides, channel in zip(
+            config.kernels, config.strides, channels
+        ):
             layers.append(
                 nnx.Conv(
                     in_features=in_channel,
@@ -76,7 +82,9 @@ class GridCnnObsEncoder(nnx.Module):
         self.layers = nnx.List(layers)
 
     def __call__(self, x) -> jax.Array:
-        x = concat_one_hot(x, self._one_hot_sizes, self.dtype) # currently only supports the case with multiple components per tile
+        x = concat_one_hot(
+            x, self._one_hot_sizes, self.dtype
+        )  # currently only supports the case with multiple components per tile
 
         for i, layer in enumerate(self.layers):
             x = layer(x)
@@ -106,7 +114,11 @@ class FlattenedObsEncoder(nnx.Module):
         embed_features = 4
 
         self.params_dtype = params_dtype
-        self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
+        self.num_classes = (
+            int(obs_spec.max_value)
+            if isinstance(obs_spec.max_value, int)
+            else sum(obs_spec.max_value)
+        )
         in_features = embed_features * obs_spec.shape[0] * obs_spec.shape[1]
 
         self.embedding = nnx.Linear(
@@ -149,7 +161,11 @@ class GridCnnObsDecoder(nnx.Module):
         )
 
         self.dtype = dtype
-        self.num_classes = self.num_classes = int(obs_spec.max_value) if isinstance(obs_spec.max_value, int) else sum(obs_spec.max_value)
+        self.num_classes = self.num_classes = (
+            int(obs_spec.max_value)
+            if isinstance(obs_spec.max_value, int)
+            else sum(obs_spec.max_value)
+        )
         self.conv2 = nnx.ConvTranspose(
             in_features=output_size,
             out_features=16,

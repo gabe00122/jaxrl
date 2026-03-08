@@ -1,6 +1,5 @@
 import jax
 import pygame
-import numpy as np
 from flax import nnx
 from jax import numpy as jnp
 

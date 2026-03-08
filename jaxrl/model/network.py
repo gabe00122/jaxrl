@@ -13,7 +13,6 @@ from jaxrl.config import (
     LayerConfig,
     TransformerActorCriticConfig,
 )
-from jaxrl.distributions import IdentityTransformation
 from jaxrl.model.observation import create_obs_encoder
 from jaxrl.model.attention import AttentionBlock, KVCache
 from jaxrl.model.rnn import RnnBlock
@@ -236,13 +235,17 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-        self.task_embedder = Embedder(
-            task_count,
-            hidden_features,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            rngs=rngs,
-        ) if task_count > 1 else None
+        self.task_embedder = (
+            Embedder(
+                task_count,
+                hidden_features,
+                dtype=dtype,
+                param_dtype=param_dtype,
+                rngs=rngs,
+            )
+            if task_count > 1
+            else None
+        )
 
         layers = []
         for _ in range(config.num_layers):
@@ -334,8 +337,10 @@ class TransformerActorCritic(nnx.Module):
 
         return value_rep, policy, carry
 
-    @partial(jax.jit, static_argnums=(0,), donate_argnums=(1,3))
-    def sample_actions(self, agent_state: Any, timestep: TimeStep, rng_key: jax.Array) -> tuple[Any, jax.Array, jax.Array]:
+    @partial(jax.jit, static_argnums=(0,), donate_argnums=(1, 3))
+    def sample_actions(
+        self, agent_state: Any, timestep: TimeStep, rng_key: jax.Array
+    ) -> tuple[Any, jax.Array, jax.Array]:
         _, policy, agent_state = self(add_seq_dim(timestep), agent_state)
 
         sample_rng, rng_key = jax.random.split(rng_key)
