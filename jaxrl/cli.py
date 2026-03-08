@@ -1,12 +1,13 @@
 import os
-import typer
+import shutil
+
 import jax
+import typer
+
+from jaxrl.eval import main as eval_main
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_run
 from jaxrl.train import train_run
-from jaxrl.eval import main as eval_main
-import shutil
-
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -21,24 +22,26 @@ def enjoy(
     video_path: str | None = typer.Option(
         None, help="Path to save video; if omitted, no video is recorded."
     ),
-    size: int = 960
-):
-    play_from_run(name, True, human, pov, seed, env_name=env, video_path=video_path, size=size)
-
-
-@app.command()
-def play(
-    config: str = "./config/return.json",
-    human: bool = False,
-    pov: bool = False,
-    seed: int = 0,
-    env: str | None = None,
-    video_path: str | None = typer.Option(
-        None, help="Path to save video; if omitted, no video is recorded."
-    ),
     size: int = 960,
 ):
-    play_from_run(config, False, human, pov, seed, env_name=env, video_path=video_path, size=size)
+    play_from_run(
+        name, human, pov, seed, env_name=env, video_path=video_path, size=size
+    )
+
+
+# @app.command()
+# def play(
+#     config: str = "./config/return.json",
+#     human: bool = False,
+#     pov: bool = False,
+#     seed: int = 0,
+#     env: str | None = None,
+#     video_path: str | None = typer.Option(
+#         None, help="Path to save video; if omitted, no video is recorded."
+#     ),
+#     size: int = 960,
+# ):
+#     play_from_run(config, False, human, pov, seed, env_name=env, video_path=video_path, size=size)
 
 
 @app.command("train")
@@ -62,7 +65,9 @@ def profile(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(config, base_dir, create_directories=False)
+    experiment = Experiment.from_config_file(
+        config, base_dir, create_directories=False
+    )
 
     train_run(experiment, profile=True)
 
