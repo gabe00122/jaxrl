@@ -150,7 +150,7 @@ class Rollout:
             (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
             reverse=True,
         )
-        advantages = targets - values[:, :-1]
+        advantages = targets - values[:-1]
 
         targets = jnp.swapaxes(targets, 0, 1)
         advantages = jnp.swapaxes(advantages, 0, 1)
