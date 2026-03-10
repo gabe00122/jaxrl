@@ -104,11 +104,7 @@ class ConsoleLogger(BaseLogger):
 
 class JsonLogger(BaseLogger):
     def __init__(self, experiement_path: str) -> None:
-        self._file = None
-        self._experiement_path = f"{experiement_path}/logs.jsonl"
-
-    def start(self):
-        self._file = open(f"{self._experiement_path}.jsonl", "w")
+        self._file = open(f"{experiement_path}/logs.jsonl", "w")
 
     def close(self):
         if self._file is not None:
@@ -117,7 +113,16 @@ class JsonLogger(BaseLogger):
 
     def log_dict(self, data: Metrics, step: int) -> None:
         if self._file is not None:
-            self._file.write(json.dumps(data) + "\n")
+            normalized = json_normalize(data, sep="/")
+            row = {"step": step}
+            for key, value in normalized.items():
+                if isinstance(value, (np.generic, np.ndarray)):
+                    row[key] = float(value)
+                elif isinstance(value, jax.Array):
+                    row[key] = float(value.item())
+                else:
+                    row[key] = value
+            self._file.write(json.dumps(row) + "\n")
             self._file.flush()
 
 

@@ -75,11 +75,7 @@
   },
   "num_envs": 128,
   "environment": {
-    "env_type": "stealth",
-    "width": 80,
-    "height": 80,
-    "num_sneakers": 24,
-    "num_chasers": 8
+    "env_type": "soccer"
   },
   "logger": {
     "use_console": true,
