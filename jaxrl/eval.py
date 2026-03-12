@@ -153,7 +153,8 @@ def load_policy(
 
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step in checkpointer.mngr.all_steps():
-            model = checkpointer.restore(model_template, step)
+            checkpointer.restore(model_template, step)
+            model = nnx.clone(model_template)
             policy = PolicyRecord(
                 experiment.unique_token, step, trueskill.Rating(), model, task_id
             )
