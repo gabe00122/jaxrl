@@ -58,7 +58,9 @@ class LayerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     feed_forward: FeedForwardConfig
-    history: AttentionConfig | RnnConfig = Field(discriminator="type")
+    history: AttentionConfig | RnnConfig | None = Field(
+        default=None, discriminator="type"
+    )
 
     use_post_attn_norm: bool = False
     use_post_ffw_norm: bool = False

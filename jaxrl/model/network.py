@@ -86,34 +86,36 @@ class TransformerBlock(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
+        self.use_history = config.history is not None
         self.use_post_attn_norm = config.use_post_attn_norm
         self.use_post_ffw_norm = config.use_post_ffw_norm
 
-        self.history_norm = normalizer(
-            num_features=hidden_features,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            rngs=rngs,
-        )
-
-        if config.history.type == "rnn":
-            self.history = RnnBlock(
-                hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
-            )
-        else:
-            self.history = AttentionBlock(
-                hidden_features,
-                config.history.head_dim,
-                config.history.num_heads,
-                config.history.num_kv_heads,
-                max_seq_length=max_seq_length,
-                rope_max_wavelength=config.history.rope_max_wavelength,
-                use_qk_norm=config.history.use_qk_norm,
+        if self.use_history:
+            self.history_norm = normalizer(
+                num_features=hidden_features,
                 dtype=dtype,
                 param_dtype=param_dtype,
-                kernel_init=kernel_init,
                 rngs=rngs,
             )
+
+            if config.history.type == "rnn":
+                self.history = RnnBlock(
+                    hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+                )
+            else:
+                self.history = AttentionBlock(
+                    hidden_features,
+                    config.history.head_dim,
+                    config.history.num_heads,
+                    config.history.num_kv_heads,
+                    max_seq_length=max_seq_length,
+                    rope_max_wavelength=config.history.rope_max_wavelength,
+                    use_qk_norm=config.history.use_qk_norm,
+                    dtype=dtype,
+                    param_dtype=param_dtype,
+                    kernel_init=kernel_init,
+                    rngs=rngs,
+                )
 
         self.ffn_norm = normalizer(
             num_features=hidden_features,
@@ -148,15 +150,18 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-    def initialize_carry(self, batch_size: int, rngs) -> KVCache:
+    def initialize_carry(self, batch_size: int, rngs) -> KVCache | None:
+        if not self.use_history:
+            return None
         return self.history.initialize_carry(batch_size, rngs)
 
     def __call__(self, x, time_steps, carry=None) -> tuple[jax.Array, KVCache | None]:
-        history_input = self.history_norm(x)
-        history_output, carry = self.history(history_input, time_steps, carry)
-        if self.use_post_attn_norm:
-            history_output = self.post_attn_norm(history_output)
-        x = x + history_output
+        if self.use_history:
+            history_input = self.history_norm(x)
+            history_output, carry = self.history(history_input, time_steps, carry)
+            if self.use_post_attn_norm:
+                history_output = self.post_attn_norm(history_output)
+            x = x + history_output
 
         feed_forward_input = self.ffn_norm(x)
         feed_forward_output = self.ffn(feed_forward_input)
