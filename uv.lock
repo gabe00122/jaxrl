@@ -370,6 +370,15 @@ wheels = [
 ]
 
 [[package]]
+name = "coolname"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/57/03591c9dda2f394db126db86c9eb47d37006174d8aaa712e60e1d2376ade/coolname-4.0.0.tar.gz", hash = "sha256:168ec04acbd58c4b7db39c5988a0e9daa204631dc975367adeb762b2c880d767", size = 38143, upload-time = "2026-02-22T14:10:17.655Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/96/a4501854ec7178a8c1ccafa457f44b1a28b25b816a7407ba71b816216f32/coolname-4.0.0-py3-none-any.whl", hash = "sha256:6eb1d5471b40b718d26ae7f25466e76fd54eb27f816d67051a9cc4f3f690f940", size = 39761, upload-time = "2026-02-22T14:10:15.955Z" },
+]
+
+[[package]]
 name = "craftax"
 version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1138,6 +1147,7 @@ version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "chex" },
+    { name = "coolname" },
     { name = "craftax" },
     { name = "distrax" },
     { name = "einops" },
@@ -1174,6 +1184,7 @@ tpu = [
 [package.metadata]
 requires-dist = [
     { name = "chex", specifier = ">=0.1.89" },
+    { name = "coolname", specifier = ">=4.0.0" },
     { name = "craftax", specifier = ">=1.5.0" },
     { name = "craftax", marker = "extra == 'craftax'", specifier = "==1.5.0" },
     { name = "distrax", specifier = ">=0.1.5" },
@@ -1296,7 +1307,7 @@ wheels = [
 
 [[package]]
 name = "mapox"
-version = "0.1.1"
+version = "0.2.0"
 source = { directory = "../mapox" }
 dependencies = [
     { name = "einops" },
@@ -1314,6 +1325,9 @@ requires-dist = [
     { name = "pygame-ce", specifier = ">=2.5.6" },
     { name = "python-ffmpeg", specifier = ">=2.0.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "markdown-it-py"
