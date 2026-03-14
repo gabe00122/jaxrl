@@ -37,6 +37,7 @@ def play_from_run(
     env_name: str | None = None,
     video_path: str | None = None,
     size: int = 500,
+    fps: int = 15,
 ):
     experiment = Experiment.load(name, "results")
     config = experiment.config
@@ -63,6 +64,7 @@ def play_from_run(
         rngs.env(),
         video_path,
         size,
+        fps,
         human_control,
         pov,
     )
