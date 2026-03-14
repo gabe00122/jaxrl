@@ -48,6 +48,11 @@ exclude = ["config*", "videos*"]
 [tool.uv.sources]
 mapox = { path = "../mapox" }
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
 
 [project.scripts]
 pmarl = "jaxrl.cli:app"

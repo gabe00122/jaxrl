@@ -23,9 +23,17 @@ def enjoy(
         None, help="Path to save video; if omitted, no video is recorded."
     ),
     size: int = 960,
+    fps: int = 15,
 ):
     play_from_run(
-        name, human, pov, seed, env_name=env, video_path=video_path, size=size
+        name,
+        human,
+        pov,
+        seed,
+        env_name=env,
+        video_path=video_path,
+        size=size,
+        fps=fps,
     )
 
 
@@ -65,7 +73,9 @@ def profile(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(config, base_dir, create_directories=False)
+    experiment = Experiment.from_config_file(
+        config, base_dir, create_directories=False
+    )
 
     train_run(experiment, profile=True)
 
