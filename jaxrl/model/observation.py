@@ -52,7 +52,7 @@ class GridCnnObsEncoder(nnx.Module):
         self.params_dtype = params_dtype
 
         self._one_hot_sizes = obs_spec.max_value
-        self.num_classes = self.num_classes = (
+        self.num_classes = (
             int(obs_spec.max_value)
             if isinstance(obs_spec.max_value, int)
             else sum(obs_spec.max_value)

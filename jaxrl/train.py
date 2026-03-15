@@ -6,7 +6,6 @@ from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
-import optuna
 from flax import nnx
 from mapox import Environment, EnvironmentFactory, TimeStep
 from rich.console import Console
@@ -322,7 +321,6 @@ def block_all(xs):
 
 def train_run(
     experiment: Experiment,
-    trial: optuna.Trial | None = None,
     profile: bool = False,
 ):
     console = Console()
@@ -429,9 +427,6 @@ def train_run(
         console.print(
             f"Updates per second: {experiment.config.updates_per_jit / delta_time}"
         )
-
-        if trial:
-            trial.report(logs.rewards.item(), i)
 
         if checkpoint_interval is not None and (i + 1) % checkpoint_interval == 0:
             completed_updates = (i + 1) * experiment.config.updates_per_jit

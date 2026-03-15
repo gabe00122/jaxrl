@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-import chex
+import jax
 import distrax
 
 
@@ -17,7 +17,7 @@ class IdentityTransformation(distrax.Transformed):
             distribution=distribution, bijector=distrax.Lambda(lambda x: x)
         )
 
-    def entropy(self, seed: chex.PRNGKey = None) -> chex.Array:
+    def entropy(self, seed: Optional[jax.Array] = None) -> jax.Array:
         """Computes the entropy of the distribution."""
         return self.distribution.entropy()
 

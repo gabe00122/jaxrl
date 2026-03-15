@@ -1,11 +1,10 @@
 [project]
 name = "jaxrl"
 version = "0.1.1"
-description = "Add your description here"
+description = "JAX/Flax multi-agent reinforcement learning framework with transformer-based PPO agents"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "chex>=0.1.89",
     "coolname>=4.0.0",
     "craftax>=1.5.0",
     "distrax>=0.1.5",
@@ -13,10 +12,9 @@ dependencies = [
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
     "jax>=0.6.0",
-    "mapox==0.1.1",
+    "mapox==0.2.0",
     "matplotlib>=3.10.5",
     "optax>=0.2.4",
-    "optuna>=4.3.0",
     "orbax>=0.1.9",
     "pydantic>=2.11.4",
     "pygame-ce>=2.5.4",

@@ -37,7 +37,10 @@ class AttentionBlock(nnx.Module):
         self.use_qk_norm = use_qk_norm
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
-        self.attention_impl = attention_impl or "cudnn"
+        if attention_impl is None:
+            self.attention_impl = "cudnn" if jax.default_backend() == "gpu" else "xla"
+        else:
+            self.attention_impl = attention_impl
         self.dtype = dtype
         self.param_dtype = param_dtype
 
