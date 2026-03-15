@@ -8,6 +8,8 @@ from jaxrl.eval import main as eval_main
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_run
 from jaxrl.train import train_run
+from jaxrl.runs import main as runs_main
+
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -37,26 +39,12 @@ def enjoy(
     )
 
 
-# @app.command()
-# def play(
-#     config: str = "./config/return.json",
-#     human: bool = False,
-#     pov: bool = False,
-#     seed: int = 0,
-#     env: str | None = None,
-#     video_path: str | None = typer.Option(
-#         None, help="Path to save video; if omitted, no video is recorded."
-#     ),
-#     size: int = 960,
-# ):
-#     play_from_run(config, False, human, pov, seed, env_name=env, video_path=video_path, size=size)
-
-
 @app.command("train")
 def train_cmd(
     config: str = "./config/return.json",
     distributed: bool = False,
     base_dir: str = "./results",
+    name: str | None = None,
 ):
     if distributed:
         jax.distributed.initialize()
@@ -94,7 +82,7 @@ def clean():
 
 
 app.command("eval")(eval_main)
-
+app.command("runs")(runs_main)
 
 if __name__ == "__main__":
     app()
