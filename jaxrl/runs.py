@@ -1,5 +1,7 @@
 """List training runs in results/ ordered by date, with environment highlighted."""
 
+import json
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Literal
@@ -19,6 +21,7 @@ class RunInfo(NamedTuple):
     steps: int
     checkpoints: int
     log_lines: int
+    final_reward: float | None
 
 COLOR_PALETTE = [
     "green", "red", "cyan", "magenta", "yellow",
@@ -44,7 +47,24 @@ def load_run(run_dir: Path) -> RunInfo | None:
     n_ckpts = len(list(checkpoints_dir.iterdir())) if checkpoints_dir.is_dir() else 0
 
     logs_path = run_dir / "logs.jsonl"
-    n_logs = sum(1 for _ in logs_path.open()) if logs_path.exists() else 0
+    n_logs = 0
+    final_reward = None
+    if logs_path.exists():
+        tail: deque[str] = deque(maxlen=50)
+        with logs_path.open() as f:
+            for line in f:
+                n_logs += 1
+                tail.append(line)
+        rewards = []
+        for line in tail:
+            try:
+                entry = json.loads(line)
+                if "env/rewards" in entry:
+                    rewards.append(entry["env/rewards"])
+            except json.JSONDecodeError:
+                pass
+        if rewards:
+            final_reward = sum(rewards) / len(rewards)
 
     return RunInfo(
         name=run_dir.name,
@@ -55,6 +75,7 @@ def load_run(run_dir: Path) -> RunInfo | None:
         steps=exp.config.update_steps,
         checkpoints=n_ckpts,
         log_lines=n_logs,
+        final_reward=final_reward,
     )
 
 
@@ -70,11 +91,13 @@ def build_table(runs: list[RunInfo]) -> Table:
     table.add_column("Seed", justify="right")
     table.add_column("Ckpts", justify="right")
     table.add_column("Logs", justify="right")
+    table.add_column("Reward", justify="right")
 
     for run in runs:
         date_str = run.start_time.strftime("%Y-%m-%d %H:%M") if run.start_time else "?"
         color = env_colors.get(run.env_type, "white")
         env_styled = f"[bold {color}]{run.env_type}[/bold {color}]"
+        reward_str = f"{run.final_reward:.2f}" if run.final_reward is not None else "-"
 
         table.add_row(
             date_str,
@@ -85,12 +108,13 @@ def build_table(runs: list[RunInfo]) -> Table:
             str(run.seed),
             str(run.checkpoints),
             str(run.log_lines),
+            reward_str,
         )
 
     return table
 
 
-def main():
+def list_runs_command():
     results_dir = Path("results")
     runs = []
     for run_dir in results_dir.iterdir():

@@ -8,7 +8,7 @@ from jaxrl.eval import main as eval_main
 from jaxrl.experiment import Experiment
 from jaxrl.play import play_from_run
 from jaxrl.train import train_run
-from jaxrl.runs import main as runs_main
+from jaxrl.runs import list_runs_command
 
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -82,7 +82,7 @@ def clean():
 
 
 app.command("eval")(eval_main)
-app.command("runs")(runs_main)
+app.command("runs")(list_runs_command)
 
 if __name__ == "__main__":
     app()
