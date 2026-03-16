@@ -34,3 +34,11 @@ jaxrl_study.db
 
 build/
 .claude/
+dist/
+.pytest_cache/
+
+
+results-old/
+analysis/
+rvideos/
+videos/
