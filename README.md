@@ -150,7 +150,7 @@ If multitask training was used, the `--env name` argument is required for evalua
 
 ## 🏋️‍♂️ Environments
 
-Environments are defined in a separate package and can be used independently of this trainer: https://github.com/gabe00122/mapox
+The environments were originally developed as part of this project and have been extracted into a standalone package so they can be used independently: https://github.com/gabe00122/mapox
 
 ### Grid Return
 
