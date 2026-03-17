@@ -23,6 +23,7 @@ https://github.com/user-attachments/assets/cf2a4c5b-37ce-4cc5-a63f-404277562152
 
 * Python 3.13+
 * [uv](https://github.com/astral-sh/uv) (a fast Python package installer and resolver)
+* [FFmpeg](https://ffmpeg.org/) (required for recording videos)
 
 ### Installation
 
@@ -41,7 +42,7 @@ uv sync --extra cuda
 
 Install hf cli: https://huggingface.co/docs/huggingface_hub/guides/cli
 ```bash
-hf download gabe00122/mapox --local-dir ./results
+hf download gabe00122/mapox-checkpoint --local-dir ./results
 ```
 
 This downloads `multitask`, a pretrained model that supports the following environments: `return`, `koth`, `prey`, and `scouts`.
@@ -50,7 +51,7 @@ This downloads `multitask`, a pretrained model that supports the following envir
 To render an environment with a trained agent, use the enjoy command with the run name.
 
 ```bash
-uv run pmarl enjoy multitask --seed 5 --env return --video-path ./videos/out.mp4
+uv run pmarl enjoy multitask --seed 5 --env return --video-path out.mp4
 ```
 
 ### Play an environment yourself
