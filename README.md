@@ -41,7 +41,7 @@ uv sync --extra cuda
 
 Install hf cli: https://huggingface.co/docs/huggingface_hub/guides/cli
 ```bash
-hf download gabe00122/mapox --local-dir ./results
+hf download gabe00122/mapox-checkpoint --local-dir ./results
 ```
 
 This downloads `multitask`, a pretrained model that supports the following environments: `return`, `koth`, `prey`, and `scouts`.
