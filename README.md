@@ -2,6 +2,8 @@
 
 This project provides a JAX-based framework for training Transformer-based agents in custom, partially observable multi-agent reinforcement learning (MARL) environments. The custom grid environments are designed to test memory, planning, multi-task learning and cooperation.
 
+https://github.com/user-attachments/assets/cf2a4c5b-37ce-4cc5-a63f-404277562152
+
 ### ✨ Key features
 
 * **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability. Uses updated transformer architecture such as RoPE and pre-layer norm.
