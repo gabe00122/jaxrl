@@ -74,7 +74,12 @@ To start a training run, use the train command and provide a configuration file.
 ```bash
 uv run pmarl train --config ./config/multitask.json
 ```
-A unique run name will be generated for you. You will need this name to view the results.
+A unique run name will be generated for you.
+To view recently trained models you can use:
+
+```bash
+uv run pmarl runs
+```
 
 ### Configuration
 
@@ -134,9 +139,6 @@ To build a TrueSkill graph from a series of runs, use the following command.
 uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
 ```
 
-Here's an example evaluation of agents trained with different hyperparameters on the King of the Hill environment.
-<img width="900" height="600" alt="image" src="https://github.com/user-attachments/assets/b05a45be-b65d-4ea7-b65b-fec0ab369b8f" />
-
 ---
 
 ### Multi-task Training
@@ -156,17 +158,9 @@ A multi-agent 2D grid world task requiring spatial memory.
 
 * Description: One or more goal tiles are placed at random locations. When an agent finds a goal, it receives a `+1` reward, and the agent is moved to a new random location. Agents must remember goal locations and navigate around obstacles to return to them efficiently. The number of goals can be configured via `num_flags` and defaults to one.
 
-* Observation: A small rectangular grid centered on the agent. Agents can see each other. No absolute positions are given.
-
-* Actions: [`move-up`, `move-right`, `move-down`, `move-left`]
-
-* Reward: `+1` for finding a goal tile, `0` for anything else.
-
-* Note: Agents can move through each other but not through obstacle tiles.
-
 Agents can "dig" through obstacle tiles. Moving into an obstacle removes the tile but adds a timeout before the agent can move again.
 
-https://github.com/user-attachments/assets/98cc3318-67ca-44c0-ac6e-e4537bd30ed1
+https://github.com/user-attachments/assets/257f65fe-7c54-4879-8ea0-2d744dcc65f2
 
 ### Scouts
 A multi-agent coordination task with two specialized agent types. A Harvester must first unlock a resource tile, which a Scout can then gather.
@@ -174,7 +168,7 @@ A multi-agent coordination task with two specialized agent types. A Harvester mu
 Scout: Fast-moving agents that can gather resources only after they are "unlocked."
 Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches a resource tile, it gets a reward and unlocks the resource, allowing Scouts to gather it.
 
-https://github.com/user-attachments/assets/d566840e-1837-4fc1-8c78-439677f358a8
+https://github.com/user-attachments/assets/3d0cfc40-f0fd-47a0-bd14-fc5e7b0af968
 
 ### Traveling Salesman
 
@@ -193,7 +187,7 @@ A multi-agent gridworld where two teams of Knights and Archers battle to capture
 * Agents can move, attack, dig through walls, or fire arrows
 * Rewards are fully team-shared, encouraging coordination
 
-https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
+https://github.com/user-attachments/assets/b3a3810b-41a5-4d49-b851-00d305c200f6
 
 ## Scaling Results
 
@@ -206,6 +200,8 @@ The craftax environment is also supported: https://github.com/MichaelTMatthews/C
 
 20.8% reward with 1b samples.
 Episodes need to be truncated to fit within the context window, I truncated to 1024 step episodes.
+
+https://github.com/user-attachments/assets/b6c40151-6012-4930-89af-928bea54352b
 
 ---
 
