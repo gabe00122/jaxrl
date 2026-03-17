@@ -4,14 +4,14 @@ This project provides a JAX-based framework for training Transformer-based agent
 
 ### ✨ Key features
 
-* **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability. Uses updated transformer architecture such as rope and pre-layer norm. 
-* **High Performance**: Single layer transformers train a **10 million+** steps per second and the medium sized transformer trains at **2 million** steps per second on a single 5090. Cudnn, grouped query attention and bfloat16 training significantly boost performance.
+* **Transformer-based Agents**: Uses a Transformer-over-time architecture to handle partial observability. Uses updated transformer architecture such as RoPE and pre-layer norm.
+* **High Performance**: Two-layer transformers train at **3.8 million+** steps per second and an 8-layer transformer trains at **1.36 million** steps per second on a single 5090. cuDNN, grouped query attention, and bfloat16 training significantly boost performance.
 * **Custom Environments**: Includes several challenging MARL environments designed to test memory and coordination.
 * **PPO Implementation**: A clean and efficient Proximal Policy Optimization (PPO) implementation.
-* **Multi-task training**: One model can be trained on multiple environments simultaneously with unique task id embeddings.  
-* **Snapshot League self play**: Policy snapshots can be rotated into the opponent poll during training.  
-* **Trueskill Evaluations**: Policies for zero sum games can be compared using a trueskill based evaluation system and a model checkpoint pool.  
-* **Discretized Value Functions**: Option to either minimize MSE or Hl-Gauss discretized values.  
+* **Multi-task training**: One model can be trained on multiple environments simultaneously with unique task ID embeddings.
+* **Snapshot League self play**: Policy snapshots can be rotated into the opponent pool during training.
+* **TrueSkill Evaluations**: Policies for zero-sum games can be compared using a TrueSkill-based evaluation system and a model checkpoint pool.
+* **Discretized Value Functions**: Option to either minimize MSE or HL-Gauss discretized values.
 
 ---
 
@@ -34,41 +34,29 @@ uv sync --extra cuda
 
 
 ## 💻 Usage
-### Train an agent
-To start a training run, use the train command and provide a configuration file.
 
+### Download the pretrained model
 
+Install hf cli: https://huggingface.co/docs/huggingface_hub/guides/cli
 ```bash
-uv run pmarl train --config ./config/return_baseline.json
+hf download gabe00122/mapox --local-dir ./results
 ```
-A unique run name will be generated for you (e.g., silly-camel-34). You will need this name to view the results.
 
+This downloads `multitask`, a pretrained model that supports the following environments: `return`, `koth`, `prey`, and `scouts`.
 
 ### Watch a trained agent
-To render an environment with a trained agent, use the enjoy command with the run_name from your training session.
-Note: it may take up to 2 minutes to start rendering
+To render an environment with a trained agent, use the enjoy command with the run name.
 
 ```bash
-uv run pmarl enjoy young-shark-cff1bi --seed 5 --video-path ./videos/out.mp4
+uv run pmarl enjoy multitask --seed 5 --env return --video-path ./videos/out.mp4
 ```
 
-### Download the checkpoint files
+### Play an environment yourself
+You can control an agent in the environment yourself using the `pov` and `human` options for enjoy.
 
 ```bash
-uv tool install "huggingface_hub[cli]"
-
-huggingface-cli download gabe00122/grid-pomarl --local-dir ./results/
+uv run pmarl enjoy multitask --env return --pov --human
 ```
-
-### Test out an environment
-You can test out a environment without training a model using the `play` command or play with trained models using the `enjoy` command.
-
-```bash
-uv run pmarl enjoy koth --pov --human
-```
-
-The `pov` option renders from one agents point of pov
-The `human` option gives you keyboard controls for one of the agents
 
 Typical control scheme
 Keyboard:
@@ -80,33 +68,90 @@ e: dig a wall
 space: attack
 n: cycle to the next agent
 
+### Train an agent
+To start a training run, use the train command and provide a configuration file.
+
+```bash
+uv run pmarl train --config ./config/multitask.json
+```
+A unique run name will be generated for you. You will need this name to view the results.
+
+### Configuration
+
+Training is configured via JSON files. See `config/` for examples. The key sections are:
+
+**Top-level**
+| Field | Description |
+|---|---|
+| `seed` | Random seed, or `"random"` to generate one |
+| `num_envs` | Number of parallel environments (for single-environment configs) |
+| `max_env_steps` | Maximum steps per episode |
+| `update_steps` | Total number of PPO updates to run |
+| `num_checkpoints` | Number of model checkpoints to save during training (default: 50) |
+| `snapshot_league` | Enable snapshot league self-play (default: false) |
+
+**Model** (`learner.model`)
+| Field | Description |
+|---|---|
+| `num_layers` | Number of transformer layers |
+| `hidden_features` | Embedding dimension |
+| `layer.history.type` | Sequence model: `"attention"` or `"rnn"` |
+| `layer.history.num_heads` / `num_kv_heads` | Query heads and key-value heads (for grouped query attention) |
+| `layer.feed_forward.size` | Feed-forward hidden size |
+| `layer.feed_forward.glu` | Use gated linear units (default: true) |
+| `value.type` | Value function head: `"mse"` or `"hl_gauss"` |
+| `dtype` | Compute dtype: `"float32"`, `"bfloat16"`, or `"float16"` |
+
+**Optimizer** (`learner.optimizer`)
+| Field | Description |
+|---|---|
+| `type` | `"adamw"` or `"muon"` |
+| `learning_rate` | Learning rate |
+| `max_norm` | Gradient clipping max norm |
+
+**PPO** (`learner.trainer`)
+| Field | Description |
+|---|---|
+| `epoch_count` | PPO epochs per update |
+| `minibatch_count` | Number of minibatches per epoch |
+| `discount` | Discount factor (gamma) |
+| `gae_lambda` | GAE lambda |
+| `entropy_coef` | Entropy bonus coefficient |
+
+**Environment** (`environment`)
+
+For a single environment, set `env_type` directly (e.g. `"find_return"`, `"king_hill"`, `"scouts"`). For multi-task training, set `env_type` to `"multi"` with an `envs` array — see `config/multitask.json` for an example.
+
 ---
 
-### Evaluating Zero Sum Games
+### Evaluating Zero-Sum Games
 
-By definition because these games are zero sum the mean of the reward during self play remains zero, regardless of the sill level of the policy.
-To track progress and compare different training runs we can use trueskill to create a elo like score using a opponent pool.
+To track progress and compare different training runs for zero-sum games, we can use TrueSkill to create an Elo-like score using an opponent pool of model checkpoints.
 
-To build a trueskill graph from a series of runs you can use the following command.
+To build a TrueSkill graph from a series of runs, use the following command.
 
 ```bash
 uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
 ```
 
-Here's an example of a output evaluate of agents trained with different hyper parameters on the king of the hill environment.
+Here's an example evaluation of agents trained with different hyperparameters on the King of the Hill environment.
 <img width="900" height="600" alt="image" src="https://github.com/user-attachments/assets/b05a45be-b65d-4ea7-b65b-fec0ab369b8f" />
 
 ---
 
 ### Multi-task Training
 
-Is the observation and action space is shared by the environments then one policy can be trained on multiple environments simultaneously.
+If the observation and action spaces are shared across environments, then one policy can be trained on multiple environments simultaneously.
 See the `multitask.json` config for an example.
 
-If multitask training was used then for evaluation and playback the `--env name` argument is required to specify which task you are viewing/evaluating from the multi-task models.
+If multitask training was used, the `--env name` argument is required for evaluation and playback to specify which task you are viewing or evaluating. For non-multitask environments this option is unnecessary.
 
 ## 🏋️‍♂️ Environments
+
+Environments are defined in a separate package and can be used independently of this trainer: https://github.com/gabe00122/mapox
+
 ### Grid Return
+
 A multi-agent 2D grid world task requiring spatial memory.
 
 * Description: One or more goal tiles are placed at random locations. When an agent finds a goal, it receives a `+1` reward, and the agent is moved to a new random location. Agents must remember goal locations and navigate around obstacles to return to them efficiently. The number of goals can be configured via `num_flags` and defaults to one.
@@ -131,48 +176,36 @@ Harvester: Slow agents (can only move every 6th turn). When a Harvester reaches 
 
 https://github.com/user-attachments/assets/d566840e-1837-4fc1-8c78-439677f358a8
 
-### Traveling salesman
+### Traveling Salesman
 
-The several way points are randomly scattered and the agents and the agents get a reward for the first time they get each flag. When all flags are taken they all reset.
+Several waypoints are randomly scattered across the map. Agents receive a reward the first time they reach each waypoint. When all waypoints have been collected, they reset.
 
 https://github.com/user-attachments/assets/af009d24-c65e-4195-99af-0a4e703652cd
 
-### King of the hill
-
-Two teams of agents compete to capture random control points in the center.
+### King of the Hill
 
 A multi-agent gridworld where two teams of Knights and Archers battle to capture and hold flags.
 
-Randomly generated maps with destructible walls and central control points
-
-Knights: melee fighters with higher HP
-
-Archers: ranged fighters with arrows and cooldowns
-
-Teams score points every turn for each flag they control
-
-Agents can move, attack, dig through walls, or fire arrows
-
-Rewards are fully team-shared, encouraging coordination
+* Randomly generated maps with destructible walls and central control points
+* Knights: melee fighters with higher HP
+* Archers: ranged fighters with arrows and cooldowns
+* Teams score points every turn for each flag they control
+* Agents can move, attack, dig through walls, or fire arrows
+* Rewards are fully team-shared, encouraging coordination
 
 https://github.com/user-attachments/assets/3483745f-7c53-46e9-b838-3cc76b9e3ee4
 
 ## Scaling Results
 
-I found that seemingly preformace scales predictablly with network depth. Interestingly there was not a similar improvement with width scaling. The following graph shows depth scaling on the grid return environment.
+Performance scales predictably with network depth.
 <img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/698dc9d9-3a37-4959-aa2c-5e9f06e3ba59" />
 
-## RNNs
+## Craftax
 
-For the grid return task grouped query attention also outpreformed RNN layers while using roughly 1/4th the compute at a BPTT length of 512.
-<img width="956" height="400" alt="image" src="https://github.com/user-attachments/assets/bf1849ba-82ee-4f25-b8be-8614f030d1da" />
+The craftax environment is also supported: https://github.com/MichaelTMatthews/Craftax
 
-## Bonus ##
-
-Currently training only supports episodes the entirly fit in context, this makes variable length episodes tricky to train on but you can still train on games like craftax if episodes are trunctated to fit within context.
-In this case I truncated episodes to fit within 1024 steps of context and still acheived a score of 17.7% with 1b samples. In the future the kv cache at the start of the rollout could be saved and reused in training with sliding window attention to enable learning with variable length or long episodes.
-
-https://github.com/user-attachments/assets/d667e777-c480-4b40-b190-46946d3548d5
+20.8% reward with 1b samples.
+Episodes need to be truncated to fit within the context window, I truncated to 1024 step episodes.
 
 ---
 
@@ -181,4 +214,4 @@ https://github.com/user-attachments/assets/d667e777-c480-4b40-b190-46946d3548d5
 This project was made possible thanks to:
 
 * **Google Research Cloud TPU Program** — for providing access to TPUs that enabled training and experimentation.  
-* **[Urizen Onebit Tileset](https://vurmux.itch.io/urizen-onebit-tileset)** by Vurmux — for the excellent pixel art tileset used in the gridworld environments.  
+* **[Urizen Onebit Tileset](https://vurmux.itch.io/urizen-onebit-tileset)** by Vurmux — for the excellent pixel art tileset used in the gridworld environments.
