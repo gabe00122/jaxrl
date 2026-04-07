@@ -167,8 +167,8 @@ class Rollout:
         )
 
     def _shuffle(self, state: RolloutState, rng_key: jax.Array) -> RolloutState:
-        indecies = jax.random.permutation(rng_key, self.batch_size)
-        return jax.tree.map(lambda x: x[indecies], state)
+        indices = jax.random.permutation(rng_key, self.batch_size)
+        return jax.tree.map(lambda x: x[indices], state)
 
     def create_minibatches(
         self, state: RolloutState, minibatches: int, rng_key: jax.Array

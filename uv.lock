@@ -1148,7 +1148,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.6.0" },
     { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'" },
     { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
-    { name = "mapox", directory = "../mapox" },
+    { name = "mapox", specifier = "==0.2.0" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "optax", specifier = ">=0.2.4" },
     { name = "orbax", specifier = ">=0.1.9" },
@@ -1252,7 +1252,7 @@ wheels = [
 [[package]]
 name = "mapox"
 version = "0.2.0"
-source = { directory = "../mapox" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
     { name = "jax" },
@@ -1260,18 +1260,10 @@ dependencies = [
     { name = "pygame-ce" },
     { name = "python-ffmpeg" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "einops", specifier = ">=0.8.1" },
-    { name = "jax", specifier = ">=0.7.2" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pygame-ce", specifier = ">=2.5.6" },
-    { name = "python-ffmpeg", specifier = ">=2.0.12" },
+sdist = { url = "https://files.pythonhosted.org/packages/0f/76/6fbbab7b59f44c73f5cb0334a56817bc50ce6ea8bd579f6c1f5ee1d086ee/mapox-0.2.0.tar.gz", hash = "sha256:b3c6fecefbc2c8541c36d339085005f4dac589b96d1099a11a6fd982dfda3783", size = 309028, upload-time = "2026-03-15T23:54:17.237Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/e2/fba65717204fc58361c18a705b04fd9caa2caba98c03ca5e255ee1b6eb41/mapox-0.2.0-py3-none-any.whl", hash = "sha256:61cb1aa2660316cae40ed008fe8f4c719ba35689ae0715a8f28fbda34081f6cb", size = 281397, upload-time = "2026-03-15T23:54:15.283Z" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "markdown-it-py"

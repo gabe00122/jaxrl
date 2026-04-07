@@ -5,8 +5,6 @@ from flax import nnx
 import jax
 from jax.typing import DTypeLike
 
-from jaxrl.utils.preturb import preturb
-
 
 class FFBlock(nnx.Module):
     def __init__(
@@ -41,10 +39,6 @@ class FFBlock(nnx.Module):
         x = self.activation(x)
         out = self.down_proj(x)
         return out
-
-    def preturb(self, alpha: float, rngs: nnx.Rngs):
-        preturb(self.up_proj, alpha, rngs)
-        preturb(self.down_proj, alpha, rngs)
 
 
 class GLUBlock(nnx.Module):
@@ -83,7 +77,3 @@ class GLUBlock(nnx.Module):
         out = self.down_proj(x)
         return out
 
-    def preturb(self, alpha: float, rngs: nnx.Rngs):
-        preturb(self.up_proj, alpha, rngs)
-        preturb(self.up_gate, alpha, rngs)
-        preturb(self.down_proj, alpha, rngs)

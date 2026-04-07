@@ -43,19 +43,19 @@ class MultiLogger(BaseLogger):
 
 
 class JaxLogger:
-    def __init__(self, experiement: Experiment, console: Console):
+    def __init__(self, experiment: Experiment, console: Console):
         loggers: list[BaseLogger] = []
-        logger_config = experiement.config.logger
-        unique_token = experiement.unique_token
+        logger_config = experiment.config.logger
+        unique_token = experiment.unique_token
 
         if logger_config.use_tb:
             loggers.append(TensorboardLogger(unique_token))
         if logger_config.use_console:
             loggers.append(ConsoleLogger(unique_token, console))
         if logger_config.use_jsonl:
-            loggers.append(JsonLogger(experiement.experiment_url))
+            loggers.append(JsonLogger(experiment.experiment_url))
         if logger_config.use_wandb:
-            loggers.append(WandbLogger(unique_token, experiement.config))
+            loggers.append(WandbLogger(unique_token, experiment.config))
 
         self.logger = MultiLogger(loggers)
 
@@ -103,8 +103,8 @@ class ConsoleLogger(BaseLogger):
 
 
 class JsonLogger(BaseLogger):
-    def __init__(self, experiement_path: str) -> None:
-        self._file = open(f"{experiement_path}/logs.jsonl", "w")
+    def __init__(self, experiment_path: str) -> None:
+        self._file = open(f"{experiment_path}/logs.jsonl", "w")
 
     def close(self):
         if self._file is not None:
