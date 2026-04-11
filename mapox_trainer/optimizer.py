@@ -1,7 +1,7 @@
 import jax
 import optax
 
-from jaxrl.config import OptimizerConfig
+from mapox_trainer.config import OptimizerConfig
 
 
 def create_optimizer(

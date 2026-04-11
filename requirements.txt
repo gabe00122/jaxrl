@@ -7,7 +7,6 @@ absl-py==2.3.1
     #   dm-tree
     #   optax
     #   orbax-checkpoint
-    #   tensorflow-probability
     #   tfp-nightly
 aiofiles==25.1.0
     # via orbax-checkpoint
@@ -17,8 +16,6 @@ aiohttp==3.13.0
     # via gcsfs
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.17.0
-    # via optuna
 annotated-types==0.7.0
     # via pydantic
 attrs==25.4.0
@@ -35,7 +32,6 @@ charset-normalizer==3.4.4
     # via requests
 chex==0.1.91
     # via
-    #   jaxrl (pyproject.toml)
     #   craftax
     #   distrax
     #   optax
@@ -46,36 +42,34 @@ click==8.3.0
 cloudpickle==3.1.1
     # via
     #   gymnasium
-    #   tensorflow-probability
     #   tfp-nightly
-colorlog==6.9.0
-    # via optuna
 contourpy==1.3.3
     # via matplotlib
+coolname==4.1.0
+    # via mapox-trainer (pyproject.toml)
 craftax==1.5.0
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 cycler==0.12.1
     # via matplotlib
 decorator==5.2.1
     # via
     #   gcsfs
-    #   tensorflow-probability
     #   tfp-nightly
 distrax==0.1.7
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 dm-tree==0.1.9
-    # via
-    #   tensorflow-probability
-    #   tfp-nightly
+    # via tfp-nightly
 einops==0.8.1
-    # via jaxrl (pyproject.toml)
+    # via
+    #   mapox-trainer (pyproject.toml)
+    #   mapox
 etils==1.13.0
     # via orbax-checkpoint
 farama-notifications==0.0.4
     # via gymnasium
 flax==0.12.0
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   craftax
     #   gymnax
 fonttools==4.60.1
@@ -86,13 +80,11 @@ frozenlist==1.8.0
     #   aiosignal
 fsspec==2025.9.0
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   etils
     #   gcsfs
 gast==0.6.0
-    # via
-    #   tensorflow-probability
-    #   tfp-nightly
+    # via tfp-nightly
 gcsfs==2025.9.0
     # via fsspec
 gitdb==4.0.12
@@ -124,8 +116,6 @@ google-resumable-media==2.7.2
     # via google-cloud-storage
 googleapis-common-protos==1.70.0
     # via google-api-core
-greenlet==3.2.4
-    # via sqlalchemy
 gymnasium==1.2.1
     # via gymnax
 gymnax==0.0.9
@@ -142,12 +132,13 @@ importlib-resources==6.5.2
     # via etils
 jax==0.7.2
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   chex
     #   craftax
     #   distrax
     #   flax
     #   gymnax
+    #   mapox
     #   optax
     #   orbax-checkpoint
 jaxlib==0.7.2
@@ -158,15 +149,13 @@ jaxlib==0.7.2
     #   optax
 kiwisolver==1.4.9
     # via matplotlib
-mako==1.3.10
-    # via alembic
+../mapox
+    # via mapox-trainer (pyproject.toml)
 markdown-it-py==4.0.0
     # via rich
-markupsafe==3.0.3
-    # via mako
 matplotlib==3.10.7
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   craftax
     #   gymnax
     #   seaborn
@@ -202,13 +191,11 @@ numpy==2.3.3
     #   matplotlib
     #   ml-dtypes
     #   optax
-    #   optuna
     #   orbax-checkpoint
     #   pandas
     #   scipy
     #   seaborn
     #   tensorboardx
-    #   tensorflow-probability
     #   tensorstore
     #   tfp-nightly
     #   treescope
@@ -218,12 +205,10 @@ opt-einsum==3.4.0
     # via jax
 optax==0.2.6
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   flax
-optuna==4.5.0
-    # via jaxrl (pyproject.toml)
 orbax==0.1.9
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 orbax-checkpoint==0.11.25
     # via
     #   flax
@@ -231,7 +216,6 @@ orbax-checkpoint==0.11.25
 packaging==25.0
     # via
     #   matplotlib
-    #   optuna
     #   tensorboardx
     #   wandb
 pandas==2.3.3
@@ -262,18 +246,21 @@ pyasn1==0.6.1
     #   rsa
 pyasn1-modules==0.4.2
     # via google-auth
-pydantic==2.12.2
+pydantic==2.12.5
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
+    #   mapox
     #   wandb
-pydantic-core==2.41.4
+pydantic-core==2.41.5
     # via pydantic
 pyee==13.0.0
     # via python-ffmpeg
 pygame==2.6.1
     # via craftax
-pygame-ce==2.5.5
-    # via jaxrl (pyproject.toml)
+pygame-ce==2.5.7
+    # via
+    #   mapox-trainer (pyproject.toml)
+    #   mapox
 pygments==2.19.2
     # via rich
 pyparsing==3.2.5
@@ -283,13 +270,14 @@ python-dateutil==2.9.0.post0
     #   matplotlib
     #   pandas
 python-ffmpeg==2.0.12
-    # via jaxrl (pyproject.toml)
+    # via
+    #   mapox-trainer (pyproject.toml)
+    #   mapox
 pytz==2025.2
     # via pandas
 pyyaml==6.0.3
     # via
     #   flax
-    #   optuna
     #   orbax-checkpoint
     #   wandb
 requests==2.32.5
@@ -303,7 +291,7 @@ requests-oauthlib==2.0.0
     # via google-auth-oauthlib
 rich==14.2.0
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   flax
     #   typer
 rsa==4.9.1
@@ -314,7 +302,7 @@ scipy==1.16.2
     #   jaxlib
 seaborn==0.13.2
     # via
-    #   jaxrl (pyproject.toml)
+    #   mapox-trainer (pyproject.toml)
     #   gymnax
 sentry-sdk==2.41.0
     # via wandb
@@ -325,19 +313,12 @@ simplejson==3.20.2
 six==1.17.0
     # via
     #   python-dateutil
-    #   tensorflow-probability
     #   tfp-nightly
     #   trueskill
 smmap==5.0.2
     # via gitdb
-sqlalchemy==2.0.44
-    # via
-    #   alembic
-    #   optuna
 tensorboardx==2.6.4
-    # via jaxrl (pyproject.toml)
-tensorflow-probability==0.25.0
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 tensorstore==0.1.78
     # via
     #   flax
@@ -346,17 +327,14 @@ tfp-nightly==0.26.0.dev20251014
     # via distrax
 toolz==1.0.0
     # via chex
-tqdm==4.67.1
-    # via optuna
 treescope==0.1.10
     # via flax
 trueskill==0.4.5
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 typer==0.19.2
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 typing-extensions==4.15.0
     # via
-    #   alembic
     #   chex
     #   etils
     #   flax
@@ -366,7 +344,6 @@ typing-extensions==4.15.0
     #   pydantic-core
     #   pyee
     #   python-ffmpeg
-    #   sqlalchemy
     #   typer
     #   typing-inspection
     #   wandb
@@ -379,7 +356,7 @@ urllib3==2.5.0
     #   requests
     #   sentry-sdk
 wandb==0.22.2
-    # via jaxrl (pyproject.toml)
+    # via mapox-trainer (pyproject.toml)
 wrapt==1.17.3
     # via dm-tree
 yarl==1.22.0

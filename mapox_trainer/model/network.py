@@ -1,5 +1,5 @@
 from functools import partial
-from jaxrl.util import add_seq_dim
+from mapox_trainer.util import add_seq_dim
 import jax
 from jax import numpy as jnp
 from jax.typing import DTypeLike
@@ -9,15 +9,15 @@ from flax import nnx
 import distrax
 
 from mapox import TimeStep, ObservationSpec
-from jaxrl.config import (
+from mapox_trainer.config import (
     LayerConfig,
     TransformerActorCriticConfig,
 )
-from jaxrl.model.observation import create_obs_encoder
-from jaxrl.model.attention import AttentionBlock, KVCache
-from jaxrl.model.rnn import RnnBlock
-from jaxrl.model.feed_forward import GLUBlock, FFBlock
-from jaxrl.values import HlGaussValue, MseValue
+from mapox_trainer.model.observation import create_obs_encoder
+from mapox_trainer.model.attention import AttentionBlock, KVCache
+from mapox_trainer.model.rnn import RnnBlock
+from mapox_trainer.model.feed_forward import GLUBlock, FFBlock
+from mapox_trainer.values import HlGaussValue, MseValue
 
 
 def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:

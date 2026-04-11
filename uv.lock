@@ -1094,80 +1094,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jaxrl"
-version = "0.1.1"
-source = { editable = "." }
-dependencies = [
-    { name = "coolname" },
-    { name = "craftax" },
-    { name = "distrax" },
-    { name = "einops" },
-    { name = "flax" },
-    { name = "fsspec", extra = ["gcs"] },
-    { name = "jax" },
-    { name = "mapox" },
-    { name = "matplotlib" },
-    { name = "optax" },
-    { name = "orbax" },
-    { name = "pydantic" },
-    { name = "pygame-ce" },
-    { name = "python-ffmpeg" },
-    { name = "rich" },
-    { name = "seaborn" },
-    { name = "tensorboardx" },
-    { name = "trueskill" },
-    { name = "typer" },
-    { name = "wandb" },
-]
-
-[package.optional-dependencies]
-craftax = [
-    { name = "craftax" },
-]
-cuda = [
-    { name = "jax", extra = ["cuda12"] },
-]
-tpu = [
-    { name = "jax", extra = ["tpu"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "coolname", specifier = ">=4.0.0" },
-    { name = "craftax", specifier = ">=1.5.0" },
-    { name = "craftax", marker = "extra == 'craftax'", specifier = "==1.5.0" },
-    { name = "distrax", specifier = ">=0.1.5" },
-    { name = "einops", specifier = ">=0.8.1" },
-    { name = "flax", specifier = ">=0.10.6" },
-    { name = "fsspec", extras = ["gcs"], specifier = ">=2025.5.1" },
-    { name = "jax", specifier = ">=0.6.0" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'" },
-    { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
-    { name = "mapox", specifier = "==0.2.0" },
-    { name = "matplotlib", specifier = ">=3.10.5" },
-    { name = "optax", specifier = ">=0.2.4" },
-    { name = "orbax", specifier = ">=0.1.9" },
-    { name = "pydantic", specifier = ">=2.11.4" },
-    { name = "pygame-ce", specifier = ">=2.5.4" },
-    { name = "python-ffmpeg", specifier = ">=2.0.12" },
-    { name = "rich", specifier = ">=14.0.0" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "tensorboardx", specifier = ">=2.6.2.2" },
-    { name = "trueskill", specifier = ">=0.4.5" },
-    { name = "typer", specifier = ">=0.15.3" },
-    { name = "wandb", specifier = ">=0.19.10" },
-]
-provides-extras = ["cuda", "tpu", "craftax"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
-
-[[package]]
 name = "jaxtyping"
 version = "0.3.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1252,7 +1178,7 @@ wheels = [
 [[package]]
 name = "mapox"
 version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+source = { directory = "../mapox" }
 dependencies = [
     { name = "einops" },
     { name = "jax" },
@@ -1260,10 +1186,92 @@ dependencies = [
     { name = "pygame-ce" },
     { name = "python-ffmpeg" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/76/6fbbab7b59f44c73f5cb0334a56817bc50ce6ea8bd579f6c1f5ee1d086ee/mapox-0.2.0.tar.gz", hash = "sha256:b3c6fecefbc2c8541c36d339085005f4dac589b96d1099a11a6fd982dfda3783", size = 309028, upload-time = "2026-03-15T23:54:17.237Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/e2/fba65717204fc58361c18a705b04fd9caa2caba98c03ca5e255ee1b6eb41/mapox-0.2.0-py3-none-any.whl", hash = "sha256:61cb1aa2660316cae40ed008fe8f4c719ba35689ae0715a8f28fbda34081f6cb", size = 281397, upload-time = "2026-03-15T23:54:15.283Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "einops", specifier = ">=0.8.1" },
+    { name = "jax", specifier = ">=0.7.2" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pygame-ce", specifier = ">=2.5.6" },
+    { name = "python-ffmpeg", specifier = ">=2.0.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
+
+[[package]]
+name = "mapox-trainer"
+version = "0.1.1"
+source = { editable = "." }
+dependencies = [
+    { name = "coolname" },
+    { name = "craftax" },
+    { name = "distrax" },
+    { name = "einops" },
+    { name = "flax" },
+    { name = "fsspec", extra = ["gcs"] },
+    { name = "jax" },
+    { name = "mapox" },
+    { name = "matplotlib" },
+    { name = "optax" },
+    { name = "orbax" },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
+    { name = "python-ffmpeg" },
+    { name = "rich" },
+    { name = "seaborn" },
+    { name = "tensorboardx" },
+    { name = "trueskill" },
+    { name = "typer" },
+    { name = "wandb" },
+]
+
+[package.optional-dependencies]
+craftax = [
+    { name = "craftax" },
+]
+jax = [
+    { name = "jax", extra = ["cuda12"] },
+]
+tpu = [
+    { name = "jax", extra = ["tpu"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "coolname", specifier = ">=4.0.0" },
+    { name = "craftax", specifier = ">=1.5.0" },
+    { name = "craftax", marker = "extra == 'craftax'", specifier = "==1.5.0" },
+    { name = "distrax", specifier = ">=0.1.5" },
+    { name = "einops", specifier = ">=0.8.1" },
+    { name = "flax", specifier = ">=0.10.6" },
+    { name = "fsspec", extras = ["gcs"], specifier = ">=2025.5.1" },
+    { name = "jax", specifier = ">=0.6.0" },
+    { name = "jax", extras = ["cuda12"], marker = "extra == 'jax'" },
+    { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
+    { name = "mapox", directory = "../mapox" },
+    { name = "matplotlib", specifier = ">=3.10.5" },
+    { name = "optax", specifier = ">=0.2.4" },
+    { name = "orbax", specifier = ">=0.1.9" },
+    { name = "pydantic", specifier = ">=2.11.4" },
+    { name = "pygame-ce", specifier = ">=2.5.4" },
+    { name = "python-ffmpeg", specifier = ">=2.0.12" },
+    { name = "rich", specifier = ">=14.0.0" },
+    { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "tensorboardx", specifier = ">=2.6.2.2" },
+    { name = "trueskill", specifier = ">=0.4.5" },
+    { name = "typer", specifier = ">=0.15.3" },
+    { name = "wandb", specifier = ">=0.19.10" },
+]
+provides-extras = ["jax", "tpu", "craftax"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "markdown-it-py"

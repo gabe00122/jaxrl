@@ -7,7 +7,7 @@ scheduling, so getting it wrong means wrong exploration behavior.
 import jax.numpy as jnp
 import pytest
 
-from jaxrl.util import format_count, lerp
+from mapox_trainer.util import format_count, lerp
 
 
 class TestLerp:

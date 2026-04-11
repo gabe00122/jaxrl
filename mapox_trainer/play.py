@@ -2,9 +2,9 @@ from flax import nnx
 from mapox import EnvironmentFactory
 from mapox.play import enjoy
 
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.experiment import Experiment
-from jaxrl.model.network import TransformerActorCritic
+from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.model.network import TransformerActorCritic
 
 
 def load_policy(

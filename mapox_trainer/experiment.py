@@ -8,7 +8,7 @@ from pathlib import Path
 from coolname import generate_slug
 from pydantic import BaseModel
 
-from jaxrl.config import Config, load_config
+from mapox_trainer.config import Config, load_config
 
 
 class ExperimentMeta(BaseModel):

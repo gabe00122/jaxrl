@@ -4,11 +4,11 @@ import shutil
 import jax
 import typer
 
-from jaxrl.eval import main as eval_main
-from jaxrl.experiment import Experiment
-from jaxrl.play import play_from_run
-from jaxrl.train import train_run
-from jaxrl.runs import list_runs_command
+from mapox_trainer.eval import main as eval_main
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.play import play_from_run
+from mapox_trainer.train import train_run
+from mapox_trainer.runs import list_runs_command
 
 
 app = typer.Typer(pretty_exceptions_show_locals=False)

@@ -1,5 +1,5 @@
 [project]
-name = "jaxrl"
+name = "mapox-trainer"
 version = "0.1.1"
 description = "JAX/Flax multi-agent reinforcement learning framework with transformer-based PPO agents"
 readme = "README.md"
@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]"]
+jax = ["jax[cuda12]"]
 tpu = ["jax[tpu]"]
 craftax = ["craftax==1.5.0"]
 
@@ -37,18 +37,17 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-# look for packages in the project root …
 where = ["."]
-# … but only accept the real python package
-include = ["jaxrl*"]
-# ignore non-python top-level folders that confused the auto-discovery
+include = ["mapox_trainer*"]
 exclude = ["config*", "videos*"]
+
+[tool.uv.sources]
+mapox = { path = "../mapox" }
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
 ]
 
-
 [project.scripts]
-pmarl = "jaxrl.cli:app"
+pmarl = "mapox_trainer.cli:app"

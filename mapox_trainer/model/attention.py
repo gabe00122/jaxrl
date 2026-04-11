@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from flax import nnx
 from jax.typing import DTypeLike
 
-from jaxrl.model import positional_embeddings
+from mapox_trainer.model import positional_embeddings
 
 
 class KVCache(NamedTuple):

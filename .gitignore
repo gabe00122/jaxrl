@@ -29,8 +29,8 @@ results/
 foundation/
 wandb/
 
-jaxrl.egg-info
-jaxrl_study.db
+mapox_trainer.egg-info
+mapox_trainer_study.db
 
 build/
 .claude/

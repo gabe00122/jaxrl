@@ -5,7 +5,7 @@ from einops import rearrange
 from jax import numpy as jnp
 from mapox import ActionSpec, ObservationSpec, TimeStep
 
-from jaxrl.constants import index_type
+from mapox_trainer.constants import index_type
 
 
 class RolloutState(NamedTuple):

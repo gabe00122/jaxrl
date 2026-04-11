@@ -10,9 +10,9 @@ from rich.console import Console
 from tensorboardX import SummaryWriter
 
 import wandb
-from jaxrl.config import Config
-from jaxrl.experiment import Experiment
-from jaxrl.util import json_normalize
+from mapox_trainer.config import Config
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.util import json_normalize
 
 Metrics = dict[str, jax.Array | nnx.Metric]
 
@@ -128,7 +128,7 @@ class JsonLogger(BaseLogger):
 
 class WandbLogger(BaseLogger):
     def __init__(self, unique_token: str, settings: Config):
-        wandb.init(project="jaxrl", name=unique_token, config=dump_settings(settings))
+        wandb.init(project="mapox_trainer", name=unique_token, config=dump_settings(settings))
 
     def log_dict(self, data: Metrics, step: int) -> None:
         normalized_data = json_normalize(data)

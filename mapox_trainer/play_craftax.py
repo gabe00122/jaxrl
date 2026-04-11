@@ -9,11 +9,11 @@ from craftax.craftax.constants import (
 )
 from craftax.craftax.play_craftax import CraftaxRenderer
 
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.envs.third_party.craftax_wrapper import CraftaxEnvironment
-from jaxrl.experiment import Experiment
-from jaxrl.model.network import TransformerActorCritic
-from jaxrl.train import add_seq_dim
+from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.envs.third_party.craftax_wrapper import CraftaxEnvironment
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.model.network import TransformerActorCritic
+from mapox_trainer.train import add_seq_dim
 from mapox.utils.video_writter import save_video
 
 

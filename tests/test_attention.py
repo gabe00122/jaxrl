@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import pytest
 from flax import nnx
 
-from jaxrl.model.attention import AttentionBlock, KVCache
+from mapox_trainer.model.attention import AttentionBlock, KVCache
 
 
 def make_attention(

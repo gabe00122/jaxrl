@@ -16,11 +16,11 @@ from rich.console import Console
 
 from mapox import EnvironmentFactory, Environment, TimeStep
 
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.experiment import Experiment
-from jaxrl.model.network import TransformerActorCritic
-from jaxrl.train import add_seq_dim
-from jaxrl.utils.ranking_plot import save_ranking_plot
+from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.model.network import TransformerActorCritic
+from mapox_trainer.train import add_seq_dim
+from mapox_trainer.utils.ranking_plot import save_ranking_plot
 
 
 console = Console()

@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 from craftax.craftax_env import make_craftax_env_from_name
 
-from jaxrl.envs.environment import Environment
-from jaxrl.envs.specs import DiscreteActionSpec, ObservationSpec
+from mapox_trainer.envs.environment import Environment
+from mapox_trainer.envs.specs import DiscreteActionSpec, ObservationSpec
 from mapox import TimeStep
 
 

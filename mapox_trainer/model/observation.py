@@ -2,7 +2,7 @@ import jax
 from flax import nnx
 from einops import rearrange
 
-from jaxrl.config import (
+from mapox_trainer.config import (
     FlattenedObsEncoderConfig,
     GridCnnObsEncoderConfig,
     LinearObsEncoderConfig,

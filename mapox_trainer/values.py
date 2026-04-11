@@ -6,7 +6,7 @@ from einops import rearrange
 from flax import nnx
 from jax.scipy.stats import norm
 
-from jaxrl.config import HlGaussConfig
+from mapox_trainer.config import HlGaussConfig
 
 
 def calculate_supports(config: HlGaussConfig):

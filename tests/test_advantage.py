@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import pytest
 from mapox import ActionSpec, ObservationSpec
 
-from jaxrl.rollout import Rollout, RolloutState
+from mapox_trainer.rollout import Rollout, RolloutState
 
 
 def make_rollout(batch_size: int = 2, trajectory_length: int = 4) -> Rollout:

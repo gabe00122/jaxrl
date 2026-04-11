@@ -30,8 +30,8 @@ https://github.com/user-attachments/assets/cf2a4c5b-37ce-4cc5-a63f-404277562152
 Clone the repository and install the dependencies:
 
 ```bash
-git clone git@github.com:gabe00122/jaxrl.git
-cd jaxrl
+git clone git@github.com:gabe00122/mapox-trainer.git
+cd mapox-trainer
 uv sync --extra cuda
 ```
 

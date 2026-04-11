@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from jaxrl.model.positional_embeddings import apply_rope
+from mapox_trainer.model.positional_embeddings import apply_rope
 
 
 class TestApplyRope:

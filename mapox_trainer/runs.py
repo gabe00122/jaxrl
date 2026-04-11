@@ -9,7 +9,7 @@ from typing import NamedTuple, Literal
 from rich.console import Console
 from rich.table import Table
 
-from jaxrl.experiment import Experiment
+from mapox_trainer.experiment import Experiment
 
 
 class RunInfo(NamedTuple):

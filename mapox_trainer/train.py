@@ -11,14 +11,14 @@ from mapox import Environment, EnvironmentFactory, TimeStep
 from rich.console import Console
 from rich.progress import track
 
-from jaxrl.checkpointer import Checkpointer
-from jaxrl.config import Config, PPOConfig
-from jaxrl.experiment import Experiment
-from jaxrl.logger import JaxLogger
-from jaxrl.model.network import TransformerActorCritic
-from jaxrl.optimizer import create_optimizer
-from jaxrl.rollout import Rollout, RolloutState
-from jaxrl.util import add_seq_dim, count_parameters, format_count, lerp
+from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.config import Config, PPOConfig
+from mapox_trainer.experiment import Experiment
+from mapox_trainer.logger import JaxLogger
+from mapox_trainer.model.network import TransformerActorCritic
+from mapox_trainer.optimizer import create_optimizer
+from mapox_trainer.rollout import Rollout, RolloutState
+from mapox_trainer.util import add_seq_dim, count_parameters, format_count, lerp
 
 
 class TrainingLogs(NamedTuple):
