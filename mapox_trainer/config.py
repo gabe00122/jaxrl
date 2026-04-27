@@ -9,13 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"
-    kernels: Tuple[Tuple[int, int], ...]
-    strides: Tuple[Tuple[int, int], ...]
-    channels: Tuple[int, ...]
-
-    @field_validator("kernels", "strides", "channels", mode="before")
-    def coerce_to_tuple(cls, v: Any):
-        return tuple(tuple(x) if isinstance(x, (list, tuple)) else x for x in v)
+    kernels: tuple[tuple[int, int], ...]
+    strides: tuple[tuple[int, int], ...]
+    channels: tuple[int, ...]
 
 
 class FlattenedObsEncoderConfig(BaseModel):
@@ -169,7 +165,7 @@ class Config(BaseModel):
 
 
 def load_config(json_config: str) -> Config:
-    config = Config.model_validate(json.loads(json_config), strict=True)
+    config = Config.model_validate_json(json_config, strict=True)
     if config.seed == "random":
         config = config.model_copy(update={"seed": random.getrandbits(31)})
 
